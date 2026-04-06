@@ -6,6 +6,12 @@
  */
 
 import { uibuilderService } from "./services/uibuilder.service.js";
+// OpenAI operations are now handled by the Node-RED backend via uibuilder messages.
+// The openai.service.js is kept for reference but no longer imported here.
+import { EditorView, basicSetup } from "codemirror";
+import { javascript } from "@codemirror/lang-javascript";
+// Light theme — no dark theme import needed
+import { EditorState } from "@codemirror/state";
 import { createStoreData } from "./state/store.js";
 import {
   statusClass, trustClass, roleClass, resultClass, logPillClass,
@@ -177,27 +183,25 @@ const app = createApp({
     },
     catalogOptions() {
       const set = new Set();
-      for (const item of this.allCatalogsRaw) {
-        const v = item?.catalog?.catalogId;
-        if (v) set.add(String(v));
+      for (const item of this.tableRows) {
+        const v = item?.domain;
+        if (v && v !== '-') set.add(String(v));
       }
       return Array.from(set).sort();
     },
     typeOptions() {
       const set = new Set();
-      for (const item of this.allCatalogsRaw) {
-        const docs = item?.assets?.documents || [];
-        for (const d of docs) {
-          if (d?.format) set.add(String(d.format));
-        }
+      for (const item of this.tableRows) {
+        const v = item?.type;
+        if (v && v !== '-') set.add(String(v));
       }
       return Array.from(set).sort();
     },
     domainOptions() {
       const set = new Set();
-      for (const item of this.allCatalogsRaw) {
-        const v = item?.catalog?.publisher?.website;
-        if (v) set.add(String(v));
+      for (const item of this.tableRows) {
+        const v = item?.domain;
+        if (v && v !== '-') set.add(String(v));
       }
       return Array.from(set).sort();
     },
@@ -227,7 +231,7 @@ const app = createApp({
     },
     wizardSelectedCatalogRows() {
       const set = new Set(this.harvestWizardSelectedRows);
-      return (this.tableRows || []).filter(r => set.has(r.id));
+      return (this.harvestWizardRowsBase || []).filter(r => set.has(r.id));
     },
     wizardSelectedCount() {
       return this.wizardSelectedCatalogRows.length;
@@ -303,6 +307,9 @@ const app = createApp({
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
         });
       }
+      if (newPage === "harvester") {
+        this.loadHarvestData();
+      }
     }
   },
 
@@ -359,27 +366,11 @@ const app = createApp({
     },
 
     // ── Local Catalogue ────────────────────────────────────────
-    async loadLocalCatalogs() {
-      try {
-        const res = await fetch("./local_catalogs_20.json");
-        const data = await res.json();
-        this.allCatalogsRaw = Array.isArray(data?.catalogs) ? data.catalogs : [];
-        this.applySearchResults(this.allCatalogsRaw);
-      } catch (err) {
-        console.error("Failed to load local_catalogs_20.json:", err);
-      }
-    },
-    applySearchResults(rawList) {
-      this.pagination.catalog.page = 1;
-      this.tableRows = rawList.map((item, i) => ({
-        id: i + 1,
-        assets: item?.assets?.parts?.title ?? "-",
-        type: item?.assets?.documents?.[0]?.format ?? "-",
-        name: item?.vehicles?.[0]?.brand ?? "-",
-        domain: item?.catalog?.publisher?.website ?? "-",
-        updated: item?.catalog?.updatedAt ?? "-",
-        integrationStatus: "Active"
-      }));
+    loadLocalCatalogs() {
+      uibuilderService.send({
+        type: "getLocalCatalogue",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+      });
     },
     runSearch() {
       const q = normalizeText(this.searchText);
@@ -388,42 +379,18 @@ const app = createApp({
       const fDomain = normalizeFilter(this.filters.domain);
       const fStatus = normalizeFilter(this.filters.status);
 
-      if (!q) {
-        const filteredRaw = this.allCatalogsRaw.filter(item => {
-          if (fCatalog && String(item?.catalog?.catalogId) !== String(fCatalog)) return false;
-          if (fDomain && String(item?.catalog?.publisher?.website) !== String(fDomain)) return false;
-          if (fType) {
-            const docs = item?.assets?.documents || [];
-            if (!docs.some(d => String(d?.format) === String(fType))) return false;
-          }
-          if (fStatus && "Active" !== fStatus) return false;
-          return true;
-        });
-        this.applySearchResults(filteredRaw);
-        this.pagination.catalog.page = 1;
-        return;
-      }
-
-      const rows = [];
-      this.allCatalogsRaw.forEach((item, catalogIndex) => {
-        if (fCatalog && String(item?.catalog?.catalogId) !== String(fCatalog)) return;
-        if (fDomain && String(item?.catalog?.publisher?.website) !== String(fDomain)) return;
-        const assets = getCatalogAssets(item);
-        const filteredAssets = !fType ? assets : assets.filter(a => !a?.format || String(a?.format) === String(fType));
-        filteredAssets.forEach((asset, assetIndex) => {
-          if (!assetMatchesQuery(asset, q)) return;
-          rows.push({
-            id: `c${catalogIndex}-a${assetIndex}`,
-            assets: getAssetTitle(asset),
-            type: asset?.format ?? (item?.assets?.documents?.[0]?.format ?? "-"),
-            name: item?.vehicles?.[0]?.brand ?? "-",
-            domain: item?.catalog?.publisher?.website ?? "-",
-            updated: item?.catalog?.updatedAt ?? "-",
-            integrationStatus: "Active",
-          });
-        });
+      const filtered = this.allCatalogsRaw.filter(item => {
+        if (fCatalog && String(item.domain) !== String(fCatalog)) return false;
+        if (fDomain && String(item.domain) !== String(fDomain)) return false;
+        if (fType && String(item.type) !== String(fType)) return false;
+        if (fStatus && String(item.integrationStatus) !== String(fStatus)) return false;
+        if (q) {
+          const hay = normalizeText([item.assets, item.type, item.name, item.domain, item.integrationStatus].join(" "));
+          if (!hay.includes(q)) return false;
+        }
+        return true;
       });
-      this.tableRows = rows;
+      this.tableRows = filtered;
       this.pagination.catalog.page = 1;
     },
     clearFilters() {
@@ -465,15 +432,34 @@ const app = createApp({
         const updated = { ...this.tableRows[idx], ...this.assetEditForm, updated: new Date().toISOString().slice(0, 10) };
         this.tableRows.splice(idx, 1, updated);
         this.assetDetailRow = { ...updated };
+        // Persist to backend
+        const uid = updated.uniqueId || updated.id;
+        if (uid) {
+          uibuilderService.send({
+            type: "updateLocalAsset",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: { uniqueId: uid, patch: { title: updated.assets, type: updated.type, domain: updated.domain, status: updated.integrationStatus } }
+          });
+        }
       }
       this.isEditingAsset = false;
       this.addToast("success", "Asset updated.");
     },
     deleteAsset(id) {
+      const row = this.tableRows.find(r => r.id === id);
       this.tableRows = this.tableRows.filter(r => r.id !== id);
+      this.allCatalogsRaw = this.allCatalogsRaw.filter(r => r.id !== id);
       this.selectedRows = this.selectedRows.filter(x => x !== id);
       if (this.assetDetailRow && this.assetDetailRow.id === id) {
         this.closeAssetDetail();
+      }
+      const uid = row?.uniqueId || row?.id;
+      if (uid) {
+        uibuilderService.send({
+          type: "deleteLocalAsset",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { uniqueId: uid }
+        });
       }
       this.addToast("success", "Asset deleted.");
     },
@@ -486,6 +472,14 @@ const app = createApp({
         this.tableRows.splice(idx, 1, { ...this.tableRows[idx], integrationStatus: 'Archived' });
         if (this.assetDetailRow && this.assetDetailRow.id === id) {
           this.assetDetailRow = { ...this.tableRows[idx] };
+        }
+        const uid = this.tableRows[idx]?.uniqueId || this.tableRows[idx]?.id;
+        if (uid) {
+          uibuilderService.send({
+            type: "updateLocalAsset",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: { uniqueId: uid, patch: { status: 'Archived' } }
+          });
         }
       }
       this.addToast("success", "Asset archived.");
@@ -772,6 +766,7 @@ const app = createApp({
     openPromptModal() {
       this.isEditingPrompt = false;
       this.promptFormError = "";
+      this.isEnhancingPrompt = false;
       this.promptForm = {
         id: null, version: "1.0", status: "draft",
         sourceSchema: "", targetSchema: "",
@@ -782,67 +777,91 @@ const app = createApp({
     openEditPrompt(p) {
       this.isEditingPrompt = true;
       this.promptFormError = "";
+      this.isEnhancingPrompt = false;
       this.promptForm = { ...p };
       this.showPromptModal = true;
     },
     closePromptModal() {
       this.showPromptModal = false;
       this.promptFormError = "";
+      this.isEnhancingPrompt = false;
     },
+    enhancePromptWithAI() {
+      if (!this.promptForm.template || !this.promptForm.sourceSchema || !this.promptForm.targetSchema) {
+        this.promptFormError = "Please fill in source schema, target schema, and prompt template before enhancing.";
+        return;
+      }
+      this.isEnhancingPrompt = true;
+      this.promptFormError = "";
+      uibuilderService.send({
+        type: "enhancePrompt",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          rawPrompt: this.promptForm.template,
+          sourceSchema: this.promptForm.sourceSchema,
+          targetSchema: this.promptForm.targetSchema,
+          schemaContext: this.schemaSummaries?.SHACL || ""
+        }
+      });
+    },
+    // Code generation is now handled by the backend as part of createPrompt flow.
+    // The backend sends a "codeGenerated" response asynchronously after the prompt is created.
     savePrompt() {
       if (!this.promptForm.sourceSchema || !this.promptForm.targetSchema || !this.promptForm.template) return;
 
-      // Enforce: only one active prompt per source-target pair
-      if (this.promptForm.status === "active") {
-        const conflict = this.prompts.find(p =>
-          p.status === "active" &&
-          p.sourceSchema === this.promptForm.sourceSchema &&
-          p.targetSchema === this.promptForm.targetSchema &&
-          p.id !== this.promptForm.id
-        );
-        if (conflict) {
-          this.promptFormError = `Only one active prompt allowed per source-target pair. "${conflict.id}" is already active for ${conflict.sourceSchema} → ${conflict.targetSchema}.`;
-          return;
-        }
-      }
-
-      const now = new Date().toISOString().slice(0, 10);
       if (this.isEditingPrompt && this.promptForm.id) {
-        const idx = this.prompts.findIndex(p => p.id === this.promptForm.id);
-        if (idx !== -1) {
-          this.prompts.splice(idx, 1, { ...this.promptForm, updatedAt: now });
-        }
+        // Send full prompt update to backend — backend enforces active-prompt-per-source-target rule
+        uibuilderService.send({
+          type: "updatePrompt",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: {
+            promptId: this.promptForm.id,
+            version: this.promptForm.version || "1.0",
+            sourceSchema: this.promptForm.sourceSchema,
+            targetSchema: this.promptForm.targetSchema,
+            template: this.promptForm.template,
+            examples: this.promptForm.examples || "",
+            constraints: this.promptForm.constraints || "",
+            status: this.promptForm.status || "active",
+            code: this.promptForm.generatedCode || ""
+          }
+        });
+        this.closePromptModal();
       } else {
-        const id = this.promptForm.id || `prompt-${String(Date.now()).slice(-6)}`;
-        this.prompts.push({ ...this.promptForm, id, createdAt: now, updatedAt: now });
+        // Send to backend — backend handles ID generation, DB insert, and async code generation
+        uibuilderService.send({
+          type: "createPrompt",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: {
+            version: this.promptForm.version || "1.0",
+            sourceSchema: this.promptForm.sourceSchema,
+            targetSchema: this.promptForm.targetSchema,
+            template: this.promptForm.template,
+            examples: this.promptForm.examples || "",
+            constraints: this.promptForm.constraints || "",
+          }
+        });
+        this.closePromptModal();
+        // The prompt will be added to the list when the backend responds
       }
-      this.closePromptModal();
-      this.addToast("success", this.isEditingPrompt ? "Prompt updated." : "Prompt created.");
     },
     deletePrompt(id) {
       this.showConfirm("Delete Prompt", `Are you sure you want to delete prompt "${id}"?`, "Delete", () => {
-        this.prompts = this.prompts.filter(p => p.id !== id);
-        this.addToast("success", "Prompt deleted.");
+        // Send delete to backend — UI updates when response arrives
+        uibuilderService.send({
+          type: "deletePrompt",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { promptId: id }
+        });
       });
     },
     changePromptStatus(prompt, newStatus) {
-      // Enforce: only one active per source-target pair
-      if (newStatus === "active") {
-        const conflict = this.prompts.find(p =>
-          p.status === "active" &&
-          p.sourceSchema === prompt.sourceSchema &&
-          p.targetSchema === prompt.targetSchema &&
-          p.id !== prompt.id
-        );
-        if (conflict) {
-          this.promptFormError = `Cannot activate: "${conflict.id}" is already active for ${conflict.sourceSchema} → ${conflict.targetSchema}.`;
-          return;
-        }
-      }
-      const idx = this.prompts.findIndex(p => p.id === prompt.id);
-      if (idx !== -1) {
-        this.prompts.splice(idx, 1, { ...this.prompts[idx], status: newStatus, updatedAt: new Date().toISOString().slice(0, 10) });
-      }
+      // Send status change to backend — backend enforces active-prompt-per-source-target rule
+      uibuilderService.send({
+        type: "updatePromptStatus",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { promptId: prompt.id, status: newStatus, sourceSchema: prompt.sourceSchema, targetSchema: prompt.targetSchema }
+      });
     },
     insertVariable(variable) {
       const ta = this.$refs.promptTemplateArea;
@@ -859,12 +878,74 @@ const app = createApp({
         ta.focus();
       });
     },
+    // ── Edit Code Modal ─────────────────────────────────────
+    openEditCode(prompt) {
+      this.editCodePromptId = prompt.id;
+      this.editCodeValue = prompt.generatedCode || "// No code generated yet";
+      this.showEditCodeModal = true;
+      this.$nextTick(() => this.initCodeEditor());
+    },
+    initCodeEditor() {
+      const container = document.getElementById("codemirror-container");
+      if (!container) return;
+      container.innerHTML = "";
+      if (this._cmEditor) {
+        this._cmEditor.destroy();
+        this._cmEditor = null;
+      }
+      this._cmEditor = new EditorView({
+        state: EditorState.create({
+          doc: this.editCodeValue,
+          extensions: [
+            basicSetup,
+            javascript(),
+            EditorView.lineWrapping,
+            EditorView.theme({
+              "&": { height: "100%", fontSize: "13px" },
+              "&.cm-editor": { backgroundColor: "#FFFFFF" },
+              ".cm-scroller": { overflow: "auto" },
+              ".cm-content": { fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace", color: "#1F2937" },
+              ".cm-gutters": { fontFamily: "'SF Mono', 'Fira Code', monospace", backgroundColor: "#F9FAFB", color: "#9CA3AF", borderRight: "1px solid #E5E7EB" },
+              ".cm-activeLineGutter": { backgroundColor: "#F3F4F6" },
+              ".cm-activeLine": { backgroundColor: "#F9FAFB" },
+              "&.cm-focused .cm-cursor": { borderLeftColor: "#2563EB" },
+              "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": { backgroundColor: "#DBEAFE" },
+              ".cm-selectionMatch": { backgroundColor: "#E0E7FF" },
+            }),
+          ],
+        }),
+        parent: container,
+      });
+    },
+    closeEditCodeModal() {
+      if (this._cmEditor) {
+        this._cmEditor.destroy();
+        this._cmEditor = null;
+      }
+      this.showEditCodeModal = false;
+      this.editCodePromptId = null;
+      this.editCodeValue = "";
+    },
+    saveEditCode() {
+      if (this._cmEditor) {
+        this.editCodeValue = this._cmEditor.state.doc.toString();
+      }
+      // Send code update to backend — UI updates when response arrives
+      uibuilderService.send({
+        type: "updatePromptCode",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { promptId: this.editCodePromptId, code: this.editCodeValue }
+      });
+      this.closeEditCodeModal();
+    },
+
     promptStatusClass(status) {
       switch (status) {
         case "active": return "green";
         case "draft": return "blue";
         case "deprecated": return "yellow";
         case "archived": return "gray";
+        case "writing code": return "orange";
         default: return "gray";
       }
     },
@@ -891,24 +972,22 @@ const app = createApp({
     },
     saveLlmConfig() {
       if (!this.llmConfigForm.name || !this.llmConfigForm.model) return;
-      const now = new Date().toISOString().slice(0, 10);
-      if (this.isEditingLlmConfig && this.llmConfigForm.id) {
-        const idx = this.llmConfigs.findIndex(c => c.id === this.llmConfigForm.id);
-        if (idx !== -1) {
-          this.llmConfigs.splice(idx, 1, { ...this.llmConfigForm, updatedAt: now });
-        }
-      } else {
-        const id = this.llmConfigForm.id || `llm-${String(Date.now()).slice(-6)}`;
-        this.llmConfigs.push({ ...this.llmConfigForm, id, createdAt: now, updatedAt: now });
-      }
+      // Send to backend — backend handles ID generation, timestamps, DB persistence
+      uibuilderService.send({
+        type: "saveLlmConfig",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { ...this.llmConfigForm }
+      });
       this.closeLlmConfigModal();
-      this.addToast("success", this.isEditingLlmConfig ? "LLM config updated." : "LLM config created.");
     },
     deleteLlmConfig(id) {
       const cfg = this.llmConfigs.find(c => c.id === id);
       this.showConfirm("Delete LLM Configuration", `Are you sure you want to delete "${cfg?.name || id}"?`, "Delete", () => {
-        this.llmConfigs = this.llmConfigs.filter(c => c.id !== id);
-        this.addToast("success", "LLM configuration deleted.");
+        uibuilderService.send({
+          type: "deleteLlmConfig",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { configId: id }
+        });
       });
     },
     llmProviderClass(provider) {
@@ -928,33 +1007,16 @@ const app = createApp({
       this.promptTestRunning = true;
       this.promptTestResult = "";
       this.promptTestError = "";
-      const prompt = this.prompts.find(p => p.id === this.promptTestSelectedPrompt);
-      const llmCfg = this.llmConfigs.find(c => c.id === this.promptTestSelectedLlm);
-      // Simulate dry-run with resolved template
-      setTimeout(() => {
-        try {
-          let input;
-          try { input = JSON.parse(this.promptTestSampleInput); } catch (e) { input = this.promptTestSampleInput; }
-          const result = {
-            "@type": "dcat:Dataset",
-            "dct:title": input.name || input.title || "Transformed Record",
-            "dct:identifier": input.identifier || input.id || "generated-id",
-            "dct:description": input.description || "",
-            "dcat:theme": prompt ? prompt.targetSchema : "",
-            "_meta": {
-              "llmProvider": llmCfg ? llmCfg.provider : "",
-              "model": llmCfg ? llmCfg.model : "",
-              "temperature": llmCfg ? llmCfg.temperature : 0,
-              "promptVersion": prompt ? prompt.version : "",
-              "timestamp": new Date().toISOString(),
-            }
-          };
-          this.promptTestResult = JSON.stringify(result, null, 2);
-        } catch (err) {
-          this.promptTestError = "Transformation failed: " + err.message;
+      // Send dry run request to backend — backend looks up prompt code from DB and executes it
+      uibuilderService.send({
+        type: "dryRunPrompt",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          promptId: this.promptTestSelectedPrompt,
+          llmConfigId: this.promptTestSelectedLlm,
+          sampleInput: this.promptTestSampleInput
         }
-        this.promptTestRunning = false;
-      }, 1500 + Math.random() * 1000);
+      });
     },
     openSaveTestCaseModal() {
       this.isEditingTestCase = false;
@@ -978,21 +1040,22 @@ const app = createApp({
     },
     saveTestCase() {
       if (!this.testCaseForm.name) return;
-      if (this.isEditingTestCase && this.testCaseForm.id) {
-        const idx = this.promptTestCases.findIndex(t => t.id === this.testCaseForm.id);
-        if (idx !== -1) {
-          this.promptTestCases.splice(idx, 1, { ...this.testCaseForm });
-        }
-      } else {
-        const id = `tc-${String(Date.now()).slice(-6)}`;
-        this.promptTestCases.push({ ...this.testCaseForm, id, lastResult: "", lastRunAt: "" });
-      }
+      // Send to backend — UI updates when response arrives with backend-generated ID
+      uibuilderService.send({
+        type: "saveTestCase",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { ...this.testCaseForm }
+      });
       this.closeTestCaseModal();
     },
     deleteTestCase(id) {
       this.showConfirm("Delete Test Case", "Are you sure you want to delete this test case?", "Delete", () => {
-        this.promptTestCases = this.promptTestCases.filter(t => t.id !== id);
-        this.addToast("success", "Test case deleted.");
+        // Send delete to backend — UI updates when response arrives
+        uibuilderService.send({
+          type: "deleteTestCase",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { testCaseId: id }
+        });
       });
     },
     loadTestCase(tc) {
@@ -1025,44 +1088,27 @@ const app = createApp({
       b.errorCount = 0;
       b.skippedCount = 0;
       b.errors = [];
-      b.startedAt = new Date().toISOString().replace("T", " ").slice(0, 16);
       b.completedAt = "";
-      const total = b.scope === "all" ? 275 : b.scope === "catalogue" ? 120 : 50;
-      b.totalAssets = total;
-      this._batchInterval = setInterval(() => {
-        if (b.status !== "running") { clearInterval(this._batchInterval); return; }
-        const step = Math.ceil(total / 20);
-        b.processedAssets = Math.min(total, b.processedAssets + step);
-        b.progress = Math.round((b.processedAssets / total) * 100);
-        // simulate some errors
-        if (b.processedAssets > total * 0.6 && b.errorCount === 0) {
-          b.errorCount = Math.ceil(total * 0.02);
-          b.errors.push({ assetId: "asset-err-001", message: "SHACL validation failed", timestamp: new Date().toISOString().slice(0, 19) });
-          b.errors.push({ assetId: "asset-err-002", message: "LLM timeout exceeded", timestamp: new Date().toISOString().slice(0, 19) });
+      // Send to backend — backend handles the processing and sends progress updates
+      uibuilderService.send({
+        type: "startBatchRetransform",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          trigger: b.trigger,
+          scope: b.scope,
+          catalogueFilter: b.catalogueFilter,
+          queryFilter: b.queryFilter,
+          dryRun: b.dryRun
         }
-        b.successCount = b.processedAssets - b.errorCount;
-        if (b.processedAssets >= total) {
-          clearInterval(this._batchInterval);
-          b.status = "completed";
-          b.progress = 100;
-          b.completedAt = new Date().toISOString().replace("T", " ").slice(0, 16);
-          const triggerLabels = { prompt_change: "Prompt changed", strategy_change: "Strategy changed", llm_change: "LLM config changed", manual: "Manual trigger" };
-          const scopeLabels = { all: "All assets", catalogue: `Catalogue: ${b.catalogueFilter || "—"}`, query: `Query: ${b.queryFilter || "—"}` };
-          this.batchRetransformHistory.unshift({
-            id: `br-${String(Date.now()).slice(-6)}`,
-            trigger: triggerLabels[b.trigger] || b.trigger,
-            scope: scopeLabels[b.scope] || b.scope,
-            dryRun: b.dryRun,
-            total: b.totalAssets, success: b.successCount, errors: b.errorCount, skipped: b.skippedCount,
-            startedAt: b.startedAt, completedAt: b.completedAt, status: "completed",
-          });
-        }
-      }, 400);
+      });
     },
     cancelBatchRetransform() {
-      if (this._batchInterval) clearInterval(this._batchInterval);
-      this.batchRetransform.status = "cancelled";
-      this.batchRetransform.completedAt = new Date().toISOString().replace("T", " ").slice(0, 16);
+      // Send cancel to backend — UI updates when response arrives
+      uibuilderService.send({
+        type: "cancelBatchRetransform",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {}
+      });
     },
     batchTriggerLabel(t) {
       return { prompt_change: "Prompt Change", strategy_change: "Strategy Change", llm_change: "LLM Config Change", manual: "Manual" }[t] || t;
@@ -1087,46 +1133,46 @@ const app = createApp({
     },
     saveProvider() {
       if (!this.providerForm.name || !this.providerForm.apiEndpoint) return;
-      const now = new Date().toISOString().slice(0, 10);
       const models = typeof this.providerForm.models === "string"
         ? this.providerForm.models.split(",").map(m => m.trim()).filter(Boolean)
         : this.providerForm.models;
-      if (this.isEditingProvider && this.providerForm.id) {
-        const idx = this.llmProviders.findIndex(p => p.id === this.providerForm.id);
-        if (idx !== -1) {
-          this.llmProviders.splice(idx, 1, { ...this.providerForm, models, updatedAt: now });
-        }
-      } else {
-        const id = `prov-${String(Date.now()).slice(-6)}`;
-        this.llmProviders.push({ ...this.providerForm, id, models, createdAt: now });
-      }
-      // Handle default: only one can be default
-      if (this.providerForm.isDefault) {
-        this.llmProviders.forEach(p => { if (p.id !== (this.providerForm.id || this.llmProviders[this.llmProviders.length - 1].id)) p.isDefault = false; });
-      }
+      // Send to backend — backend handles ID generation, timestamps, default enforcement, DB persistence
+      uibuilderService.send({
+        type: "saveProvider",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { ...this.providerForm, models, precedence: this.providerForm.precedence || this.llmProviders.length + 1 }
+      });
       this.closeProviderModal();
-      this.addToast("success", this.isEditingProvider ? "Provider updated." : "Provider created.");
     },
     deleteProvider(id) {
       const prov = this.llmProviders.find(p => p.id === id);
       this.showConfirm("Delete Provider", `Are you sure you want to delete "${prov?.name || id}"?`, "Delete", () => {
-        this.llmProviders = this.llmProviders.filter(p => p.id !== id);
-        this.addToast("success", "Provider deleted.");
+        uibuilderService.send({
+          type: "deleteProvider",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { providerId: id }
+        });
       });
     },
     moveProviderUp(id) {
       const idx = this.llmProviders.findIndex(p => p.id === id);
       if (idx <= 0) return;
-      const item = this.llmProviders.splice(idx, 1)[0];
-      this.llmProviders.splice(idx - 1, 0, item);
-      this.llmProviders.forEach((p, i) => { p.precedence = i + 1; });
+      // Send reorder to backend — UI updates when response arrives
+      uibuilderService.send({
+        type: "reorderProvider",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { providerId: id, direction: "up" }
+      });
     },
     moveProviderDown(id) {
       const idx = this.llmProviders.findIndex(p => p.id === id);
       if (idx < 0 || idx >= this.llmProviders.length - 1) return;
-      const item = this.llmProviders.splice(idx, 1)[0];
-      this.llmProviders.splice(idx + 1, 0, item);
-      this.llmProviders.forEach((p, i) => { p.precedence = i + 1; });
+      // Send reorder to backend — UI updates when response arrives
+      uibuilderService.send({
+        type: "reorderProvider",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { providerId: id, direction: "down" }
+      });
     },
     providerTypeClass(type) {
       switch (type) {
@@ -1332,36 +1378,37 @@ const app = createApp({
       this.harvestWizardStep = 1;
       this.harvestWizardSearch = "";
       this.harvestWizardSelectedRows = [];
-      this.harvestScope.schemaMappingEnabled = false;
-      this.harvestScope.resolveReferences = false;
+      this.harvestScope = {
+        selected: [], typeValue: "", queryValue: "",
+        fromDate: "", toDate: "",
+        includeNewAssets: false, schemaMappingEnabled: false, resolveReferences: false,
+      };
+      this.lifecycleMapping = {
+        performSchemaMapping: true, updateHandling: "version",
+        deletionHandling: "remove", resolveReferences: true,
+      };
       this.pagination.harvestWizard.page = 1;
-      this.harvestWizardRowsBase = this.allCatalogsRaw.map((item, idx) => ({
-        id: item?.id ?? idx + 1,
-        catalog: item?.catalog?.catalogId ?? "-",
-        type: item?.assets?.documents?.[0]?.format ?? "-",
-        name: item?.vehicles?.[0]?.brand ?? "-",
-        domain: item?.catalog?.publisher?.website ?? "-",
-        updated: item?.catalog?.updatedAt ?? "-",
-        integrationStatus: "Active",
-        __raw: item
-      }));
-      this.harvestWizardRows = [...this.harvestWizardRowsBase];
+      this.isLoadingHarvestCatalogues = true;
+      this.harvestWizardRows = [];
+      this.harvestWizardRowsBase = [];
+      // Load real catalogues from backend
+      uibuilderService.send({
+        type: "getHarvestCatalogues",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+      });
     },
     closeHarvestWizard() { this.showHarvestWizard = false; this.harvestWizardStep = 1; },
     nextHarvestWizardStep() { this.harvestWizardStep = Math.min(4, this.harvestWizardStep + 1); },
     prevHarvestWizardStep() { this.harvestWizardStep = Math.max(1, this.harvestWizardStep - 1); },
     runHarvestWizardSearch() {
       const q = normalizeText(this.harvestWizardSearch);
-      const filteredRaw = this.allCatalogsRaw.filter(item => normalizeText(JSON.stringify(item)).includes(q));
-      this.harvestWizardRows = filteredRaw.map((item, i) => ({
-        id: item?.id ?? i + 1,
-        catalog: item?.catalog?.catalogId ?? "-",
-        type: item?.assets?.documents?.[0]?.format ?? "-",
-        name: item?.vehicles?.[0]?.brand ?? "-",
-        domain: item?.catalog?.publisher?.website ?? "-",
-        updated: item?.catalog?.updatedAt ?? "-",
-        integrationStatus: "Active",
-      }));
+      if (!q) {
+        this.harvestWizardRows = [...this.harvestWizardRowsBase];
+      } else {
+        this.harvestWizardRows = this.harvestWizardRowsBase.filter(row =>
+          normalizeText(JSON.stringify(row)).includes(q)
+        );
+      }
       this.pagination.harvestWizard.page = 1;
     },
     toggleWizardSelectAll(e) {
@@ -1383,29 +1430,36 @@ const app = createApp({
       }
     },
     startHarvest() {
-      console.log("START HARVEST payload:", {
-        selectedCatalogRowIds: [...this.harvestWizardSelectedRows],
-        harvestScope: { ...this.harvestScope },
-        lifecycleMapping: { ...this.lifecycleMapping },
-        overviewToggles: { ...this.overviewToggles }
+      if (this.harvestWizardSelectedRows.length === 0) {
+        this.addToast("error", "Please select at least one catalogue to harvest.");
+        return;
+      }
+      const selectedCatalogues = this.harvestWizardRowsBase
+        .filter(r => this.harvestWizardSelectedRows.includes(r.id))
+        .map(r => ({ uniqueId: r.id, catalogName: r.catalog, strategy: r.strategy || "none", baseEndpoint: r.endpoint || "" }));
+
+      this.isSubmittingHarvest = true;
+      this.harvestSubmitError = "";
+      uibuilderService.send({
+        type: "startHarvest",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          catalogues: selectedCatalogues,
+          scope: { ...this.harvestScope },
+          lifecycle: { ...this.lifecycleMapping },
+        }
       });
       this.closeHarvestWizard();
-      this.startLiveHarvest();
     },
 
     // ── Harvest Run Detail (Milestone 3) ──────────────────────
     openHarvestRunDetail(run) {
-      this.harvestRunDetailData = {
-        ...run,
-        assets: [
-          { id: "asset-001", title: "SensorML Observation Record", status: "Success", duration: "1.2s", error: null },
-          { id: "asset-002", title: "Temperature Sensor Dataset", status: "Success", duration: "0.8s", error: null },
-          { id: "asset-003", title: "Geolocation Service Metadata", status: "Warning", duration: "2.1s", error: "SHACL minor validation warning" },
-          { id: "asset-004", title: "Air Quality Measurements", status: "Error", duration: "4.5s", error: "Schema mapping failed — missing required field dct:identifier" },
-          { id: "asset-005", title: "Traffic Flow Data Product", status: "Success", duration: "0.6s", error: null },
-          { id: "asset-006", title: "Energy Consumption Report", status: "Success", duration: "1.0s", error: null },
-        ],
-      };
+      uibuilderService.send({
+        type: "getHarvestRunDetail",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { runId: run.id }
+      });
+      this.harvestRunDetailData = { ...run, assets: [] };
       this.showHarvestRunDetail = true;
     },
     closeHarvestRunDetail() {
@@ -1414,83 +1468,51 @@ const app = createApp({
     },
 
     // ── Live Harvest Progress (Milestone 3) ───────────────────
-    startLiveHarvest() {
+    applyHarvestProgress(data) {
       const h = this.activeHarvest;
-      h.running = true;
-      h.status = "running";
-      h.catalogueName = "SensorML";
-      h.progress = 0;
-      h.processedAssets = 0;
-      h.successCount = 0;
-      h.errorCount = 0;
-      h.errors = [];
-      h.startedAt = new Date().toISOString().replace("T", " ").slice(0, 16);
-      const total = 120;
-      h.totalAssets = total;
-      if (this._harvestInterval) clearInterval(this._harvestInterval);
-      this._harvestInterval = setInterval(() => {
-        if (h.status !== "running") { clearInterval(this._harvestInterval); return; }
-        const step = Math.ceil(total / 15);
-        h.processedAssets = Math.min(total, h.processedAssets + step);
-        h.progress = Math.round((h.processedAssets / total) * 100);
-        if (h.processedAssets > total * 0.7 && h.errorCount === 0) {
-          h.errorCount = 3;
-          h.errors = [
-            { assetId: "asset-err-01", message: "SHACL validation failed", timestamp: new Date().toISOString().slice(0, 19) },
-            { assetId: "asset-err-02", message: "Missing required field dct:title", timestamp: new Date().toISOString().slice(0, 19) },
-            { assetId: "asset-err-03", message: "LLM timeout exceeded (30s)", timestamp: new Date().toISOString().slice(0, 19) },
-          ];
-        }
-        h.successCount = h.processedAssets - h.errorCount;
-        if (h.processedAssets >= total) {
-          clearInterval(this._harvestInterval);
-          h.status = "completed";
-          h.progress = 100;
-          h.running = false;
-          this.harvestRecords.unshift({
-            id: Date.now(),
-            sourceCatalogue: h.catalogueName,
-            tool: "Live Harvester",
-            harvestDate: "Just now",
-            assetsAdded: `+${h.successCount}`,
-            duration: "Just completed",
-            result: h.errorCount > 0 ? "Warning" : "Success",
-          });
-        }
-      }, 500);
+      h.status = data.status || h.status;
+      h.catalogueName = data.catalogueName || h.catalogueName;
+      h.progress = data.progress ?? h.progress;
+      h.totalAssets = data.totalAssets ?? h.totalAssets;
+      h.processedAssets = data.processedAssets ?? h.processedAssets;
+      h.successCount = data.successCount ?? h.successCount;
+      h.errorCount = data.errorCount ?? h.errorCount;
+      h.startedAt = data.startedAt || h.startedAt;
+      h.running = h.status === "running";
+      h._runId = data.runId || h._runId;
+      if (data.errors) h.errors = data.errors;
     },
     pauseHarvest() {
-      if (this.activeHarvest.status === "running") {
-        this.activeHarvest.status = "paused";
-        this.activeHarvest.running = false;
-        if (this._harvestInterval) clearInterval(this._harvestInterval);
-      }
+      uibuilderService.send({
+        type: "pauseHarvest",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { runId: this.activeHarvest._runId }
+      });
+      this.activeHarvest.status = "paused";
+      this.activeHarvest.running = false;
     },
     resumeHarvest() {
-      if (this.activeHarvest.status === "paused") {
-        this.activeHarvest.status = "running";
-        this.activeHarvest.running = true;
-        const h = this.activeHarvest;
-        const total = h.totalAssets;
-        this._harvestInterval = setInterval(() => {
-          if (h.status !== "running") { clearInterval(this._harvestInterval); return; }
-          const step = Math.ceil(total / 15);
-          h.processedAssets = Math.min(total, h.processedAssets + step);
-          h.progress = Math.round((h.processedAssets / total) * 100);
-          h.successCount = h.processedAssets - h.errorCount;
-          if (h.processedAssets >= total) {
-            clearInterval(this._harvestInterval);
-            h.status = "completed";
-            h.progress = 100;
-            h.running = false;
-          }
-        }, 500);
-      }
+      uibuilderService.send({
+        type: "resumeHarvest",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { runId: this.activeHarvest._runId }
+      });
+      this.activeHarvest.status = "running";
+      this.activeHarvest.running = true;
     },
     cancelHarvest() {
-      if (this._harvestInterval) clearInterval(this._harvestInterval);
+      uibuilderService.send({
+        type: "cancelHarvest",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { runId: this.activeHarvest._runId }
+      });
       this.activeHarvest.status = "cancelled";
       this.activeHarvest.running = false;
+    },
+    loadHarvestData() {
+      uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
+      uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
+      uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
     },
 
     // ── Toast Notifications (Milestone 5) ──────────────────────
@@ -1529,6 +1551,12 @@ const app = createApp({
       );
     },
     deleteRemoteCatalog(id) {
+      uibuilderService.send({
+        type: "deleteRemoteCatalog",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { uniqueId: id }
+      });
+      // Optimistically remove from table
       this.catalogsTable = this.catalogsTable.filter(c => String(c.id) !== String(id) && String(c.uniqueId) !== String(id));
       this.addToast("success", "Remote catalogue deleted successfully.");
     },
@@ -1593,10 +1621,21 @@ const app = createApp({
 
   mounted() {
     uibuilderService.start();
+
+    // Load all Schema Registry data from MongoDB on mount
+    uibuilderService.send({ type: "listPrompts", data: {} });
+    uibuilderService.send({ type: "listTestCases", data: {} });
+    uibuilderService.send({ type: "listLlmConfigs", data: {} });
+    uibuilderService.send({ type: "listProviders", data: {} });
+
+    // Load Catalogue Registry data on mount
     uibuilderService.send({
-      type: "getDashboard",
+      type: "getCatalogRegistry",
       auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
     });
+
+    // Load Harvest data on mount
+    this.loadHarvestData();
 
     uibuilderService.onMessage((msg) => {
       console.log(msg);
@@ -1623,25 +1662,13 @@ const app = createApp({
       }
 
       if (payload.state === "notLoggedIn") {
-        window.location.href = "/asal-asal/login";
+        console.log("[facis] No login flow connected — continuing in standalone mode.");
       }
 
       if (payload?.type === "getDashboard") {
-        this.userAccess = payload?.response?.userAccess || [];
+        this.userAccess = payload?.response?.userAccess || this.userAccess;
         if (payload?.response?.userPermissions) {
           this.userPermissions = payload.response.userPermissions;
-        }
-        const pageAccessMap = {
-          localCatalogue: "local_catalogue",
-          catalogueRegistry: "catalogue_registry",
-          schemaRegistry: "schema_registry",
-          harvester: "harvester",
-          adminTools: "admin_tools"
-        };
-        const currentAccessKey = pageAccessMap[this.currentPage];
-        if (currentAccessKey && !this.hasAccess(currentAccessKey)) {
-          const fallback = Object.entries(pageAccessMap).find(([, ak]) => this.hasAccess(ak));
-          this.currentPage = fallback ? fallback[0] : "";
         }
       }
 
@@ -1665,6 +1692,148 @@ const app = createApp({
         } else {
           this.updateRemoteCatalogError = resp?.message || "Update failed";
         }
+      }
+
+      if (resp?.action === "deleteRemoteCatalog" && resp?.status === "success") {
+        const id = resp?.uniqueId || msg?.data?.uniqueId;
+        if (id) {
+          this.catalogsTable = this.catalogsTable.filter(c => String(c.id) !== String(id) && String(c.uniqueId) !== String(id));
+        }
+      }
+
+      if (resp?.action === "uploadCatalogJson") {
+        this.isRegisteringRemoteCatalog = false;
+        if (resp?.status === "success") {
+          const items = Array.isArray(resp.catalogs) ? resp.catalogs : [];
+          for (const item of items) {
+            const row = { uniqueId: item.uniqueId, id: item.uniqueId, ...(item.catalog || {}) };
+            const idx = this.catalogsTable.findIndex(x => String(x.id) === String(item.uniqueId));
+            if (idx !== -1) this.catalogsTable.splice(idx, 1, row);
+            else this.catalogsTable.unshift(row);
+          }
+          this.pagination.catalogsRegister.page = 1;
+          this.closeRegisterRemoteCatalogModal();
+          this.addToast("success", `Imported ${items.length} catalogue(s) from JSON file.`);
+        } else {
+          this.registerRemoteCatalogError = resp?.message || "JSON upload failed";
+          this.addToast("error", this.registerRemoteCatalogError);
+        }
+      }
+
+      // ── Harvest Response Handlers ──────────────────────────────
+      if (resp?.action === "getHarvestCatalogues") {
+        this.isLoadingHarvestCatalogues = false;
+        if (resp?.status === "success") {
+          const catalogs = Array.isArray(resp.catalogs) ? resp.catalogs : [];
+          this.harvestWizardRowsBase = catalogs.map(item => ({
+            id: item.uniqueId || item.catalogId,
+            catalog: item.catalogName || item.catalogId || "-",
+            strategy: item.strategy || "none",
+            endpoint: item.baseEndpoint || "",
+            type: item.protocol || "-",
+            name: item.owner || "-",
+            domain: item.baseEndpoint || "-",
+            updated: item.updatedAt || "-",
+            integrationStatus: item.enabled !== false ? "Active" : "Inactive",
+          }));
+          this.harvestWizardRows = [...this.harvestWizardRowsBase];
+        }
+      }
+
+      if (resp?.action === "startHarvest") {
+        this.isSubmittingHarvest = false;
+        if (resp?.status === "success") {
+          const run = resp.run || {};
+          const runStatus = run.status || "completed";
+          this.addToast("success", `Harvest ${runStatus}: ${run.assetsAdded || 0} assets imported from ${run.catalogueName || "catalogue"}.`);
+          // Show progress bar with actual run state
+          if (run.uniqueId) {
+            this.applyHarvestProgress({
+              runId: run.uniqueId,
+              status: runStatus,
+              catalogueName: run.catalogueName || "Harvest",
+              progress: runStatus === "completed" ? 100 : 0,
+              totalAssets: run.totalAssets || 0,
+              processedAssets: run.totalAssets || 0,
+              successCount: run.successCount || 0,
+              errorCount: run.errorCount || 0,
+              startedAt: run.startedAt || "",
+            });
+          }
+          // Reload all harvest data and local catalogue
+          this.loadHarvestData();
+          this.loadLocalCatalogs();
+        } else {
+          this.harvestSubmitError = resp?.message || "Harvest failed to start";
+          this.addToast("error", this.harvestSubmitError);
+        }
+      }
+
+      if (resp?.action === "harvestProgress") {
+        this.applyHarvestProgress(resp);
+        // If completed, reload all harvest data
+        if (resp.status === "completed" || resp.status === "error") {
+          this.loadHarvestData();
+        }
+      }
+
+      if (resp?.action === "listHarvestRuns" && resp?.status === "success") {
+        const runs = Array.isArray(resp.runs) ? resp.runs : [];
+        this.harvestRecords = runs.map(r => ({
+          id: r.uniqueId || r._id,
+          sourceCatalogue: r.catalogueName || r.catalogues?.[0]?.catalogName || "-",
+          tool: r.tool || "Harvester",
+          harvestDate: r.startedAt || "-",
+          assetsAdded: r.assetsAdded != null ? `+${r.assetsAdded}` : "-",
+          duration: r.duration || "-",
+          result: r.result || r.status || "-",
+          _run: r,
+        }));
+        this.pagination.harvest.page = 1;
+      }
+
+      if (resp?.action === "getHarvestRunDetail" && resp?.status === "success") {
+        if (resp.run) {
+          this.harvestRunDetailData = {
+            ...this.harvestRunDetailData,
+            ...resp.run,
+            id: resp.run.uniqueId || resp.run._id,
+            catalogue: resp.run.catalogueName || "-",
+            started: resp.run.startedAt || "-",
+            duration: resp.run.duration || "-",
+            imported: resp.run.imported || "-",
+            status: resp.run.status || "-",
+            assets: Array.isArray(resp.run.assets) ? resp.run.assets : [],
+          };
+        }
+      }
+
+      if (resp?.action === "listHarvestLogs" && resp?.status === "success") {
+        this.harvestLog = Array.isArray(resp.logs) ? resp.logs : [];
+      }
+
+      if (resp?.action === "listHarvestProvenance" && resp?.status === "success") {
+        this.harvestProvenance = Array.isArray(resp.provenance) ? resp.provenance : [];
+      }
+
+      // ── Local Catalogue responses ──
+      if (resp?.action === "getLocalCatalogue" && resp?.status === "success") {
+        const assets = Array.isArray(resp.assets) ? resp.assets : [];
+        this.allCatalogsRaw = assets;
+        this.tableRows = assets;
+        this.localCatalogueStats = {
+          totalAssets: resp.totalAssets || assets.length,
+          totalRuns: resp.totalRuns || 0
+        };
+        this.pagination.catalog.page = 1;
+      }
+
+      if (resp?.action === "deleteLocalAsset" && resp?.status === "success") {
+        this.loadLocalCatalogs();
+      }
+
+      if (resp?.action === "updateLocalAsset" && resp?.status === "success") {
+        // Silently refreshed — no toast needed (already shown on save/archive)
       }
 
       if (resp?.action === "inviteUser" && resp?.status === "success") {
@@ -1704,8 +1873,227 @@ const app = createApp({
       }
 
       if (resp?.action === "logOut" && resp?.status === "success") {
-        window.location.href = "/asal-asal/login";
+        window.location.href = "/-/login";
         document.cookie = "userToken=; path=/; max-age=0";
+      }
+
+      // ── Schema Prompts Backend Response Handlers ────────────────
+
+      if (resp?.action === "enhancePrompt") {
+        this.isEnhancingPrompt = false;
+        if (resp.status === "success") {
+          this.promptForm.template = resp.enhancedPrompt;
+          this.addToast("success", "Prompt enhanced successfully.");
+        } else {
+          this.promptFormError = "Enhancement failed: " + (resp.message || "Unknown error");
+        }
+      }
+
+      if (resp?.action === "createPrompt" && resp?.status === "success") {
+        const prompt = resp.prompt;
+        if (prompt) {
+          // Check if already exists (avoid duplicates)
+          const existing = this.prompts.findIndex(p => p.id === prompt.id);
+          if (existing === -1) {
+            this.prompts.push(prompt);
+          }
+          this.addToast("success", "Prompt created \u2014 generating code...");
+        }
+      }
+
+      if (resp?.action === "codeGenerated" && resp?.status === "success") {
+        const idx = this.prompts.findIndex(p => p.id === resp.promptId);
+        if (idx !== -1) {
+          this.prompts.splice(idx, 1, {
+            ...this.prompts[idx],
+            generatedCode: resp.generatedCode,
+            codeGenerationStatus: "completed",
+            status: "active",
+            lastGeneratedAt: resp.lastGeneratedAt,
+            updatedAt: resp.updatedAt,
+          });
+        }
+        this.addToast("success", "Code generated \u2014 prompt is now active.");
+      }
+
+      if (resp?.action === "listPrompts" && resp?.status === "success") {
+        if (Array.isArray(resp.prompts)) {
+          this.prompts = resp.prompts;
+        }
+      }
+
+      if (resp?.action === "updatePromptCode" && resp?.status === "success") {
+        const cIdx = this.prompts.findIndex(p => p.id === resp.promptId);
+        if (cIdx !== -1) {
+          this.prompts.splice(cIdx, 1, {
+            ...this.prompts[cIdx],
+            generatedCode: resp.code !== undefined ? resp.code : this.prompts[cIdx].generatedCode,
+            updatedAt: resp.updatedAt
+          });
+        }
+        this.addToast("success", "Code saved.");
+      }
+
+      if (resp?.action === "updatePrompt" && resp?.status === "error") {
+        this.promptFormError = resp.message || "Update failed.";
+        this.addToast("error", resp.message || "Prompt update failed.");
+      }
+
+      if (resp?.action === "updatePrompt" && resp?.status === "success") {
+        const uIdx = this.prompts.findIndex(p => p.id === resp.promptId);
+        if (uIdx !== -1) {
+          const updates = { updatedAt: resp.updatedAt };
+          if (resp.version !== undefined) updates.version = resp.version;
+          if (resp.sourceSchema !== undefined) updates.sourceSchema = resp.sourceSchema;
+          if (resp.targetSchema !== undefined) updates.targetSchema = resp.targetSchema;
+          if (resp.template !== undefined) updates.template = resp.template;
+          if (resp.examples !== undefined) updates.examples = resp.examples;
+          if (resp.constraints !== undefined) updates.constraints = resp.constraints;
+          if (resp.promptStatus !== undefined) updates.status = resp.promptStatus;
+          if (resp.code !== undefined) updates.generatedCode = resp.code;
+          this.prompts.splice(uIdx, 1, { ...this.prompts[uIdx], ...updates });
+        }
+        this.addToast("success", "Prompt updated.");
+      }
+
+      if (resp?.action === "updatePromptStatus" && resp?.status === "error") {
+        this.addToast("error", resp.message || "Status update failed.");
+      }
+
+      if (resp?.action === "updatePromptStatus" && resp?.status === "success") {
+        const sIdx = this.prompts.findIndex(p => p.id === resp.promptId);
+        if (sIdx !== -1) {
+          this.prompts.splice(sIdx, 1, { ...this.prompts[sIdx], status: resp.newStatus, updatedAt: resp.updatedAt });
+        }
+      }
+
+      if (resp?.action === "deletePrompt" && resp?.status === "success") {
+        this.prompts = this.prompts.filter(p => p.id !== resp.promptId);
+        this.addToast("success", "Prompt deleted.");
+      }
+
+      if (resp?.action === "dryRunPrompt") {
+        if (resp.status === "success") {
+          this.promptTestResult = resp.result || "";
+        } else {
+          this.promptTestError = resp.message || "Dry run failed.";
+        }
+        this.promptTestRunning = false;
+      }
+
+      if (resp?.action === "saveTestCase" && resp?.status === "success") {
+        if (resp.testCase) {
+          if (resp.isNew) {
+            const existing = this.promptTestCases.findIndex(t => t.id === resp.testCase.id);
+            if (existing === -1) this.promptTestCases.push(resp.testCase);
+          } else {
+            const tcIdx = this.promptTestCases.findIndex(t => t.id === resp.testCase.id);
+            if (tcIdx !== -1) this.promptTestCases.splice(tcIdx, 1, resp.testCase);
+          }
+        }
+        this.addToast("success", resp.isNew ? "Test case created." : "Test case updated.");
+      }
+
+      if (resp?.action === "listTestCases" && resp?.status === "success") {
+        if (Array.isArray(resp.testCases)) {
+          this.promptTestCases = resp.testCases;
+        }
+      }
+
+      if (resp?.action === "listLlmConfigs" && resp?.status === "success") {
+        if (Array.isArray(resp.configs)) {
+          this.llmConfigs = resp.configs;
+        }
+      }
+
+      if (resp?.action === "listProviders" && resp?.status === "success") {
+        if (Array.isArray(resp.providers)) {
+          this.llmProviders = resp.providers;
+        }
+      }
+
+      if (resp?.action === "deleteTestCase" && resp?.status === "success") {
+        this.promptTestCases = this.promptTestCases.filter(t => t.id !== resp.testCaseId);
+        this.addToast("success", "Test case deleted.");
+      }
+
+      // ── LLM Config Backend Response Handlers ────────────────────
+
+      if (resp?.action === "saveLlmConfig" && resp?.status === "success") {
+        if (resp.config) {
+          const idx = this.llmConfigs.findIndex(c => c.id === resp.config.id);
+          if (idx !== -1) {
+            this.llmConfigs.splice(idx, 1, resp.config);
+          } else {
+            this.llmConfigs.push(resp.config);
+          }
+        }
+        this.addToast("success", resp.isNew ? "LLM config created." : "LLM config updated.");
+      }
+
+      if (resp?.action === "deleteLlmConfig" && resp?.status === "success") {
+        this.llmConfigs = this.llmConfigs.filter(c => c.id !== resp.configId);
+        this.addToast("success", "LLM configuration deleted.");
+      }
+
+      // ── Provider Backend Response Handlers ──────────────────────
+
+      if (resp?.action === "saveProvider" && resp?.status === "success") {
+        if (resp.provider) {
+          const idx = this.llmProviders.findIndex(p => p.id === resp.provider.id);
+          if (idx !== -1) {
+            this.llmProviders.splice(idx, 1, resp.provider);
+          } else {
+            this.llmProviders.push(resp.provider);
+          }
+          // Backend enforces default: if this provider is default, clear others
+          if (resp.provider.isDefault) {
+            this.llmProviders.forEach(p => { if (p.id !== resp.provider.id) p.isDefault = false; });
+          }
+        }
+        this.addToast("success", resp.isNew ? "Provider created." : "Provider updated.");
+      }
+
+      if (resp?.action === "deleteProvider" && resp?.status === "success") {
+        this.llmProviders = this.llmProviders.filter(p => p.id !== resp.providerId);
+        this.addToast("success", "Provider deleted.");
+      }
+
+      if (resp?.action === "reorderProvider" && resp?.status === "success") {
+        if (Array.isArray(resp.providers) && resp.providers.length > 0) {
+          this.llmProviders = resp.providers;
+        }
+      }
+
+      // ── Batch Retransform Backend Response Handlers ─────────────
+
+      if (resp?.action === "startBatchRetransform" && resp?.status === "success") {
+        const b = this.batchRetransform;
+        b.startedAt = resp.startedAt || new Date().toISOString().replace("T", " ").slice(0, 16);
+        b.totalAssets = resp.totalAssets || 0;
+      }
+
+      if (resp?.action === "batchRetransformProgress") {
+        const b = this.batchRetransform;
+        if (resp.status === "cancelled") {
+          b.status = "cancelled";
+          b.completedAt = resp.completedAt || "";
+        } else {
+          b.status = resp.status || b.status;
+          b.progress = resp.progress ?? b.progress;
+          b.processedAssets = resp.processedAssets ?? b.processedAssets;
+          b.totalAssets = resp.totalAssets ?? b.totalAssets;
+          b.successCount = resp.successCount ?? b.successCount;
+          b.errorCount = resp.errorCount ?? b.errorCount;
+          b.skippedCount = resp.skippedCount ?? b.skippedCount;
+          if (Array.isArray(resp.errors)) b.errors = resp.errors;
+          if (resp.completedAt) b.completedAt = resp.completedAt;
+          if (resp.startedAt) b.startedAt = resp.startedAt;
+          // When completed, add to history
+          if (resp.status === "completed" && resp.historyEntry) {
+            this.batchRetransformHistory.unshift(resp.historyEntry);
+          }
+        }
       }
     });
 

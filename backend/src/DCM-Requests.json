@@ -936,7 +936,7 @@
         "protocol": "mongodb",
         "hostname": "",
         "port": "",
-        "dbName": "asalDCM",
+        "dbName": "DCM",
         "appName": "",
         "authSource": "",
         "authMechanism": "DEFAULT",
@@ -949,7 +949,7 @@
         "minPoolSize": "0",
         "maxPoolSize": "100",
         "maxIdleTimeMS": "0",
-        "uri": "mongodb+srv://asal:SKjT26pL19zg8037@db-mongodb-leanea-f9f0367b.mongo.ondigitalocean.com/asalDCM?tls=true&authSource=admin&replicaSet=db-mongodb-leanea",
+        "uri": "mongodb+srv://:SKjT26pL19zg8037@db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com/DCM?tls=true&authSource=admin&replicaSet=db-mongodb-facis",
         "advanced": "{}",
         "uriTabActive": "tab-uri-advanced"
     }

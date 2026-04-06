@@ -5,7 +5,7 @@
 
 export function createStoreData() {
   return {
-    currentPage: "localCatalogue",
+    currentPage: "schemaRegistry",
     currentTab: "localCatalogue",
     currentSchemaTab: "localSchema",
     currentAdminTab: "accessControl",
@@ -305,6 +305,7 @@ ex:publisher a ex:Property .`,
     // Data
     allCatalogsRaw: [],
     tableRows: [],
+    localCatalogueStats: { totalAssets: 0, totalRuns: 0 },
     schemaRegistry: [
       { id: 1, schema: "DCAT-AP.de", catalogs: 3, localMapping: "Service, Data Product", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
       { id: 2, schema: "Data Specifications", catalogs: 2, localMapping: "Dataset (1)", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
@@ -338,43 +339,8 @@ ex:publisher a ex:Property .`,
     currentCatalogRegistryTab: "catalogues",
 
     // Prompt Management (FR-SR-03, FR-SR-04)
+    // Prompts are loaded from MongoDB on mount
     prompts: [
-      {
-        id: "prompt-001",
-        version: "1.0",
-        status: "active",
-        sourceSchema: "OGC SensorML",
-        targetSchema: "DCAT-AP.de",
-        template: "Transform the following {SOURCE_SCHEMA} asset into a valid {TARGET_SCHEMA} record.\n\nSource asset:\n{SOURCE_ASSET}\n\nExamples:\n{EXAMPLES}\n\nConstraints:\n{CONSTRAINTS}",
-        examples: "Input: SensorML observation → Output: DCAT Dataset with dct:title, dcat:distribution",
-        constraints: "All output must validate against the target SHACL shape. Preserve original identifiers.",
-        createdAt: "2026-01-15",
-        updatedAt: "2026-02-01",
-      },
-      {
-        id: "prompt-002",
-        version: "2.0",
-        status: "draft",
-        sourceSchema: "ISO 19115-1",
-        targetSchema: "DCAT-AP.de",
-        template: "Map the ISO 19115-1 metadata record to DCAT-AP.de format.\n\nSource:\n{SOURCE_ASSET}\n\nTarget schema:\n{TARGET_SCHEMA}\n\nExamples:\n{EXAMPLES}",
-        examples: "MD_Metadata → dcat:Dataset with mandatory dct:identifier, dct:title",
-        constraints: "Preserve spatial extent. Map CI_ResponsibleParty to dct:publisher.",
-        createdAt: "2026-02-10",
-        updatedAt: "2026-02-10",
-      },
-      {
-        id: "prompt-003",
-        version: "1.0",
-        status: "deprecated",
-        sourceSchema: "schema.org Dataset",
-        targetSchema: "DCAT-AP.de",
-        template: "Convert schema.org Dataset to {TARGET_SCHEMA}.\n\nInput:\n{SOURCE_ASSET}",
-        examples: "",
-        constraints: "Use dct:title for schema:name. Map schema:distribution to dcat:distribution.",
-        createdAt: "2025-11-20",
-        updatedAt: "2026-01-05",
-      },
     ],
     showPromptModal: false,
     isEditingPrompt: false,
@@ -390,46 +356,17 @@ ex:publisher a ex:Property .`,
     },
     promptFormError: "",
     promptSearch: "",
+    isEnhancingPrompt: false,
+    isGeneratingCode: false,
+
+    // Edit Code modal
+    showEditCodeModal: false,
+    editCodePromptId: null,
+    editCodeValue: "",
 
     // LLM Configuration (FR-SR-11)
-    llmConfigs: [
-      {
-        id: "llm-001",
-        name: "GPT-4o Production",
-        provider: "OpenAI",
-        model: "gpt-4o",
-        temperature: 0.2,
-        maxTokens: 4096,
-        timeout: 30,
-        status: "active",
-        createdAt: "2026-01-10",
-        updatedAt: "2026-02-15",
-      },
-      {
-        id: "llm-002",
-        name: "Claude Staging",
-        provider: "Anthropic",
-        model: "claude-3.5-sonnet",
-        temperature: 0.3,
-        maxTokens: 8192,
-        timeout: 60,
-        status: "active",
-        createdAt: "2026-02-01",
-        updatedAt: "2026-02-20",
-      },
-      {
-        id: "llm-003",
-        name: "Mistral Dev",
-        provider: "Mistral",
-        model: "mistral-large",
-        temperature: 0.5,
-        maxTokens: 2048,
-        timeout: 45,
-        status: "inactive",
-        createdAt: "2025-12-05",
-        updatedAt: "2026-01-18",
-      },
-    ],
+    // LLM configs are loaded from MongoDB on mount
+    llmConfigs: [],
     showLlmConfigModal: false,
     isEditingLlmConfig: false,
     llmConfigForm: {
@@ -453,18 +390,8 @@ ex:publisher a ex:Property .`,
     promptTestResult: "",
     promptTestError: "",
     promptTestShowResolved: false,
-    promptTestCases: [
-      {
-        id: "tc-001",
-        name: "SensorML to DCAT basic",
-        promptId: "prompt-001",
-        llmConfigId: "llm-001",
-        sampleInput: '{\n  "@type": "SensorML",\n  "identifier": "sensor-abc-123",\n  "name": "Temperature Sensor Berlin",\n  "description": "Outdoor temperature monitoring station"\n}',
-        expectedOutput: "",
-        lastResult: '{\n  "@type": "dcat:Dataset",\n  "dct:title": "Temperature Sensor Berlin",\n  "dct:identifier": "sensor-abc-123",\n  "dct:description": "Outdoor temperature monitoring station"\n}',
-        lastRunAt: "2026-02-20",
-      },
-    ],
+    // Test cases are loaded from MongoDB on mount
+    promptTestCases: [],
     showTestCaseModal: false,
     isEditingTestCase: false,
     testCaseForm: {
@@ -478,11 +405,7 @@ ex:publisher a ex:Property .`,
 
     users: [],
 
-    harvestRecords: [
-      { id: 1, sourceCatalogue: "SensorML", tool: "Mobil-X Crawler", harvestDate: "Today, 12:58 pm", assetsAdded: "+12", duration: "3 mins ago", result: "Warning" },
-      { id: 2, sourceCatalogue: "SensorML", tool: "SensorML Harvester", harvestDate: "Today, 11:00 am", assetsAdded: "+275", duration: "1 hours ago", result: "Success" },
-      { id: 3, sourceCatalogue: "SensorML", tool: "CrowdSense Harvester", harvestDate: "Yesterday, 2:58 pm", assetsAdded: "+113", duration: "1 day ago", result: "Error" }
-    ],
+    harvestRecords: [],
 
     mappingRows: [
       { id: 1, remoteCatalogue: "DCAT-AP.de", remoteSchema: "Data Service Entity 1.0", remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF", promptsCount: 2, shaclCount: 3 },
@@ -493,7 +416,7 @@ ex:publisher a ex:Property .`,
 
     // Resize
     resizeTimer: null,
-    userAccess: [],
+    userAccess: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
 
     // Granular per-area CRUD permissions (FR-AC-01)
     userPermissions: {
@@ -542,20 +465,16 @@ ex:publisher a ex:Property .`,
     },
 
     // Harvest error log (FR-ACM-01)
-    harvestLog: [
-      { id: 1, catalogue: "SensorML", level: "Error", message: "Remote catalogue unavailable — connection timed out after 30 s", timestamp: "2026-02-09 11:02 (UTC)" },
-      { id: 2, catalogue: "DCAT-AP.de", level: "Warning", message: "Scope 'changed_between' not interpretable by remote — fell back to full harvest", timestamp: "2026-02-09 11:04 (UTC)" },
-      { id: 3, catalogue: "OGC SensorML", level: "Info", message: "Harvest completed successfully — 275 assets imported", timestamp: "2026-02-09 11:05 (UTC)" },
-      { id: 4, catalogue: "SensorML", level: "Error", message: "Schema mapping failed for 3 assets — SHACL validation errors", timestamp: "2026-02-09 11:06 (UTC)" },
-    ],
+    harvestLog: [],
     showHarvestLog: false,
 
     // Provenance metadata per imported asset (FR-ACM-01)
-    harvestProvenance: [
-      { assetId: "sensor-asset-001", catalogue: "SensorML", harvestRunId: "run-2026-02-09-001", harvestedAt: "2026-02-09T11:05:00Z", strategy: "Deterministic RDF", promptVersion: null, schemaSource: "OGC SensorML v1.0", originalChecksum: "sha256:a1b2c3d4" },
-      { assetId: "dataset-energy-042", catalogue: "DCAT-AP.de", harvestRunId: "run-2026-02-09-001", harvestedAt: "2026-02-09T11:05:12Z", strategy: "AI-driven", promptVersion: "1.0", schemaSource: "DCAT-AP.de v2.0", originalChecksum: "sha256:e5f6a7b8" },
-      { assetId: "service-api-007", catalogue: "OGC SensorML", harvestRunId: "run-2026-02-09-001", harvestedAt: "2026-02-09T11:05:18Z", strategy: "Hybrid", promptVersion: "2.0", schemaSource: "ISO 19115-1 v2.0", originalChecksum: "sha256:c9d0e1f2" },
-    ],
+    harvestProvenance: [],
+
+    // Loading states for harvest
+    isLoadingHarvestCatalogues: false,
+    isSubmittingHarvest: false,
+    harvestSubmitError: "",
 
     overviewToggles: {
       catalogsSelectedEnabled: true,
@@ -587,11 +506,8 @@ ex:publisher a ex:Property .`,
     ],
 
     // Multi-Model Provider Support (FR-SR-12)
-    llmProviders: [
-      { id: "prov-001", name: "OpenAI", type: "openai", apiEndpoint: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"], isDefault: true, precedence: 1, status: "active", createdAt: "2026-01-05" },
-      { id: "prov-002", name: "Anthropic", type: "anthropic", apiEndpoint: "https://api.anthropic.com/v1", models: ["claude-3.5-sonnet", "claude-3-opus", "claude-3-haiku"], isDefault: false, precedence: 2, status: "active", createdAt: "2026-01-10" },
-      { id: "prov-003", name: "Local Ollama", type: "ollama", apiEndpoint: "http://localhost:11434/api", models: ["llama3", "mistral", "codellama"], isDefault: false, precedence: 3, status: "inactive", createdAt: "2026-02-01" },
-    ],
+    // Providers are loaded from MongoDB on mount
+    llmProviders: [],
     showProviderModal: false,
     isEditingProvider: false,
     providerForm: {

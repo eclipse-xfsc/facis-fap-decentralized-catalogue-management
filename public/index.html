@@ -190,13 +190,13 @@
                 
                   <!-- Page Content -->
                   <div v-if="currentTab == 'localCatalogue'" class="content">
-                
+
                     <!-- Search local assets -->
-                    
-                
+
+
                     <!-- Stats Cards -->
                     <div class="stats-grid">
-                      
+
                       <!-- LEFT CARD (Blue tinted) -->
                       <div class="stat-card stat-card-primary">
                         <div class="stat-icon stat-icon-primary">
@@ -208,22 +208,22 @@
                               fill="#2563EB"/>
                           </svg>
                         </div>
-                    
+
                         <div class="stat-info">
                           <div class="stat-title">
-                            <span class="stat-number">5,302</span>
-                            <span class="stat-label">Crawled Assets</span>
+                            <span class="stat-number">{{ localCatalogueStats.totalAssets.toLocaleString() }}</span>
+                            <span class="stat-label">Harvested Assets</span>
                           </div>
-                    
+
                           <div class="stat-sub">
-                            <span class="dot green"></span>
-                            Last Harvest: 22 mins ago &nbsp; • &nbsp; SensorML
+                            <span class="dot" :class="localCatalogueStats.totalAssets > 0 ? 'green' : ''"></span>
+                            {{ localCatalogueStats.totalAssets > 0 ? 'From ' + localCatalogueStats.totalRuns + ' harvest run' + (localCatalogueStats.totalRuns !== 1 ? 's' : '') : 'No harvests yet' }}
                           </div>
                         </div>
-                    
+
                         <div class="stat-menu">⋯</div>
                       </div>
-                    
+
                       <!-- RIGHT CARD -->
                       <div class="stat-card">
                         <div class="stat-icon">
@@ -235,21 +235,21 @@
                             <path d="M12 8V16" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round"/>
                           </svg>
                         </div>
-                    
+
                         <div class="stat-info">
                           <div class="stat-title">
-                            <span class="stat-number">16</span>
+                            <span class="stat-number">{{ catalogsTable.length }}</span>
                             <span class="stat-label">Linked Catalogues</span>
                           </div>
-                    
+
                           <div class="stat-sub">
-                            382 linked datasets from 16 catalogues
+                            {{ localCatalogueStats.totalAssets }} assets from {{ catalogsTable.length }} catalogue{{ catalogsTable.length !== 1 ? 's' : '' }}
                           </div>
                         </div>
-                    
+
                         <div class="stat-menu">⋯</div>
                       </div>
-                    
+
                     </div>
 
                 
@@ -516,8 +516,8 @@
                     <!-- Delete Confirmation Dialog -->
                     <div v-if="showDeleteAssetConfirm" class="modal-overlay" @click.self="cancelDeleteAsset" style="z-index:1100;">
                       <div class="modal-card-catalog" style="max-width:400px;">
-                        <div class="modal-header" style="padding:16px 20px;">
-                          <h2 style="font-size:16px;margin:0;">Confirm Delete</h2>
+                        <div class="modal-header">
+                          <h2>Confirm Delete</h2>
                           <button class="modal-close" @click="cancelDeleteAsset">&times;</button>
                         </div>
                         <div class="modal-body" style="padding:16px 20px;">
@@ -1641,7 +1641,7 @@
                             <td class="link">{{ p.id }}</td>
                             <td>v{{ p.version }}</td>
                             <td>
-                              <span class="pill" :class="promptStatusClass(p.status)">{{ p.status }}</span>
+                              <span class="pill" :class="promptStatusClass(p.status)"><span v-if="p.status === 'writing code'" class="spinner-status"></span>{{ p.status }}</span>
                             </td>
                             <td>{{ p.sourceSchema }}</td>
                             <td>{{ p.targetSchema }}</td>
@@ -1655,11 +1655,16 @@
                                   </svg>
                                   Edit
                                 </button>
-                                <select class="version-select prompt-lifecycle-select" :value="p.status" @change="changePromptStatus(p, $event.target.value)" :disabled="!canUpdate('schema_registry')">
+                                <button class="btn-edit btn-edit-code" @click="openEditCode(p)" :disabled="!p.generatedCode || p.status === 'writing code'">
+                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  Edit Code
+                                </button>
+                                <select class="version-select prompt-lifecycle-select" :value="p.status" @change="changePromptStatus(p, $event.target.value)" :disabled="!canUpdate('schema_registry') || p.status === 'writing code'">
                                   <option value="draft">Draft</option>
                                   <option value="active">Active</option>
                                   <option value="deprecated">Deprecated</option>
                                   <option value="archived">Archived</option>
+                                  <option v-if="p.status === 'writing code'" value="writing code">Writing Code</option>
                                 </select>
                                 <button class="btn-edit danger" @click="deletePrompt(p.id)" :disabled="!canDelete('schema_registry')">
                                   Delete
@@ -2470,41 +2475,20 @@
                         </thead>
                 
                                 <tbody>
-                                    <tr>
+                                    <tr v-for="run in harvestRecords" :key="run.id">
                                         <td><input type="checkbox"></td>
-                                        <td class="link">SensorML</td>
-                                        <td>45 mins ago</td>
-                                        <td>56 mins</td>
-                                        <td><span class="pill green">Completed</span></td>
-                                        <td>324/204</td>
+                                        <td class="link">{{ run.sourceCatalogue }}</td>
+                                        <td>{{ run.harvestDate }}</td>
+                                        <td>{{ run.duration }}</td>
+                                        <td><span class="pill" :class="resultClass(run.result)">{{ run.result }}</span></td>
+                                        <td>{{ run.assetsAdded }}</td>
                                         <td class="col-actions">
-                                            <button class="btn-action" @click="openHarvestRunDetail({ id: 1, catalogue: 'SensorML', started: '45 mins ago', duration: '56 mins', status: 'Completed', imported: '324/204' })"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z" stroke="currentColor" stroke-width="1.5"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle></svg> View Details
+                                            <button class="btn-action" @click="openHarvestRunDetail(run)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z" stroke="currentColor" stroke-width="1.5"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle></svg> View Details
                                             </button>
                                         </td>
                                     </tr>
-                                    <tr>
-                                        <td><input type="checkbox"></td>
-                                        <td class="link">SensorML</td>
-                                        <td>12 mins ago</td>
-                                        <td>30 mins</td>
-                                        <td><span class="pill green">Completed</span></td>
-                                        <td>10/50</td>
-                                        <td class="col-actions">
-                                            <button class="btn-action" @click="openHarvestRunDetail({ id: 2, catalogue: 'SensorML', started: '12 mins ago', duration: '30 mins', status: 'Completed', imported: '10/50' })"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z" stroke="currentColor" stroke-width="1.5"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle></svg> View Details
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><input type="checkbox"></td>
-                                        <td class="link">SensorML</td>
-                                        <td>45 mins ago</td>
-                                        <td>56 mins</td>
-                                        <td><span class="pill green">Completed</span></td>
-                                        <td>324/204</td>
-                                        <td class="col-actions">
-                                            <button class="btn-action" @click="openHarvestRunDetail({ id: 3, catalogue: 'SensorML', started: '45 mins ago', duration: '56 mins', status: 'Completed', imported: '324/204' })"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z" stroke="currentColor" stroke-width="1.5"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle></svg> View Details
-                                            </button>
-                                        </td>
+                                    <tr v-if="harvestRecords.length === 0">
+                                        <td colspan="7" class="empty-row">No harvest runs found. Click "New Harvest" to start one.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2858,7 +2842,7 @@
             </div>
 
             <!-- Body -->
-            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <div class="modal-body prompt-modal-body">
 
               <!-- Error banner -->
               <div v-if="promptFormError" class="prompt-error-banner">
@@ -2923,7 +2907,23 @@
                   class="form-textarea prompt-template-editor"
                   rows="10"
                   placeholder="Write your prompt template here. Use variable buttons above to insert placeholders..."
+                  :disabled="isEnhancingPrompt"
                 ></textarea>
+                <div class="enhance-prompt-row">
+                  <button type="button" class="btn-enhance" @click="enhancePromptWithAI" :disabled="isEnhancingPrompt || !promptForm.template || !promptForm.sourceSchema || !promptForm.targetSchema">
+                    <span v-if="isEnhancingPrompt" class="spinner-sm spinner-dark"></span>
+                    <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.8 4.2L14 7l-4.2 1.8L8 13l-1.8-4.2L2 7l4.2-1.8L8 1z" fill="currentColor"/></svg>
+                    {{ isEnhancingPrompt ? 'Enhancing...' : 'Enhance' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Schema Context -->
+              <div class="form-group" v-if="promptForm.sourceSchema || promptForm.targetSchema">
+                <label>Schema Context</label>
+                <div class="schema-context-box">
+                  <pre class="schema-context-pre">{{ schemaSummaries.SHACL || '(No schema context available)' }}</pre>
+                </div>
               </div>
 
               <!-- Examples -->
@@ -2972,6 +2972,23 @@
           </div>
         </div>
 
+        <!-- Edit Code Modal -->
+        <div v-if="showEditCodeModal" class="modal-overlay" @click.self="closeEditCodeModal">
+          <div class="modal-card-catalog modal-lg">
+            <div class="modal-header">
+              <h2>Edit Generated Code</h2>
+              <button class="modal-close" @click="closeEditCodeModal">&times;</button>
+            </div>
+            <div class="modal-body codemirror-modal-body">
+              <div id="codemirror-container" class="codemirror-wrapper"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" @click="closeEditCodeModal">Cancel</button>
+              <button class="btn-primary" @click="saveEditCode">Save Code</button>
+            </div>
+          </div>
+        </div>
+
         <!-- LLM Config Create/Edit Modal (FR-SR-11) -->
         <div v-if="showLlmConfigModal" class="modal-overlay" @click.self="closeLlmConfigModal">
           <div class="modal-card-catalog" style="max-width:560px;">
@@ -2981,7 +2998,7 @@
             </div>
             <div class="modal-body">
 
-              <div v-if="llmConfigError" class="prompt-error-banner" style="margin-bottom:12px;">
+              <div v-if="llmConfigError" class="prompt-error-banner">
                 {{ llmConfigError }}
               </div>
 
@@ -3052,7 +3069,7 @@
 
         <!-- Save / Edit Test Case Modal (FR-SR-10) -->
         <div v-if="showTestCaseModal" class="modal-overlay" @click.self="closeTestCaseModal">
-          <div class="modal-card-catalog" style="max-width:520px;">
+          <div class="modal-card-catalog test-case-modal" style="max-width:520px;">
             <div class="modal-header">
               <h2>{{ isEditingTestCase ? 'Edit Test Case' : 'Save Test Case' }}</h2>
               <button class="modal-close" @click="closeTestCaseModal">&times;</button>
@@ -3375,7 +3392,30 @@
 
             <!-- RIGHT -->
             <div class="modal-col">
-              <h4 class="section-title">Schema Mapping (optional)</h4>
+
+              <!-- JSON File Upload Section -->
+              <h4 class="section-title">Import from JSON File (optional)</h4>
+              <div class="json-upload-zone"
+                   :class="{ 'drag-over': isDraggingJson, 'has-file': uploadedJsonFile }"
+                   @dragover.prevent="isDraggingJson = true"
+                   @dragleave.prevent="isDraggingJson = false"
+                   @drop.prevent="handleJsonDrop($event)"
+                   @click="$refs.jsonFileInput.click()">
+                <input type="file" ref="jsonFileInput" accept=".json,application/json" style="display:none" @change="handleJsonFileSelect($event)" />
+                <div v-if="!uploadedJsonFile" class="upload-placeholder">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L8 8m4-4l4 4" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span class="upload-text">Drop a <strong>.json</strong> file here or click to browse</span>
+                  <span class="upload-hint">The file will pre-fill the form fields above</span>
+                </div>
+                <div v-else class="upload-file-info">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span class="upload-filename">{{ uploadedJsonFile.name }}</span>
+                  <button class="upload-remove" @click.stop="clearUploadedJson">×</button>
+                </div>
+              </div>
+              <div v-if="jsonUploadError" class="json-upload-error">{{ jsonUploadError }}</div>
+
+              <h4 class="section-title" style="margin-top:18px;">Schema Mapping (optional)</h4>
 
               <label class="form-label">Transformation Strategy</label>
               <select class="form-select" v-model="remoteCatalogForm.strategy">
@@ -4039,6 +4079,9 @@
       </teleport>
     </template>
 
+    <!-- uibuilder client library — auto-served by the uibuilder node in Node-RED.
+         In preview/dev mode this 404s harmlessly, and the mock adapter activates. -->
+    <script src="../uibuilder/uibuilder.iife.min.js"></script>
     <script src="index.js"></script>
 </body>
 </html>

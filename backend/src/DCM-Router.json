@@ -1,0 +1,154 @@
+[
+    {
+        "id": "ff01000000000000",
+        "type": "tab",
+        "label": "DCM-Router",
+        "disabled": false,
+        "info": "Central message router for uibuilder requests.\n\nRoutes incoming messages based on msg.route to the correct domain flow.\nThe route field is auto-attached by the frontend uibuilder service\nbased on msg.type (see ROUTE_MAP in uibuilder.service.js).\n\nRoutes:\n  dashboard          → handled inline in DCM-Dashboard\n  admin-tools        → handled inline in DCM-Dashboard\n  catalogue-registry → DCM-CatalogueRegistry flow\n  local-catalogue    → DCM-LocalCatalogue flow\n  harvest            → DCM-Harvest flow\n  schema-registry    → DCM-SchemaPrompts flow\n  (unknown)          → fallback debug node",
+        "env": []
+    },
+
+    {
+        "id": "ff01000000000001",
+        "type": "comment",
+        "z": "ff01000000000000",
+        "name": "══ Central Message Router ══",
+        "info": "Routes uibuilder requests by msg.route to domain flows.\nAdd new routes by extending the switch node outputs\nand wiring to the appropriate link-out.",
+        "x": 230,
+        "y": 40,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000010",
+        "type": "link in",
+        "z": "ff01000000000000",
+        "name": "router-in",
+        "links": [],
+        "x": 95,
+        "y": 300,
+        "wires": [["ff01000000000020"]]
+    },
+
+    {
+        "id": "ff01000000000020",
+        "type": "switch",
+        "z": "ff01000000000000",
+        "name": "route by msg.route",
+        "property": "route",
+        "propertyType": "msg",
+        "rules": [
+            { "t": "eq", "v": "dashboard",          "vt": "str" },
+            { "t": "eq", "v": "admin-tools",        "vt": "str" },
+            { "t": "eq", "v": "catalogue-registry",  "vt": "str" },
+            { "t": "eq", "v": "local-catalogue",     "vt": "str" },
+            { "t": "eq", "v": "harvest",              "vt": "str" },
+            { "t": "eq", "v": "schema-registry",     "vt": "str" },
+            { "t": "else" }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 7,
+        "x": 350,
+        "y": 300,
+        "wires": [
+            ["ff01000000000030"],
+            ["ff01000000000031"],
+            ["ff01000000000032"],
+            ["ff01000000000033"],
+            ["ff01000000000034"],
+            ["ff01000000000035"],
+            ["ff01000000000090"]
+        ]
+    },
+
+    {
+        "id": "ff01000000000030",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Dashboard",
+        "mode": "link",
+        "links": [],
+        "x": 635,
+        "y": 120,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000031",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Admin Tools",
+        "mode": "link",
+        "links": [],
+        "x": 635,
+        "y": 180,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000032",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Catalogue Registry",
+        "mode": "link",
+        "links": ["cc01000000000010"],
+        "x": 635,
+        "y": 240,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000033",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Local Catalogue",
+        "mode": "link",
+        "links": ["ee01000000000010"],
+        "x": 635,
+        "y": 300,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000034",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Harvest",
+        "mode": "link",
+        "links": ["dd01000000000010"],
+        "x": 635,
+        "y": 360,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000035",
+        "type": "link out",
+        "z": "ff01000000000000",
+        "name": "→ Schema Registry",
+        "mode": "link",
+        "links": ["aa01000000000004"],
+        "x": 635,
+        "y": 420,
+        "wires": []
+    },
+
+    {
+        "id": "ff01000000000090",
+        "type": "debug",
+        "z": "ff01000000000000",
+        "name": "⚠ Unknown Route",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "route",
+        "statusType": "msg",
+        "x": 650,
+        "y": 480,
+        "wires": []
+    }
+]

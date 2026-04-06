@@ -28,7 +28,7 @@
         "showMsgUib": false,
         "title": "",
         "descr": "",
-        "editurl": "vscode://vscode-remote/ssh-remote+hub.leanea.com/data/uibuilder/Dashboard/?windowId=_blank",
+        "editurl": "vscode://vscode-remote/ssh-remote+hub.facis.com/data/uibuilder/Dashboard/?windowId=_blank",
         "x": 362.5,
         "y": 600,
         "wires": [
@@ -54,7 +54,10 @@
             "7ade33a33e59ae9a",
             "45717c651815e7b6",
             "d0a026c3144e520a",
-            "16401b1b989df2ee"
+            "16401b1b989df2ee",
+            "cc010000000000f0",
+            "dd010000000000f0",
+            "ee010000000000f0"
         ],
         "x": 145,
         "y": 600,
@@ -126,7 +129,11 @@
         "y": 600,
         "wires": [
             [
-                "c84266be9231743a"
+                "c84266be9231743a",
+                "aa01000000000098",
+                "cc01000000000099",
+                "dd01000000000099",
+                "ee01000000000099"
             ]
         ]
     },
@@ -995,7 +1002,7 @@
         "type": "function",
         "z": "6927eb851cc094a4",
         "name": "Send Invitation Email",
-        "func": "const {profile, email, expiresIn, message} = msg.data;\nmsg.to = email;\n\nmsg.topic = \"DCM federated catalogue system\";\nmsg.payload =\n    `Hello ${profile.firstName} ${profile.lastName},\n\n${message},\n\nUse the link below to join us by providing a strong password:\n\nhttps://hub.leanea.com/alireza-dcm/join\n\n— DCM Security Team\n`;\nreturn msg;\n",
+        "func": "const {profile, email, expiresIn, message} = msg.data;\nmsg.to = email;\n\nmsg.topic = \"DCM federated catalogue system\";\nmsg.payload =\n    `Hello ${profile.firstName} ${profile.lastName},\n\n${message},\n\nUse the link below to join us by providing a strong password:\n\nhttps://hub.facis.com/dcm/join\n\n— DCM Security Team\n`;\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -1310,7 +1317,7 @@
         "protocol": "mongodb",
         "hostname": "",
         "port": "",
-        "dbName": "asalDCM",
+        "dbName": "DCM",
         "appName": "",
         "authSource": "",
         "authMechanism": "DEFAULT",
@@ -1323,8 +1330,41 @@
         "minPoolSize": "0",
         "maxPoolSize": "100",
         "maxIdleTimeMS": "0",
-        "uri": "mongodb+srv://asal:SKjT26pL19zg8037@db-mongodb-leanea-f9f0367b.mongo.ondigitalocean.com/asalDCM?tls=true&authSource=admin&replicaSet=db-mongodb-leanea",
+        "uri": "mongodb+srv://:SKjT26pL19zg8037@db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com/DCM?tls=true&authSource=admin&replicaSet=db-mongodb-facis",
         "advanced": "{}",
         "uriTabActive": "tab-uri-advanced"
+    },
+    {
+        "id": "cc01000000000099",
+        "type": "link out",
+        "z": "6927eb851cc094a4",
+        "name": "→ Catalogue Registry",
+        "mode": "link",
+        "links": ["cc01000000000010"],
+        "x": 2615,
+        "y": 660,
+        "wires": []
+    },
+    {
+        "id": "dd01000000000099",
+        "type": "link out",
+        "z": "6927eb851cc094a4",
+        "name": "→ Harvest",
+        "mode": "link",
+        "links": ["dd01000000000010"],
+        "x": 2615,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000099",
+        "type": "link out",
+        "z": "6927eb851cc094a4",
+        "name": "→ Local Catalogue",
+        "mode": "link",
+        "links": ["ee01000000000010"],
+        "x": 2615,
+        "y": 780,
+        "wires": []
     }
 ]
