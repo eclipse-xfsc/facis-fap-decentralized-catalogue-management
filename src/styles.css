@@ -58,8 +58,9 @@ body{
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden; 
-  min-width: 0;     
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 
@@ -4735,25 +4736,10 @@ button:disabled {
   padding: 3px 0;
 }
 
-/* ── Milestone 3: Harvest Run Detail Panel ───────────────── */
-.harvest-run-detail-panel {
-  background: #fff;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  overflow: hidden;
-}
-.harvest-run-summary {
-  display: flex;
-  gap: 24px;
-  padding: 12px 20px;
-  background: #F9FAFB;
-  border-bottom: 1px solid #E5E7EB;
-}
-.harvest-run-stat {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+/* ── Milestone 3: Harvest Run Detail Modal ───────────────── */
+.harvest-detail-modal {
+  width: min(900px, 100%);
+  height: min(620px, 100%);
 }
 
 /* ── JSON Upload Zone ─────────────────────────────────────── */

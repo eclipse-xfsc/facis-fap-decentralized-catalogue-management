@@ -1,0 +1,433 @@
+[
+  {
+    "id": "52b819f7ec3ad8e1",
+    "type": "tab",
+    "label": "M2_DCM-CatalogueRegistry",
+    "disabled": false,
+    "info": "Backend flows for Catalogue Registry.\n\nMongoDB collection: cr_catalogues\n\nOperations:\n  - registerRemoteCatalog (insertOne)\n  - getCatalogRegistry (find all)\n  - updateRemoteCatalog (updateOne with patch)\n  - deleteRemoteCatalog (deleteOne)\n  - uploadCatalogJson (bulk insertMany)\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin (1320340df737c22e).",
+    "env": []
+  },
+  {
+    "id": "b991ffcd8f6c360a",
+    "type": "mongodb4-client",
+    "name": "",
+    "protocol": "mongodb+srv",
+    "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+    "port": "",
+    "dbName": "PartnerOnboarding",
+    "appName": "",
+    "authSource": "",
+    "authMechanism": "DEFAULT",
+    "tls": true,
+    "tlsCAFile": "",
+    "tlsCertificateKeyFile": "",
+    "tlsInsecure": false,
+    "connectTimeoutMS": "30000",
+    "socketTimeoutMS": "0",
+    "minPoolSize": "0",
+    "maxPoolSize": "100",
+    "maxIdleTimeMS": "0",
+    "uri": "",
+    "advanced": "{}",
+    "uriTabActive": "tab-uri-simple"
+  },
+  {
+    "id": "c8f50f43d21eca9c",
+    "type": "comment",
+    "z": "52b819f7ec3ad8e1",
+    "name": "══ Catalogue Registry Backend ══",
+    "info": "Handles all Catalogue Registry operations.\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+    "x": 260,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "e2f70557fca63bd2",
+    "type": "link in",
+    "z": "52b819f7ec3ad8e1",
+    "name": "catalogue-registry-in",
+    "links": [
+      "ff01000000000032"
+    ],
+    "x": 115,
+    "y": 200,
+    "wires": [
+      [
+        "d4696fb0da556bb1"
+      ]
+    ]
+  },
+  {
+    "id": "d4696fb0da556bb1",
+    "type": "switch",
+    "z": "52b819f7ec3ad8e1",
+    "name": "route by msg.type",
+    "property": "type",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "registerRemoteCatalog",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "getCatalogRegistry",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "updateRemoteCatalog",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "deleteRemoteCatalog",
+        "vt": "str"
+      },
+      {
+        "t": "eq",
+        "v": "uploadCatalogJson",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 5,
+    "x": 330,
+    "y": 200,
+    "wires": [
+      [
+        "28b04a031cdca03c"
+      ],
+      [
+        "3fca2c79d5500301"
+      ],
+      [
+        "ec4c68ae263a3cec"
+      ],
+      [
+        "858298690d53be42"
+      ],
+      [
+        "af924e78dc8378a0"
+      ]
+    ]
+  },
+  {
+    "id": "28b04a031cdca03c",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "Register Remote Catalog",
+    "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet randomPart = '';\nfor (let i = 0; i < 12; i++) {\n  randomPart += chars[Math.floor(Math.random() * chars.length)];\n}\nconst id = Date.now().toString(36) + randomPart;\n\nconst d = msg.data || {};\nd.createdAt = new Date().toISOString();\nd.updatedAt = d.createdAt;\n\nmsg.uniqueId = id;\nmsg.operation = \"insertOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = {\n    catalog: d,\n    uniqueId: id\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 622.5,
+    "y": 100,
+    "wires": [
+      [
+        "3da920f6b916d82b"
+      ]
+    ]
+  },
+  {
+    "id": "3da920f6b916d82b",
+    "type": "mongodb4",
+    "z": "52b819f7ec3ad8e1",
+    "clientNode": "b991ffcd8f6c360a",
+    "mode": "collection",
+    "collection": "",
+    "operation": "",
+    "output": "toArray",
+    "maxTimeMS": "0",
+    "handleDocId": false,
+    "name": "",
+    "x": 880,
+    "y": 100,
+    "wires": [
+      [
+        "44141c44f27e9af0"
+      ]
+    ]
+  },
+  {
+    "id": "44141c44f27e9af0",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "response",
+    "func": "msg.response = {\n    action: \"registerRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.uniqueId\n};\ndelete msg.payload;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1100,
+    "y": 100,
+    "wires": [
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "3fca2c79d5500301",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "Get Catalog Registry",
+    "func": "msg.operation = \"find\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n    {},\n    { projection: { catalog: 1, uniqueId: 1, _id: 0 } }\n];\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 620,
+    "y": 200,
+    "wires": [
+      [
+        "ea9703dee343d155"
+      ]
+    ]
+  },
+  {
+    "id": "ea9703dee343d155",
+    "type": "mongodb4",
+    "z": "52b819f7ec3ad8e1",
+    "clientNode": "b991ffcd8f6c360a",
+    "mode": "collection",
+    "collection": "",
+    "operation": "",
+    "output": "toArray",
+    "maxTimeMS": "0",
+    "handleDocId": false,
+    "name": "",
+    "x": 880,
+    "y": 200,
+    "wires": [
+      [
+        "7babcfad97f61929"
+      ]
+    ]
+  },
+  {
+    "id": "7babcfad97f61929",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "response",
+    "func": "msg.response = {\n    action: \"getCatalogRegistry\",\n    status: \"success\",\n    catalogs: msg.payload\n};\ndelete msg.payload;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1100,
+    "y": 200,
+    "wires": [
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "ec4c68ae263a3cec",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "Update Remote Catalog",
+    "func": "const patch = msg.data.patch;\nconst update = Object.fromEntries(\n  Object.entries(patch).map(([key, value]) => [\n    `catalog.${key}`,\n    value\n  ])\n);\n\nmsg.operation = \"updateOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n  { uniqueId: msg.data.uniqueId },\n  { $set: update }\n];\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 622.5,
+    "y": 300,
+    "wires": [
+      [
+        "f29cfd0961168adb"
+      ]
+    ]
+  },
+  {
+    "id": "f29cfd0961168adb",
+    "type": "mongodb4",
+    "z": "52b819f7ec3ad8e1",
+    "clientNode": "b991ffcd8f6c360a",
+    "mode": "collection",
+    "collection": "",
+    "operation": "",
+    "output": "toArray",
+    "maxTimeMS": "0",
+    "handleDocId": false,
+    "name": "",
+    "x": 880,
+    "y": 300,
+    "wires": [
+      [
+        "d6727fd31daf3d3e"
+      ]
+    ]
+  },
+  {
+    "id": "d6727fd31daf3d3e",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "response",
+    "func": "msg.response = {\n    action: \"updateRemoteCatalog\",\n    status: \"success\"\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1100,
+    "y": 300,
+    "wires": [
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "858298690d53be42",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "Delete Remote Catalog",
+    "func": "msg.operation = \"deleteOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = { uniqueId: msg.data.uniqueId };\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 622.5,
+    "y": 400,
+    "wires": [
+      [
+        "c5ea6dc6be7cd5de"
+      ]
+    ]
+  },
+  {
+    "id": "c5ea6dc6be7cd5de",
+    "type": "mongodb4",
+    "z": "52b819f7ec3ad8e1",
+    "clientNode": "b991ffcd8f6c360a",
+    "mode": "collection",
+    "collection": "",
+    "operation": "",
+    "output": "toArray",
+    "maxTimeMS": "0",
+    "handleDocId": false,
+    "name": "",
+    "x": 880,
+    "y": 400,
+    "wires": [
+      [
+        "c215fd54bb69977d"
+      ]
+    ]
+  },
+  {
+    "id": "c215fd54bb69977d",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "response",
+    "func": "msg.response = {\n    action: \"deleteRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.data.uniqueId\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1100,
+    "y": 400,
+    "wires": [
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "af924e78dc8378a0",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "Upload Catalog JSON (bulk insert)",
+    "func": "// Expects msg.data.catalogs = array of catalog objects\nconst catalogs = msg.data.catalogs || [];\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n\nconst docs = catalogs.map(c => {\n    let randomPart = '';\n    for (let i = 0; i < 12; i++) {\n        randomPart += chars[Math.floor(Math.random() * chars.length)];\n    }\n    const id = Date.now().toString(36) + randomPart;\n    return { catalog: c, uniqueId: id };\n});\n\nif (docs.length === 0) {\n    msg.response = {\n        action: \"uploadCatalogJson\",\n        status: \"error\",\n        message: \"No catalogue entries found in JSON file.\"\n    };\n    return [null, msg];\n}\n\nmsg._uploadedDocs = docs;\nmsg.operation = \"insertMany\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = docs;\nreturn [msg, null];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 660,
+    "y": 500,
+    "wires": [
+      [
+        "65a986661f55b529"
+      ],
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "65a986661f55b529",
+    "type": "mongodb4",
+    "z": "52b819f7ec3ad8e1",
+    "clientNode": "b991ffcd8f6c360a",
+    "mode": "collection",
+    "collection": "",
+    "operation": "",
+    "output": "toArray",
+    "maxTimeMS": "0",
+    "handleDocId": false,
+    "name": "",
+    "x": 880,
+    "y": 500,
+    "wires": [
+      [
+        "a696f4e764e66002"
+      ]
+    ]
+  },
+  {
+    "id": "a696f4e764e66002",
+    "type": "function",
+    "z": "52b819f7ec3ad8e1",
+    "name": "response",
+    "func": "msg.response = {\n    action: \"uploadCatalogJson\",\n    status: \"success\",\n    catalogs: msg._uploadedDocs || []\n};\ndelete msg._uploadedDocs;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1342.5,
+    "y": 620,
+    "wires": [
+      [
+        "f8063c93b0f6d90b"
+      ]
+    ]
+  },
+  {
+    "id": "f8063c93b0f6d90b",
+    "type": "link out",
+    "z": "52b819f7ec3ad8e1",
+    "name": "→ Dashboard uibuilder",
+    "mode": "link",
+    "links": [
+      "c48570326bcd6b3d"
+    ],
+    "x": 1315,
+    "y": 300,
+    "wires": []
+  }
+]

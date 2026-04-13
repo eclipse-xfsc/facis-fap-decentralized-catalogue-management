@@ -55,6 +55,9 @@ export default {
           const data = JSON.parse(ev.target.result);
           this.uploadedJsonFile = { name: file.name, data };
           this.applyJsonToForm(data);
+          // Persist the full JSON as source data so harvest can extract real assets
+          this.remoteCatalogForm.sourceData = data;
+          this.remoteCatalogForm.sourceFileName = file.name;
         } catch {
           this.jsonUploadError = "Invalid JSON — could not parse the file.";
           this.uploadedJsonFile = null;
@@ -86,7 +89,22 @@ export default {
         llmConfigId: ["llmConfigId"],
         namespacesToPreserve: ["namespacesToPreserve", "namespaces"],
         shaclShapeId: ["shaclShapeId", "shapeId"],
-        auth: ["auth", "authentication"],
+        auth: ["auth", "authentication", "authType"],
+        authLoginEndpoint: ["authLoginEndpoint", "loginEndpoint", "loginUrl"],
+        authUsername: ["authUsername", "username", "email"],
+        authPassword: ["authPassword", "password"],
+        authPayloadTemplate: ["authPayloadTemplate", "loginPayload"],
+        authTokenPath: ["authTokenPath", "tokenPath"],
+        authTokenInjection: ["authTokenInjection", "tokenInjection"],
+        authTokenFieldName: ["authTokenFieldName", "tokenField"],
+        authTokenPrefix: ["authTokenPrefix", "tokenPrefix"],
+        authStaticToken: ["authStaticToken", "bearerToken", "staticToken"],
+        authApiKey: ["authApiKey", "apiKey"],
+        authApiKeyHeader: ["authApiKeyHeader", "apiKeyHeader"],
+        responseRootPath: ["responseRootPath", "rootPath", "dataPath"],
+        responseAssetIdField: ["responseAssetIdField", "assetIdField", "idField"],
+        responseAssetNameField: ["responseAssetNameField", "assetNameField", "nameField"],
+        responseAssetTypeField: ["responseAssetTypeField", "assetTypeField", "typeField"],
         trustAnchor: ["trustAnchor"],
         enabled: ["enabled", "active"],
       };
@@ -102,6 +120,8 @@ export default {
     clearUploadedJson() {
       this.uploadedJsonFile = null;
       this.jsonUploadError = "";
+      this.remoteCatalogForm.sourceData = null;
+      this.remoteCatalogForm.sourceFileName = "";
     },
   },
 };

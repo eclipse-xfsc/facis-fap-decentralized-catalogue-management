@@ -23,16 +23,31 @@
       access: ["local_catalogue", "schema_registry", "harvester"]
     }
   ];
-  var mockCatalogs = [
+  var _defaultCatalogs = [
     {
       uniqueId: "rc1",
       catalog: {
         catalogId: "rc1",
         catalogName: "SensorML Europe",
         owner: "EU Sensors Consortium",
-        strategy: "deterministic",
+        strategy: "deterministic-rdf",
+        protocol: "DCAT Linked Data",
         baseEndpoint: "https://api.sensorml-eu.org/sparql",
-        enabled: true
+        mimeType: "application/ld+json",
+        enabled: true,
+        updatedAt: "2025-11-20 14:30",
+        sourceData: [
+          { identifier: "sml-eu-001", title: "Temperature Sensor Berlin", "@type": "sml:PhysicalSystem", description: "Outdoor temperature monitoring station in Berlin-Mitte", domain: "Environment", theme: "Climate" },
+          { identifier: "sml-eu-002", title: "Air Quality Monitor Munich", "@type": "sml:PhysicalSystem", description: "PM2.5 and PM10 air quality sensor in Munich city center", domain: "Environment", theme: "Air Quality" },
+          { identifier: "sml-eu-003", title: "Wind Speed Station Hamburg", "@type": "sml:PhysicalSystem", description: "Anemometer station at Hamburg port", domain: "Environment", theme: "Climate" },
+          { identifier: "sml-eu-004", title: "Humidity Sensor Frankfurt", "@type": "sml:PhysicalSystem", description: "Relative humidity sensor network in Frankfurt am Main", domain: "Environment", theme: "Climate" },
+          { identifier: "sml-eu-005", title: "Pressure Monitor Dresden", "@type": "sml:PhysicalSystem", description: "Barometric pressure monitoring in Dresden", domain: "Environment", theme: "Climate" },
+          { identifier: "sml-eu-006", title: "Radiation Sensor Cologne", "@type": "sml:PhysicalSystem", description: "Solar radiation measurement station in Cologne", domain: "Energy", theme: "Solar" },
+          { identifier: "sml-eu-007", title: "Water Level Gauge Leipzig", "@type": "sml:PhysicalSystem", description: "River water level gauge on the White Elster", domain: "Environment", theme: "Hydrology" },
+          { identifier: "sml-eu-008", title: "Noise Monitor Stuttgart", "@type": "sml:PhysicalSystem", description: "Urban noise level monitoring in Stuttgart", domain: "Health", theme: "Noise Pollution" },
+          { identifier: "sml-eu-009", title: "CO2 Sensor Dusseldorf", "@type": "sml:PhysicalSystem", description: "Atmospheric CO2 concentration sensor in Dusseldorf", domain: "Environment", theme: "Air Quality" },
+          { identifier: "sml-eu-010", title: "UV Index Station Bonn", "@type": "sml:PhysicalSystem", description: "UV index measurement station in Bonn", domain: "Health", theme: "Radiation" }
+        ]
       }
     },
     {
@@ -41,9 +56,26 @@
         catalogId: "rc2",
         catalogName: "DCAT-AP Germany",
         owner: "GovData.de",
-        strategy: "ai",
+        strategy: "ai-driven",
+        protocol: "Query interface",
         baseEndpoint: "https://govdata.de/ckan/api",
-        enabled: true
+        mimeType: "application/sparql-results+json",
+        enabled: true,
+        updatedAt: "2025-12-01 09:15",
+        sourceData: {
+          "dcat:dataset": [
+            { identifier: "govdata-001", title: "Land Use Map NRW", "@type": "dcat:Dataset", description: "Land use classification map for North Rhine-Westphalia", domain: "Geospatial", theme: "Land Use" },
+            { identifier: "govdata-002", title: "Elevation Model Bavaria", "@type": "dcat:Dataset", description: "Digital elevation model for Bavaria at 1m resolution", domain: "Geospatial", theme: "Topography" },
+            { identifier: "govdata-003", title: "River Network Dataset", "@type": "dcat:Dataset", description: "Complete river network dataset for Germany", domain: "Geospatial", theme: "Hydrology" },
+            { identifier: "govdata-004", title: "Soil Classification Map", "@type": "dcat:Dataset", description: "National soil type classification map", domain: "Agriculture", theme: "Soil Science" },
+            { identifier: "govdata-005", title: "Forest Coverage Index", "@type": "dcat:Dataset", description: "Annual forest coverage index for all federal states", domain: "Environment", theme: "Forestry" },
+            { identifier: "govdata-006", title: "Urban Area Boundaries", "@type": "dcat:Dataset", description: "Official urban area boundary dataset", domain: "Geospatial", theme: "Administrative" },
+            { identifier: "govdata-007", title: "Protected Areas Registry", "@type": "dcat:Dataset", description: "Registry of all nature protection areas in Germany", domain: "Environment", theme: "Conservation" },
+            { identifier: "govdata-008", title: "Coastal Erosion Dataset", "@type": "dcat:Dataset", description: "Coastal erosion measurements for North Sea and Baltic coast", domain: "Geospatial", theme: "Coastal" },
+            { identifier: "govdata-009", title: "Flood Risk Zones", "@type": "dcat:Dataset", description: "Flood risk zone mapping for major river basins", domain: "Environment", theme: "Disaster Risk" },
+            { identifier: "govdata-010", title: "Agricultural Parcels", "@type": "dcat:Dataset", description: "Agricultural land parcel registration dataset", domain: "Agriculture", theme: "Land Use" }
+          ]
+        }
       }
     },
     {
@@ -53,11 +85,52 @@
         catalogName: "OGC Observations",
         owner: "OGC Foundation",
         strategy: "hybrid",
+        protocol: "OAI-PMH",
         baseEndpoint: "https://ogc.org/api/observations",
-        enabled: false
+        mimeType: "application/xml",
+        enabled: true,
+        updatedAt: "2025-10-18 16:45",
+        sourceData: [
+          { identifier: "ogc-obs-001", title: "DCAT Dataset Entry", "@type": "dcat:Dataset", description: "Standard DCAT dataset entry for OGC observations", domain: "Geospatial", theme: "Standards" },
+          { identifier: "ogc-obs-002", title: "Metadata Record", "@type": "iso:MD_Metadata", description: "ISO 19115 metadata record for observation services", domain: "Geospatial", theme: "Metadata" },
+          { identifier: "ogc-obs-003", title: "Service Description", "@type": "dcat:DataService", description: "OGC Web Service description document", domain: "Geospatial", theme: "Services" },
+          { identifier: "ogc-obs-004", title: "Distribution Package", "@type": "dcat:Distribution", description: "Data distribution package for observation data", domain: "Geospatial", theme: "Distribution" },
+          { identifier: "ogc-obs-005", title: "Data Series Record", "@type": "dcat:Dataset", description: "Time series observation data record", domain: "Climate", theme: "Time Series" },
+          { identifier: "ogc-obs-006", title: "Feature Catalogue", "@type": "iso:MD_Metadata", description: "Feature catalogue for observation types", domain: "Geospatial", theme: "Features" },
+          { identifier: "ogc-obs-007", title: "Application Schema", "@type": "sml:SimpleProcess", description: "Application schema for sensor observation processing", domain: "Geospatial", theme: "Schema" },
+          { identifier: "ogc-obs-008", title: "Quality Report", "@type": "iso:MD_Metadata", description: "Data quality assessment report", domain: "Geospatial", theme: "Quality" }
+        ]
       }
     }
   ];
+  var _CATALOG_VERSION = 2;
+  function _loadCatalogs() {
+    try {
+      const ver = parseInt(localStorage.getItem("facis_catalogs_v"), 10);
+      if (ver === _CATALOG_VERSION) {
+        const stored = JSON.parse(localStorage.getItem("facis_catalogs"));
+        if (Array.isArray(stored) && stored.length > 0) return stored;
+      }
+    } catch (e) {
+    }
+    try {
+      localStorage.removeItem("facis_catalogs");
+      localStorage.removeItem("facis_local_assets");
+      localStorage.removeItem("facis_hv_runs");
+      localStorage.removeItem("facis_hv_logs");
+      localStorage.removeItem("facis_hv_provenance");
+    } catch (e) {
+    }
+    return JSON.parse(JSON.stringify(_defaultCatalogs));
+  }
+  function _saveCatalogs() {
+    try {
+      localStorage.setItem("facis_catalogs", JSON.stringify(mockCatalogs));
+      localStorage.setItem("facis_catalogs_v", String(_CATALOG_VERSION));
+    } catch (e) {
+    }
+  }
+  var mockCatalogs = _loadCatalogs();
   var ROUTE_MAP = {
     // Dashboard / Auth
     getDashboard: "dashboard",
@@ -75,6 +148,9 @@
     getLocalCatalogue: "local-catalogue",
     deleteLocalAsset: "local-catalogue",
     updateLocalAsset: "local-catalogue",
+    getLocalProvenance: "local-catalogue",
+    getLocalAssetDetail: "local-catalogue",
+    getLocalStats: "local-catalogue",
     // Harvest
     getHarvestCatalogues: "harvest",
     startHarvest: "harvest",
@@ -105,7 +181,15 @@
     deleteProvider: "schema-registry",
     reorderProvider: "schema-registry",
     startBatchRetransform: "schema-registry",
-    cancelBatchRetransform: "schema-registry"
+    cancelBatchRetransform: "schema-registry",
+    // Schema Registry – Local Schema & Mapping CRUD
+    saveLocalSchema: "schema-registry",
+    listLocalSchemas: "schema-registry",
+    deleteLocalSchema: "schema-registry",
+    saveMapping: "schema-registry",
+    listMappings: "schema-registry",
+    deleteMapping: "schema-registry",
+    saveRemoteSchema: "schema-registry"
   };
   function resolveRoute(type) {
     return ROUTE_MAP[type] || null;
@@ -174,33 +258,85 @@
       });
     }
     if (msg.type === "registerRemoteCatalog") {
+      const uid = "mock-rc-" + Date.now();
+      const d = msg.data || {};
+      mockCatalogs.push({
+        uniqueId: uid,
+        catalog: {
+          catalogId: d.catalogId || uid,
+          catalogName: d.catalogName || "New Catalogue",
+          owner: d.owner || "",
+          strategy: d.strategy || "none",
+          baseEndpoint: d.baseEndpoint || d.queryEndpoint || "",
+          protocol: d.protocol || "Query interface",
+          mimeType: d.mimeType || "",
+          queryEndpoint: d.queryEndpoint || "",
+          queryLanguages: d.queryLanguages || "",
+          dcatCatalogUri: d.dcatCatalogUri || "",
+          linkedDataEndpoint: d.linkedDataEndpoint || "",
+          metadataPrefix: d.metadataPrefix || "",
+          auth: d.auth || "none",
+          authLoginEndpoint: d.authLoginEndpoint || "",
+          authUsername: d.authUsername || "",
+          authPassword: d.authPassword || "",
+          authPayloadTemplate: d.authPayloadTemplate || "",
+          authTokenPath: d.authTokenPath || "token",
+          authTokenInjection: d.authTokenInjection || "body",
+          authTokenFieldName: d.authTokenFieldName || "token",
+          authTokenPrefix: d.authTokenPrefix || "",
+          authStaticToken: d.authStaticToken || "",
+          authApiKey: d.authApiKey || "",
+          authApiKeyHeader: d.authApiKeyHeader || "X-API-Key",
+          responseRootPath: d.responseRootPath || "",
+          responseAssetIdField: d.responseAssetIdField || "",
+          responseAssetNameField: d.responseAssetNameField || "",
+          responseAssetTypeField: d.responseAssetTypeField || "",
+          trustAnchor: d.trustAnchor || "",
+          promptId: d.promptId || "",
+          llmConfigId: d.llmConfigId || "",
+          namespacesToPreserve: d.namespacesToPreserve || "",
+          shaclShapeId: d.shaclShapeId || "",
+          enabled: d.enabled !== false,
+          // Persist uploaded JSON source data for harvest
+          sourceData: d.sourceData || null,
+          sourceFileName: d.sourceFileName || "",
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16)
+        }
+      });
+      _saveCatalogs();
       dispatchMsg({
         payload: {
           response: {
             action: "registerRemoteCatalog",
             status: "success",
-            uniqueId: "mock-rc-" + Date.now()
+            uniqueId: uid
           }
         }
       });
     }
     if (msg.type === "deleteRemoteCatalog") {
+      const delId = msg.data?.uniqueId;
+      mockCatalogs = mockCatalogs.filter((c) => c.uniqueId !== delId);
+      _saveCatalogs();
       dispatchMsg({
         payload: {
           data: msg.data,
           response: {
             action: "deleteRemoteCatalog",
             status: "success",
-            uniqueId: msg.data?.uniqueId
+            uniqueId: delId
           }
         }
       });
     }
     if (msg.type === "uploadCatalogJson") {
-      const catalogs = (msg.data?.catalogs || []).map((c, i) => ({
-        uniqueId: "mock-upload-" + Date.now() + "-" + i,
-        catalog: c
-      }));
+      const catalogs = (msg.data?.catalogs || []).map((c, i) => {
+        const uid = "mock-upload-" + Date.now() + "-" + i;
+        const entry = { uniqueId: uid, catalog: { ...c, catalogId: c.catalogId || uid, enabled: c.enabled !== false } };
+        mockCatalogs.push(entry);
+        return entry;
+      });
+      _saveCatalogs();
       dispatchMsg({
         payload: {
           response: {
@@ -212,6 +348,13 @@
       });
     }
     if (msg.type === "updateRemoteCatalog") {
+      const updId = msg.data?.uniqueId;
+      const patch = msg.data?.patch || msg.data || {};
+      const idx = mockCatalogs.findIndex((c) => c.uniqueId === updId);
+      if (idx !== -1) {
+        Object.assign(mockCatalogs[idx].catalog, patch);
+        _saveCatalogs();
+      }
       dispatchMsg({
         payload: {
           data: msg.data,
@@ -225,106 +368,459 @@
     if (msg.type === "logOut") {
       console.log("[facis-service] Logout requested (no redirect in preview)");
     }
+    function _loadStore(key) {
+      try {
+        return JSON.parse(localStorage.getItem("facis_" + key)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+    function _saveStore(key, arr) {
+      try {
+        localStorage.setItem("facis_" + key, JSON.stringify(arr));
+      } catch (e) {
+      }
+    }
+    if (!createMockResponder._harvestRuns) createMockResponder._harvestRuns = _loadStore("hv_runs");
+    if (!createMockResponder._localAssets) createMockResponder._localAssets = _loadStore("local_assets");
+    if (!createMockResponder._harvestLogs) createMockResponder._harvestLogs = _loadStore("hv_logs");
+    if (!createMockResponder._harvestProvenance) createMockResponder._harvestProvenance = _loadStore("hv_provenance");
+    const _assetNames = {
+      sensor: ["Temperature Sensor Berlin", "Air Quality Monitor Munich", "Wind Speed Station Hamburg", "Humidity Sensor Frankfurt", "Pressure Monitor Dresden", "Radiation Sensor Cologne", "Water Level Gauge Leipzig", "Noise Monitor Stuttgart", "CO2 Sensor Dusseldorf", "UV Index Station Bonn"],
+      geo: ["Land Use Map NRW", "Elevation Model Bavaria", "River Network Dataset", "Soil Classification Map", "Forest Coverage Index", "Urban Area Boundaries", "Protected Areas Registry", "Coastal Erosion Dataset", "Flood Risk Zones", "Agricultural Parcels"],
+      catalog: ["DCAT Dataset Entry", "Metadata Record", "Service Description", "Distribution Package", "Data Series Record", "Feature Catalogue", "Application Schema", "Quality Report", "Lineage Description", "Constraint Document"]
+    };
+    const _assetTypes = ["dcat:Dataset", "sml:PhysicalSystem", "iso:MD_Metadata", "dcat:DataService", "dcat:Distribution", "sml:SimpleProcess"];
+    const _domains = ["Environment", "Climate", "Geospatial", "Transport", "Energy", "Health", "Agriculture"];
+    const _statuses = ["Active", "Active", "Active", "Pending Review", "Transformed"];
+    function _pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    function _ts() {
+      return (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16);
+    }
+    function _resolvePath(obj, path) {
+      if (!path || !obj) return obj;
+      const parts = path.split(".");
+      let cur2 = obj;
+      for (const p of parts) {
+        if (cur2 == null || typeof cur2 !== "object") return void 0;
+        cur2 = cur2[p];
+      }
+      return cur2;
+    }
+    function _extractEntriesFromSource(data, rootPath) {
+      if (!data || typeof data !== "object") return [];
+      if (rootPath) {
+        const resolved = _resolvePath(data, rootPath);
+        if (Array.isArray(resolved)) return resolved;
+        if (resolved && typeof resolved === "object") return [resolved];
+      }
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data["dcat:dataset"])) return data["dcat:dataset"];
+      if (Array.isArray(data.dataset)) return data.dataset;
+      if (Array.isArray(data.datasets)) return data.datasets;
+      if (Array.isArray(data.data)) return data.data;
+      if (Array.isArray(data.results)) return data.results;
+      if (data.result && Array.isArray(data.result.results)) return data.result.results;
+      if (Array.isArray(data.records)) return data.records;
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.entries)) return data.entries;
+      if (Array.isArray(data.assets)) return data.assets;
+      if (Array.isArray(data.catalogs)) return data.catalogs;
+      if (data.title || data.name || data.identifier || data["@type"]) return [data];
+      if (data._id || data.requestId != null || data.companyDetails) return [data];
+      for (const key of Object.keys(data)) {
+        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === "object") {
+          const skipKeys = ["auditInfo", "approveInfo", "decisionHistory", "errors", "warnings", "logs"];
+          if (!skipKeys.includes(key)) return data[key];
+        }
+      }
+      return [];
+    }
     if (msg.type === "getHarvestCatalogues") {
-      const catalogs = mockCatalogs.map((c) => ({
+      const catalogs = mockCatalogs.filter((c) => c.catalog?.enabled !== false).map((c) => ({
         uniqueId: c.uniqueId,
-        catalogId: c.catalog.catalogId,
-        catalogName: c.catalog.catalogName,
-        owner: c.catalog.owner,
-        strategy: c.catalog.strategy,
-        baseEndpoint: c.catalog.baseEndpoint,
-        enabled: c.catalog.enabled,
-        protocol: "Query interface"
+        catalogId: c.catalog.catalogId || c.uniqueId,
+        catalogName: c.catalog.catalogName || c.catalog.catalogId || c.uniqueId,
+        owner: c.catalog.owner || "",
+        strategy: c.catalog.strategy || "none",
+        baseEndpoint: c.catalog.baseEndpoint || c.catalog.queryEndpoint || "",
+        enabled: c.catalog.enabled !== false,
+        protocol: c.catalog.protocol || "Query interface",
+        mimeType: c.catalog.mimeType || "",
+        updatedAt: c.catalog.updatedAt || ""
       }));
       dispatchMsg({ payload: { response: { action: "getHarvestCatalogues", status: "success", catalogs } } });
     }
     if (msg.type === "startHarvest") {
-      const runId = "run-" + Date.now().toString(36);
-      const catNames = (msg.data?.catalogues || []).map((c) => c.catalogName).join(", ");
-      const run = {
-        uniqueId: runId,
-        catalogueName: catNames || "Harvest",
-        catalogues: msg.data?.catalogues || [],
-        scope: msg.data?.scope || {},
-        lifecycle: msg.data?.lifecycle || {},
-        status: "completed",
-        startedAt: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16),
-        totalAssets: 42,
-        assetsAdded: 38,
-        duration: "2m 15s",
-        result: "Success"
+      let _extractAssetName = function(srcEntry, nameField) {
+        if (!srcEntry || typeof srcEntry !== "object") return "Unknown Asset";
+        if (nameField) {
+          const v = _resolvePath(srcEntry, nameField);
+          if (v && typeof v === "string" && v.trim()) return v;
+        }
+        const cands = ["title", "name", "catalogName", "label", "displayName", "companyName", "organisationName", "organization", "fullName", "shortName", "legalName", "tradingName", "firma"];
+        for (const f of cands) {
+          if (srcEntry[f] && typeof srcEntry[f] === "string" && srcEntry[f].trim()) return srcEntry[f];
+        }
+        const cd = srcEntry.companyDetails;
+        if (cd && typeof cd === "object") {
+          if (cd["A.1.1.1"] && typeof cd["A.1.1.1"] === "string") return cd["A.1.1.1"];
+          if (cd["A.2.1.1"] && typeof cd["A.2.1.1"] === "string") return cd["A.2.1.1"];
+          for (const f of cands) {
+            if (cd[f] && typeof cd[f] === "string" && cd[f].trim()) return cd[f];
+          }
+        }
+        if (srcEntry.createdBy?.fullName && typeof srcEntry.createdBy.fullName === "string") return srcEntry.createdBy.fullName;
+        for (const key of Object.keys(srcEntry)) {
+          const nested = srcEntry[key];
+          if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+            for (const f of cands) {
+              if (nested[f] && typeof nested[f] === "string" && nested[f].trim()) return nested[f];
+            }
+          }
+        }
+        for (const key of Object.keys(srcEntry)) {
+          const val = srcEntry[key];
+          if (typeof val === "string" && val.length > 2 && val.length < 200 && !/^[\d\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(val) && !key.startsWith("_")) return val;
+        }
+        if (srcEntry.description && typeof srcEntry.description === "string") return srcEntry.description.slice(0, 120);
+        return "Unknown Asset";
+      }, _buildAsset = function(srcEntry, cat, idField, nameField, typeField, idx) {
+        if (!srcEntry || typeof srcEntry !== "object") return null;
+        const assetId = "asset-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+        const remoteId = String((idField ? _resolvePath(srcEntry, idField) : null) || srcEntry?.identifier || srcEntry?.id || srcEntry?._id || srcEntry?.requestId || "remote-" + Math.random().toString(36).slice(2, 10));
+        const cd = srcEntry?.companyDetails;
+        const assetType = String((typeField ? _resolvePath(srcEntry, typeField) : null) || srcEntry?.["@type"] || srcEntry?.type || cd?.["A.1.1.0"] || cd?.["A.2.1.4"] || "dcat:Dataset");
+        const domain = srcEntry?.domain || srcEntry?.theme || srcEntry?.category || cd?.["A.2.1.4"] || cat.catalogName || "";
+        const assetName = _extractAssetName(srcEntry, nameField);
+        const now2 = _ts();
+        return {
+          asset: { id: assetId, assets: assetName, title: assetName, type: assetType, name: cat.catalogName || "Unknown", domain, updated: now2, integrationStatus: scope.schemaMappingEnabled ? "Transformed" : "Active", sourceCatalogue: cat.catalogName || cat.uniqueId, sourceCatalogueId: cat.uniqueId, harvestRunId: runId, remoteAssetId: remoteId, originalForm: srcEntry, transformedForm: scope.schemaMappingEnabled ? { "@type": "dcat:Dataset", "dct:identifier": assetId, "dct:title": assetName } : null },
+          provenance: { id: "prov-" + assetId, assetId, remoteAssetId: remoteId, runId, catalogueId: cat.uniqueId, catalogueName: cat.catalogName, harvestDate: now2, strategy: cat.strategy || "none", schemaMapped: !!scope.schemaMappingEnabled },
+          log: { id: "log-" + Date.now().toString(36) + "-" + idx, runId, level: "info", timestamp: now2, catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "Imported: " + assetName }
+        };
+      }, _finalizeHarvest = function(assets, logs, provenance) {
+        createMockResponder._localAssets.push(...assets);
+        createMockResponder._harvestLogs.push(...logs);
+        createMockResponder._harvestProvenance.push(...provenance);
+        _saveStore("local_assets", createMockResponder._localAssets);
+        _saveStore("hv_logs", createMockResponder._harvestLogs);
+        _saveStore("hv_provenance", createMockResponder._harvestProvenance);
+        const runCatalogues = selectedCats.map((c) => {
+          const { sourceData: _sd, ...rest } = c;
+          return rest;
+        });
+        const run = { uniqueId: runId, catalogueName: catNames || "Harvest", catalogues: runCatalogues, scope, lifecycle, status: "completed", startedAt, totalAssets: assets.length, assetsAdded: assets.length, successCount: assets.length, errorCount: 0, duration: Math.floor(1 + Math.random() * 5) + "m " + Math.floor(Math.random() * 59) + "s", result: "Success", tool: "Harvester", assetIds: assets.map((a) => a.id) };
+        createMockResponder._harvestRuns.unshift(run);
+        _saveStore("hv_runs", createMockResponder._harvestRuns);
+        const allStored = createMockResponder._localAssets || [];
+        const allProv = createMockResponder._harvestProvenance || [];
+        const allRunIds = new Set(allStored.map((a) => a.harvestRunId).filter(Boolean));
+        dispatchMsg({ payload: { response: { action: "startHarvest", status: "success", run, allAssets: allStored, allProvenance: allProv, totalAssets: allStored.length, totalRuns: allRunIds.size } } });
+        setTimeout(() => {
+          dispatchMsg({ payload: { response: { action: "harvestProgress", runId, status: "completed", catalogueName: catNames || "Harvest", progress: 100, totalAssets: assets.length, processedAssets: assets.length, successCount: assets.length, errorCount: 0, startedAt } } });
+        }, 500);
+        setTimeout(() => {
+          const fresh = createMockResponder._localAssets || [];
+          const fRunIds = new Set(fresh.map((a) => a.harvestRunId).filter(Boolean));
+          dispatchMsg({ payload: { response: { action: "getLocalCatalogue", status: "success", assets: fresh, totalAssets: fresh.length, totalRuns: fRunIds.size } } });
+          dispatchMsg({ payload: { response: { action: "listHarvestProvenance", status: "success", provenance: createMockResponder._harvestProvenance || [] } } });
+        }, 700);
       };
-      dispatchMsg({ payload: { response: { action: "startHarvest", status: "success", run } } });
-      setTimeout(() => {
-        dispatchMsg({ payload: { response: {
-          action: "harvestProgress",
-          runId,
-          status: "completed",
-          catalogueName: catNames || "Harvest",
-          progress: 100,
-          totalAssets: 42,
-          processedAssets: 42,
-          successCount: 38,
-          errorCount: 4,
-          startedAt: run.startedAt
-        } } });
-      }, 500);
+      const runId = "run-" + Date.now().toString(36);
+      const selectedCats = msg.data?.catalogues || [];
+      const catNames = selectedCats.map((c) => c.catalogName).join(", ");
+      const scope = msg.data?.scope || {};
+      const lifecycle = msg.data?.lifecycle || {};
+      const startedAt = _ts();
+      const allAssets = [];
+      const allLogs = [];
+      const allProvenance = [];
+      console.log("[facis-harvest] Starting harvest for", selectedCats.length, "catalogue(s):", selectedCats.map((c) => c.catalogName));
+      const catPromises = selectedCats.map(async (cat) => {
+        const storedCat = mockCatalogs.find((c) => c.uniqueId === cat.uniqueId);
+        const catConfig = storedCat?.catalog || {};
+        const rootPath = cat.responseRootPath || catConfig.responseRootPath || "";
+        const idField = cat.responseAssetIdField || catConfig.responseAssetIdField || "";
+        const nameField = cat.responseAssetNameField || catConfig.responseAssetNameField || "";
+        const typeField = cat.responseAssetTypeField || catConfig.responseAssetTypeField || "";
+        let sourceData = cat.sourceData || catConfig.sourceData || null;
+        console.log("[facis-harvest]", cat.catalogName, "| sourceData:", sourceData ? Array.isArray(sourceData) ? sourceData.length + " items (array)" : "object" : "null", "| storedCat:", !!storedCat);
+        if (!sourceData) {
+          const endpoint = cat.baseEndpoint || catConfig.baseEndpoint || catConfig.queryEndpoint || "";
+          if (endpoint) {
+            console.log("[facis-harvest]", cat.catalogName, "| No sourceData \u2014 attempting live API fetch from:", endpoint);
+            try {
+              const authType = cat.auth || catConfig.auth || "none";
+              const hdrs = { "Accept": "application/json" };
+              if (authType === "static-token") {
+                const tok = cat.authStaticToken || catConfig.authStaticToken;
+                if (tok) hdrs["Authorization"] = (cat.authTokenPrefix || catConfig.authTokenPrefix || "Bearer") + " " + tok;
+              } else if (authType === "api-key") {
+                const key = cat.authApiKey || catConfig.authApiKey;
+                if (key) hdrs[cat.authApiKeyHeader || catConfig.authApiKeyHeader || "X-API-Key"] = key;
+              } else if (authType === "token-login") {
+                const loginUrl = cat.authLoginEndpoint || catConfig.authLoginEndpoint;
+                if (loginUrl) {
+                  try {
+                    let body = (cat.authPayloadTemplate || catConfig.authPayloadTemplate || '{"email":"{{username}}","password":"{{password}}"}').replace("{{username}}", cat.authUsername || catConfig.authUsername || "").replace("{{password}}", cat.authPassword || catConfig.authPassword || "");
+                    const lr = await fetch(loginUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+                    if (lr.ok) {
+                      const ld = await lr.json();
+                      const tok = _resolvePath(ld, cat.authTokenPath || catConfig.authTokenPath || "token");
+                      if (tok) hdrs["Authorization"] = (cat.authTokenPrefix || catConfig.authTokenPrefix || "Bearer") + " " + tok;
+                    }
+                  } catch (e) {
+                    allLogs.push({ id: "log-auth-" + cat.uniqueId, runId, level: "warning", timestamp: _ts(), catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "Auth login failed: " + e.message });
+                  }
+                }
+              }
+              const r = await fetch(endpoint, { headers: hdrs });
+              if (r.ok) {
+                sourceData = await r.json();
+                if (storedCat?.catalog) {
+                  storedCat.catalog.sourceData = sourceData;
+                  _saveCatalogs();
+                }
+                allLogs.push({ id: "log-fetch-" + cat.uniqueId, runId, level: "info", timestamp: _ts(), catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "Fetched " + (Array.isArray(sourceData) ? sourceData.length + " records" : "data") + " from " + endpoint });
+              } else {
+                allLogs.push({ id: "log-fetcherr-" + cat.uniqueId, runId, level: "error", timestamp: _ts(), catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "HTTP " + r.status + " from " + endpoint });
+              }
+            } catch (e) {
+              const isCors = e.message && (e.message.includes("Failed to fetch") || e.message.includes("NetworkError") || e.message.includes("CORS"));
+              const detail = isCors ? "API unreachable (likely CORS). Upload the API response as JSON when registering the catalogue." : "Fetch error: " + e.message;
+              console.warn("[facis-harvest]", cat.catalogName, "|", detail);
+              allLogs.push({ id: "log-fetcherr-" + cat.uniqueId, runId, level: "error", timestamp: _ts(), catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: detail });
+            }
+          } else {
+            console.warn("[facis-harvest]", cat.catalogName, "| No sourceData and no endpoint configured \u2014 nothing to harvest");
+            allLogs.push({ id: "log-nosrc-" + cat.uniqueId, runId, level: "warning", timestamp: _ts(), catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "No source data and no endpoint configured" });
+          }
+        }
+        const entries = sourceData ? _extractEntriesFromSource(sourceData, rootPath) : [];
+        console.log("[facis-harvest]", cat.catalogName, "| entries extracted:", entries.length, entries.length > 0 ? "(first keys: " + Object.keys(entries[0] || {}).slice(0, 5).join(", ") + ")" : "");
+        for (let i = 0; i < entries.length; i++) {
+          const result = _buildAsset(entries[i], cat, idField, nameField, typeField, i);
+          if (result) {
+            allAssets.push(result.asset);
+            allProvenance.push(result.provenance);
+            allLogs.push(result.log);
+            console.log("[facis-harvest]  asset", i, ":", result.asset.assets, "(id:", result.asset.remoteAssetId + ")");
+          }
+        }
+        allLogs.push({ id: "log-done-" + cat.uniqueId, runId, level: "info", timestamp: startedAt, catalogueId: cat.uniqueId, catalogueName: cat.catalogName, message: "Harvest completed for " + cat.catalogName + ": " + entries.length + " assets" + (sourceData ? "" : " (no source data)") });
+      });
+      Promise.all(catPromises).then(() => _finalizeHarvest(allAssets, allLogs, allProvenance)).catch((err) => {
+        console.error("[facis-service] startHarvest ERROR:", err);
+        dispatchMsg({ payload: { response: { action: "startHarvest", status: "error", message: "Harvest error: " + err.message } } });
+      });
     }
     if (msg.type === "listHarvestRuns") {
-      dispatchMsg({ payload: { response: { action: "listHarvestRuns", status: "success", runs: [] } } });
+      dispatchMsg({ payload: { response: { action: "listHarvestRuns", status: "success", runs: createMockResponder._harvestRuns } } });
     }
     if (msg.type === "getHarvestRunDetail") {
-      dispatchMsg({ payload: { response: { action: "getHarvestRunDetail", status: "success", run: {
-        uniqueId: msg.data?.runId,
-        catalogueName: "Preview",
-        status: "Completed",
-        startedAt: "-",
-        duration: "-",
-        imported: "-",
-        assets: []
-      } } } });
+      const runId = msg.data?.runId;
+      const run = createMockResponder._harvestRuns.find((r) => r.uniqueId === runId);
+      if (run) {
+        const runAssets = createMockResponder._localAssets.filter((a) => a.harvestRunId === runId);
+        const runLogs = createMockResponder._harvestLogs.filter((l) => l.runId === runId);
+        const runProvenance = createMockResponder._harvestProvenance.filter((p) => p.runId === runId);
+        dispatchMsg({ payload: { response: { action: "getHarvestRunDetail", status: "success", run: {
+          ...run,
+          imported: run.assetsAdded + " assets",
+          assets: runAssets
+        }, logs: runLogs, provenance: runProvenance } } });
+      } else {
+        dispatchMsg({ payload: { response: { action: "getHarvestRunDetail", status: "success", run: {
+          uniqueId: runId,
+          catalogueName: "-",
+          status: "Not Found",
+          startedAt: "-",
+          duration: "-",
+          imported: "0",
+          assets: []
+        }, logs: [], provenance: [] } } });
+      }
     }
     if (msg.type === "listHarvestLogs") {
-      dispatchMsg({ payload: { response: { action: "listHarvestLogs", status: "success", logs: [] } } });
+      dispatchMsg({ payload: { response: { action: "listHarvestLogs", status: "success", logs: createMockResponder._harvestLogs } } });
     }
     if (msg.type === "listHarvestProvenance") {
-      dispatchMsg({ payload: { response: { action: "listHarvestProvenance", status: "success", provenance: [] } } });
+      dispatchMsg({ payload: { response: { action: "listHarvestProvenance", status: "success", provenance: createMockResponder._harvestProvenance } } });
     }
     if (msg.type === "pauseHarvest" || msg.type === "resumeHarvest" || msg.type === "cancelHarvest") {
+      dispatchMsg({ payload: { response: { action: msg.type, status: "success" } } });
     }
     if (msg.type === "getLocalCatalogue") {
-      dispatchMsg({ payload: { response: { action: "getLocalCatalogue", status: "success", assets: [], totalAssets: 0, totalRuns: 0 } } });
+      const assets = createMockResponder._localAssets || [];
+      const runIds = new Set(assets.map((a) => a.harvestRunId).filter(Boolean));
+      dispatchMsg({ payload: { response: {
+        action: "getLocalCatalogue",
+        status: "success",
+        assets,
+        totalAssets: assets.length,
+        totalRuns: runIds.size
+      } } });
     }
     if (msg.type === "deleteLocalAsset") {
+      const delId = msg.data?.assetId || msg.data?.uniqueId;
+      if (delId) {
+        createMockResponder._localAssets = (createMockResponder._localAssets || []).filter((a) => a.id !== delId);
+        _saveStore("local_assets", createMockResponder._localAssets);
+      }
       dispatchMsg({ payload: { response: { action: "deleteLocalAsset", status: "success" } } });
     }
     if (msg.type === "updateLocalAsset") {
+      const updId = msg.data?.assetId || msg.data?.uniqueId;
+      const patch = msg.data?.patch || msg.data || {};
+      if (updId) {
+        const idx = (createMockResponder._localAssets || []).findIndex((a) => a.id === updId);
+        if (idx !== -1) {
+          Object.assign(createMockResponder._localAssets[idx], patch);
+          createMockResponder._localAssets[idx].updated = _ts();
+          _saveStore("local_assets", createMockResponder._localAssets);
+        }
+      }
       dispatchMsg({ payload: { response: { action: "updateLocalAsset", status: "success" } } });
     }
+    if (msg.type === "getLocalProvenance") {
+      const provenance = createMockResponder._harvestProvenance || [];
+      dispatchMsg({ payload: { response: {
+        action: "getLocalProvenance",
+        status: "success",
+        provenance,
+        total: provenance.length
+      } } });
+    }
+    if (msg.type === "getLocalAssetDetail") {
+      const assetId = msg.data?.assetId || msg.data?.uniqueId || "";
+      const asset = (createMockResponder._localAssets || []).find((a) => a.id === assetId) || null;
+      const provenance = (createMockResponder._harvestProvenance || []).filter((p) => p.assetId === assetId);
+      dispatchMsg({ payload: { response: {
+        action: "getLocalAssetDetail",
+        status: "success",
+        asset,
+        provenance
+      } } });
+    }
+    if (msg.type === "getLocalStats") {
+      const assets = createMockResponder._localAssets || [];
+      const provenance = createMockResponder._harvestProvenance || [];
+      const runIds = new Set(assets.map((a) => a.harvestRunId).filter(Boolean));
+      const catIds = new Set(assets.map((a) => a.sourceCatalogueId || a.sourceCatalogue).filter(Boolean));
+      const statusCounts = { Active: 0, Warning: 0, Error: 0, Archived: 0 };
+      assets.forEach((a) => {
+        const s = a.integrationStatus || "Active";
+        if (statusCounts[s] !== void 0) statusCounts[s]++;
+      });
+      dispatchMsg({ payload: { response: {
+        action: "getLocalStats",
+        status: "success",
+        totalAssets: assets.length,
+        totalRuns: runIds.size,
+        linkedCatalogues: catIds.size,
+        totalProvenance: provenance.length,
+        statusCounts,
+        warningCount: statusCounts.Warning,
+        errorCount: statusCounts.Error
+      } } });
+    }
+    function mockId(prefix) {
+      return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+    function now() {
+      return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    }
     const schemaStubs = {
-      enhancePrompt: () => ({ action: "enhancePrompt", status: "success", enhancedPrompt: "[Connect to Node-RED backend for real AI-enhanced prompt]" }),
-      createPrompt: (d) => ({ action: "createPrompt", status: "success", prompt: { id: "preview-placeholder", version: d.version || "1.0", status: "draft", sourceSchema: d.sourceSchema || "", targetSchema: d.targetSchema || "", template: d.template || "", examples: d.examples || "", constraints: d.constraints || "", generatedCode: "", codeGenerationStatus: "pending", createdAt: "", updatedAt: "" } }),
+      enhancePrompt: (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode \u2014 connect Node-RED backend for real AI enhancement]" }),
+      createPrompt: (d) => {
+        const id2 = mockId("prompt-");
+        const ts = now();
+        return { action: "createPrompt", status: "success", prompt: { id: id2, version: d.version || "1.0", status: "draft", sourceSchema: d.sourceSchema || "", targetSchema: d.targetSchema || "", template: d.template || "", examples: d.examples || "", constraints: d.constraints || "", generatedCode: "", codeGenerationStatus: "pending", createdAt: ts, updatedAt: ts } };
+      },
       listPrompts: () => ({ action: "listPrompts", status: "success", prompts: [
         { id: "prompt-001", version: "1.0", status: "active", sourceSchema: "OGC SensorML", targetSchema: "DCAT-AP.de", template: "Transform the following {SOURCE_SCHEMA} asset into a valid {TARGET_SCHEMA} record.\n\nSource asset:\n{SOURCE_ASSET}\n\nExamples:\n{EXAMPLES}\n\nConstraints:\n{CONSTRAINTS}", examples: "Input: SensorML observation \u2192 Output: DCAT Dataset with dct:title, dcat:distribution", constraints: "All output must validate against the target SHACL shape. Preserve original identifiers.", createdAt: "2026-01-15", updatedAt: "2026-02-01", generatedCode: 'function transform(input) {\n  const output = {};\n  output["@type"] = "dcat:Dataset";\n  output["dct:identifier"] = input.identifier || input.id || "";\n  output["dct:title"] = input.name || input.title || "";\n  output["dct:description"] = input.description || "";\n  return output;\n}', originalPrompt: "", enhancedPrompt: "", codeGenerationStatus: "completed", lastGeneratedAt: "2026-02-01" },
         { id: "prompt-002", version: "2.0", status: "draft", sourceSchema: "ISO 19115-1", targetSchema: "DCAT-AP.de", template: "Map the ISO 19115-1 metadata record to DCAT-AP.de format.\n\nSource:\n{SOURCE_ASSET}", examples: "", constraints: "Preserve spatial extent.", createdAt: "2026-02-10", updatedAt: "2026-02-10", generatedCode: "", originalPrompt: "", enhancedPrompt: "", codeGenerationStatus: "", lastGeneratedAt: "" }
       ] }),
-      updatePromptCode: (d) => ({ action: "updatePromptCode", status: "success", promptId: d.promptId, code: d.code, updatedAt: "" }),
+      updatePromptCode: (d) => ({ action: "updatePromptCode", status: "success", promptId: d.promptId, code: d.code, updatedAt: now() }),
       deletePrompt: (d) => ({ action: "deletePrompt", status: "success", promptId: d.promptId }),
-      dryRunPrompt: (d) => ({ action: "dryRunPrompt", status: "success", promptId: d.promptId, result: "[Connect to Node-RED backend for real dry run execution]" }),
-      saveTestCase: (d) => ({ action: "saveTestCase", status: "success", testCaseId: d.id || "preview-tc", isNew: !d.id, testCase: { id: d.id || "preview-tc", name: d.name || "", promptId: d.promptId || "", llmConfigId: d.llmConfigId || "", sampleInput: d.sampleInput || "", expectedOutput: d.expectedOutput || "", lastResult: "", lastRunAt: "", createdAt: "", updatedAt: "" } }),
+      dryRunPrompt: (d) => {
+        return { action: "dryRunPrompt", status: "success", promptId: d.promptId, result: '{\n  "@type": "dcat:Dataset",\n  "dct:identifier": "preview-result",\n  "dct:title": "Preview Transform Output"\n}' };
+      },
+      saveTestCase: (d) => {
+        const id2 = d.id || mockId("tc-");
+        const ts = now();
+        return { action: "saveTestCase", status: "success", testCaseId: id2, isNew: !d.id, testCase: { id: id2, name: d.name || "", promptId: d.promptId || "", llmConfigId: d.llmConfigId || "", sampleInput: d.sampleInput || "", expectedOutput: d.expectedOutput || "", lastResult: "", lastRunAt: "", createdAt: ts, updatedAt: ts } };
+      },
       listTestCases: () => ({ action: "listTestCases", status: "success", testCases: [
         { id: "tc-001", name: "SensorML to DCAT basic", promptId: "prompt-001", llmConfigId: "llm-001", sampleInput: '{\n  "@type": "SensorML",\n  "identifier": "sensor-abc-123",\n  "name": "Temperature Sensor Berlin",\n  "description": "Outdoor temperature monitoring station"\n}', expectedOutput: "", lastResult: "", lastRunAt: "2026-02-20", createdAt: "2026-02-20", updatedAt: "2026-02-20" }
       ] }),
       deleteTestCase: (d) => ({ action: "deleteTestCase", status: "success", testCaseId: d.testCaseId }),
-      updatePrompt: (d) => ({ action: "updatePrompt", status: "success", promptId: d.promptId, version: d.version, sourceSchema: d.sourceSchema, targetSchema: d.targetSchema, template: d.template, examples: d.examples, constraints: d.constraints, promptStatus: d.status, code: d.code, updatedAt: "" }),
-      updatePromptStatus: (d) => ({ action: "updatePromptStatus", status: "success", promptId: d.promptId, newStatus: d.status, updatedAt: "" }),
-      saveLlmConfig: (d) => ({ action: "saveLlmConfig", status: "success", configId: d.id || "preview-llm", isNew: !d.id, config: { id: d.id || "preview-llm", name: d.name || "", provider: d.provider || "OpenAI", model: d.model || "", temperature: d.temperature ?? 0.3, maxTokens: d.maxTokens ?? 4096, timeout: d.timeout ?? 30, status: d.status || "active", createdAt: "", updatedAt: "" } }),
+      updatePrompt: (d) => ({ action: "updatePrompt", status: "success", promptId: d.promptId, version: d.version, sourceSchema: d.sourceSchema, targetSchema: d.targetSchema, template: d.template, examples: d.examples, constraints: d.constraints, promptStatus: d.status, code: d.code, updatedAt: now() }),
+      updatePromptStatus: (d) => ({ action: "updatePromptStatus", status: "success", promptId: d.promptId, newStatus: d.status, updatedAt: now() }),
+      saveLlmConfig: (d) => {
+        const id2 = d.id || mockId("llm-");
+        const ts = now();
+        return { action: "saveLlmConfig", status: "success", configId: id2, isNew: !d.id, config: { id: id2, name: d.name || "", provider: d.provider || "OpenAI", model: d.model || "", temperature: d.temperature ?? 0.3, maxTokens: d.maxTokens ?? 4096, timeout: d.timeout ?? 30, status: d.status || "active", createdAt: ts, updatedAt: ts } };
+      },
       deleteLlmConfig: (d) => ({ action: "deleteLlmConfig", status: "success", configId: d.configId }),
-      saveProvider: (d) => ({ action: "saveProvider", status: "success", providerId: d.id || "preview-prov", isNew: !d.id, provider: { id: d.id || "preview-prov", name: d.name || "", type: d.type || "openai", apiEndpoint: d.apiEndpoint || "", models: Array.isArray(d.models) ? d.models : [], isDefault: !!d.isDefault, precedence: d.precedence || 1, status: d.status || "active", createdAt: "", updatedAt: "" } }),
+      saveProvider: (d) => {
+        const id2 = d.id || mockId("prov-");
+        const ts = now();
+        return { action: "saveProvider", status: "success", providerId: id2, isNew: !d.id, provider: { id: id2, name: d.name || "", type: d.type || "openai", apiEndpoint: d.apiEndpoint || "", models: Array.isArray(d.models) ? d.models : [], isDefault: !!d.isDefault, precedence: d.precedence || 1, status: d.status || "active", createdAt: ts, updatedAt: ts } };
+      },
       deleteProvider: (d) => ({ action: "deleteProvider", status: "success", providerId: d.providerId }),
       reorderProvider: () => ({ action: "reorderProvider", status: "success", providers: [] }),
-      startBatchRetransform: () => ({ action: "startBatchRetransform", status: "success", totalAssets: 0, startedAt: "" }),
-      cancelBatchRetransform: () => ({ action: "batchRetransformProgress", status: "cancelled", completedAt: "" }),
+      // empty array = no-op in handler (only updates if length > 0)
+      startBatchRetransform: (d) => {
+        const total = d.scope === "all" ? 275 : d.scope === "catalogue" ? 120 : 50;
+        const startedAt = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16);
+        let processed = 0;
+        const step = Math.ceil(total / 10);
+        const interval = setInterval(() => {
+          processed = Math.min(total, processed + step);
+          const progress = Math.round(processed / total * 100);
+          const done = processed >= total;
+          dispatchMsg({ payload: { response: {
+            action: "batchRetransformProgress",
+            status: done ? "completed" : "running",
+            progress,
+            totalAssets: total,
+            processedAssets: processed,
+            successCount: processed - (done ? 3 : 0),
+            errorCount: done ? 3 : 0,
+            skippedCount: 0,
+            startedAt,
+            completedAt: done ? (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16) : "",
+            errors: done ? [{ assetId: "asset-err-001", message: "SHACL validation failed", timestamp: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19) }] : [],
+            historyEntry: done ? { id: mockId("br-"), trigger: "Manual (preview)", scope: d.scope || "all", dryRun: !!d.dryRun, total, success: processed - 3, errors: 3, skipped: 0, startedAt, completedAt: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16), status: "completed" } : void 0
+          } } });
+          if (done) clearInterval(interval);
+        }, 400);
+        return { action: "startBatchRetransform", status: "success", totalAssets: total, startedAt };
+      },
+      cancelBatchRetransform: () => ({ action: "batchRetransformProgress", status: "cancelled", completedAt: (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16) }),
+      saveLocalSchema: (d) => {
+        const id2 = d.id || mockId("schema-");
+        const ts = now();
+        return { action: "saveLocalSchema", status: "success", schemaId: id2, isNew: !d.id, schema: { id: id2, schema: d.schema || "", format: d.format || "SHACL", catalogs: d.catalogs || 1, localMapping: d.localMapping || null, versioning: d.versioning || "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: d.trustLevel || "Federated", createdAt: ts, updatedAt: ts } };
+      },
+      listLocalSchemas: () => ({ action: "listLocalSchemas", status: "success", schemas: [] }),
+      deleteLocalSchema: (d) => ({ action: "deleteLocalSchema", status: "success", schemaId: d.schemaId }),
+      saveMapping: (d) => {
+        const id2 = d.id || mockId("map-");
+        const ts = now();
+        return { action: "saveMapping", status: "success", mappingId: id2, isNew: !d.id, mapping: { id: id2, remoteCatalogue: d.remoteCatalogue || "", remoteSchema: d.remoteSchema || "", remoteSchemaMeta: d.remoteSchemaMeta || "", transformationStrategy: d.transformationStrategy || "Deterministic RDF", promptsCount: d.promptsCount || 0, shaclCount: d.shaclCount || 0, createdAt: ts, updatedAt: ts } };
+      },
+      listMappings: () => ({ action: "listMappings", status: "success", mappings: [] }),
+      deleteMapping: (d) => ({ action: "deleteMapping", status: "success", mappingId: d.mappingId }),
+      saveRemoteSchema: (d) => {
+        const id2 = d.id || mockId("rschema-");
+        const ts = now();
+        return { action: "saveRemoteSchema", status: "success", schemaId: id2, schema: { id: id2, schema: d.schema || "", format: d.format || "SHACL", catalogs: d.catalogs || 0, remoteCatalogs: d.remoteCatalogs || [], versioning: d.version || "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: d.trustLevel || "Federated", createdAt: ts, updatedAt: ts } };
+      },
       listLlmConfigs: () => ({ action: "listLlmConfigs", status: "success", configs: [
         { id: "llm-001", name: "GPT-4o Production", provider: "OpenAI", model: "gpt-4o", temperature: 0.2, maxTokens: 4096, timeout: 30, status: "active", createdAt: "2026-01-10", updatedAt: "2026-02-15" },
         { id: "llm-002", name: "Claude Staging", provider: "Anthropic", model: "claude-3.5-sonnet", temperature: 0.3, maxTokens: 8192, timeout: 60, status: "active", createdAt: "2026-02-01", updatedAt: "2026-02-20" },
@@ -344,8 +840,11 @@
       console.log("[facis-service] mock start()");
     },
     send(msg) {
-      console.log("[facis-service] mock send():", JSON.stringify(msg, null, 2));
-      createMockResponder(msg);
+      try {
+        createMockResponder(msg);
+      } catch (e) {
+        console.error("[facis-service] createMockResponder ERROR:", e);
+      }
     },
     onChange(prop, cb) {
       if (prop === "msg" && typeof cb === "function") {
@@ -25487,9 +25986,28 @@
         namespacesToPreserve: "",
         shaclShapeId: "",
         auth: "none",
+        authLoginEndpoint: "",
+        authUsername: "",
+        authPassword: "",
+        authPayloadTemplate: '{"email":"{{username}}","password":"{{password}}"}',
+        authTokenPath: "token",
+        authTokenInjection: "body",
+        authTokenFieldName: "token",
+        authTokenPrefix: "",
+        authStaticToken: "",
+        authApiKey: "",
+        authApiKeyHeader: "X-API-Key",
+        responseRootPath: "",
+        responseAssetIdField: "",
+        responseAssetNameField: "",
+        responseAssetTypeField: "",
         trustAnchor: "",
         enabled: true
       },
+      // JSON File Upload for Catalogue Registration
+      isDraggingJson: false,
+      uploadedJsonFile: null,
+      jsonUploadError: "",
       // Pagination
       pagination: {
         catalog: { page: 1, perPage: 5 },
@@ -25498,6 +26016,7 @@
         catalogsRegister: { page: 1, perPage: 5 },
         users: { page: 1, perPage: 5 },
         harvest: { page: 1, perPage: 5 },
+        provenance: { page: 1, perPage: 10 },
         mapping: { page: 1, perPage: 5 },
         harvestWizard: { page: 1, perPage: 5 }
       },
@@ -25746,13 +26265,15 @@ ex:publisher a ex:Property .`,
       isEditingPrompt: false,
       promptForm: {
         id: null,
+        name: "",
         version: "1.0",
         status: "draft",
         sourceSchema: "",
         targetSchema: "",
         template: "",
         examples: "",
-        constraints: ""
+        constraints: "",
+        author: ""
       },
       promptFormError: "",
       promptSearch: "",
@@ -25856,6 +26377,9 @@ ex:publisher a ex:Property .`,
       showHarvestLog: false,
       // Provenance metadata per imported asset (FR-ACM-01)
       harvestProvenance: [],
+      provenanceRows: [],
+      provenanceSearch: "",
+      provenanceFilters: { catalogue: "", strategy: "", mapped: "" },
       // Loading states for harvest
       isLoadingHarvestCatalogues: false,
       isSubmittingHarvest: false,
@@ -25901,6 +26425,8 @@ ex:publisher a ex:Property .`,
         type: "openai",
         apiEndpoint: "",
         models: "",
+        rateLimits: "",
+        timeout: 30,
         isDefault: false,
         precedence: 1,
         status: "active"
@@ -25908,6 +26434,9 @@ ex:publisher a ex:Property .`,
       providerFormError: "",
       providerSearch: "",
       // ── Milestone 2: Schema & Mapping Workflows ─────────────
+      localSchemaSearch: "",
+      remoteSchemaSearch: "",
+      mappingSearch: "",
       // Local Schema create modal
       showCreateLocalSchemaModal: false,
       isEditingLocalSchema: false,
@@ -25943,6 +26472,7 @@ ex:publisher a ex:Property .`,
       // Harvest run detail view
       showHarvestRunDetail: false,
       harvestRunDetailData: null,
+      harvestDetailTab: "assets",
       // Live harvest progress
       activeHarvest: {
         running: false,
@@ -26341,6 +26871,8 @@ ex:publisher a ex:Property .`,
             const data = JSON.parse(ev.target.result);
             this.uploadedJsonFile = { name: file.name, data };
             this.applyJsonToForm(data);
+            this.remoteCatalogForm.sourceData = data;
+            this.remoteCatalogForm.sourceFileName = file.name;
           } catch {
             this.jsonUploadError = "Invalid JSON \u2014 could not parse the file.";
             this.uploadedJsonFile = null;
@@ -26372,7 +26904,22 @@ ex:publisher a ex:Property .`,
           llmConfigId: ["llmConfigId"],
           namespacesToPreserve: ["namespacesToPreserve", "namespaces"],
           shaclShapeId: ["shaclShapeId", "shapeId"],
-          auth: ["auth", "authentication"],
+          auth: ["auth", "authentication", "authType"],
+          authLoginEndpoint: ["authLoginEndpoint", "loginEndpoint", "loginUrl"],
+          authUsername: ["authUsername", "username", "email"],
+          authPassword: ["authPassword", "password"],
+          authPayloadTemplate: ["authPayloadTemplate", "loginPayload"],
+          authTokenPath: ["authTokenPath", "tokenPath"],
+          authTokenInjection: ["authTokenInjection", "tokenInjection"],
+          authTokenFieldName: ["authTokenFieldName", "tokenField"],
+          authTokenPrefix: ["authTokenPrefix", "tokenPrefix"],
+          authStaticToken: ["authStaticToken", "bearerToken", "staticToken"],
+          authApiKey: ["authApiKey", "apiKey"],
+          authApiKeyHeader: ["authApiKeyHeader", "apiKeyHeader"],
+          responseRootPath: ["responseRootPath", "rootPath", "dataPath"],
+          responseAssetIdField: ["responseAssetIdField", "assetIdField", "idField"],
+          responseAssetNameField: ["responseAssetNameField", "assetNameField", "nameField"],
+          responseAssetTypeField: ["responseAssetTypeField", "assetTypeField", "typeField"],
           trustAnchor: ["trustAnchor"],
           enabled: ["enabled", "active"]
         };
@@ -26388,6 +26935,8 @@ ex:publisher a ex:Property .`,
       clearUploadedJson() {
         this.uploadedJsonFile = null;
         this.jsonUploadError = "";
+        this.remoteCatalogForm.sourceData = null;
+        this.remoteCatalogForm.sourceFileName = "";
       }
     }
   };
@@ -26435,6 +26984,7 @@ ex:publisher a ex:Property .`,
       harvestScope: { type: Object, required: true },
       lifecycleMapping: { type: Object, required: true },
       wizardSelectedCount: { type: Number, default: 0 },
+      wizardSelectedCatalogRows: { type: Array, default: () => [] },
       overviewScopeLines: { type: Array, default: () => [] },
       overviewLifecycleLines: { type: Array, default: () => [] },
       overviewMappingCounts: { type: Object, default: () => ({}) },
@@ -26493,14 +27043,42 @@ ex:publisher a ex:Property .`,
       catalogPagination() {
         return paginate(this.tableRows, this.pagination.catalog.page, this.pagination.catalog.perPage);
       },
+      filteredSchemaRegistry() {
+        const q = (this.localSchemaSearch || "").trim().toLowerCase();
+        if (!q) return this.schemaRegistry;
+        return this.schemaRegistry.filter(
+          (s) => (s.schema || "").toLowerCase().includes(q) || (s.localMapping || "").toLowerCase().includes(q) || (s.trustLevel || "").toLowerCase().includes(q)
+        );
+      },
       schemaPagination() {
-        return paginate(this.schemaRegistry, this.pagination.schema.page, this.pagination.schema.perPage);
+        return paginate(this.filteredSchemaRegistry, this.pagination.schema.page, this.pagination.schema.perPage);
+      },
+      filteredRemoteSchema() {
+        const q = (this.remoteSchemaSearch || "").trim().toLowerCase();
+        if (!q) return this.remoteSchema;
+        return this.remoteSchema.filter(
+          (s) => (s.schema || "").toLowerCase().includes(q) || (s.localMapping || "").toLowerCase().includes(q) || (s.trustLevel || "").toLowerCase().includes(q)
+        );
       },
       remoteSchemaPagination() {
-        return paginate(this.remoteSchema, this.pagination.remoteSchema.page, this.pagination.remoteSchema.perPage);
+        return paginate(this.filteredRemoteSchema, this.pagination.remoteSchema.page, this.pagination.remoteSchema.perPage);
+      },
+      filteredMappingRows() {
+        const q = (this.mappingSearch || "").trim().toLowerCase();
+        if (!q) return this.mappingRows;
+        return this.mappingRows.filter(
+          (r) => (r.remoteCatalogue || "").toLowerCase().includes(q) || (r.remoteSchema || "").toLowerCase().includes(q) || (r.transformationStrategy || "").toLowerCase().includes(q)
+        );
       },
       mappingPagination() {
-        return paginate(this.mappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
+        return paginate(this.filteredMappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
+      },
+      filteredLlmProviders() {
+        const q = (this.providerSearch || "").trim().toLowerCase();
+        if (!q) return this.llmProviders;
+        return this.llmProviders.filter(
+          (p) => (p.name || "").toLowerCase().includes(q) || (p.type || "").toLowerCase().includes(q) || (p.apiEndpoint || "").toLowerCase().includes(q)
+        );
       },
       catalogsRegisterPagination() {
         const tableRows = this.catalogsTable.map((c) => ({
@@ -26522,6 +27100,34 @@ ex:publisher a ex:Property .`,
       },
       harvestWizardPagination() {
         return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
+      },
+      provenancePagination() {
+        return paginate(this.provenanceRows, this.pagination.provenance.page, this.pagination.provenance.perPage);
+      },
+      provenanceStats() {
+        const all = this.harvestProvenance || [];
+        const assets = this.allCatalogsRaw || [];
+        const runIds = new Set(assets.map((a) => a.harvestRunId).filter(Boolean));
+        const catIds = new Set(assets.map((a) => a.sourceCatalogueId || a.sourceCatalogue).filter(Boolean));
+        const mapped = all.filter((p) => p.schemaMapped).length;
+        const warnCount = assets.filter((a) => a.integrationStatus === "Warning").length;
+        const errCount = assets.filter((a) => a.integrationStatus === "Error").length;
+        return {
+          totalAssets: assets.length,
+          totalRuns: runIds.size,
+          linkedCatalogues: catIds.size,
+          totalProvenance: all.length,
+          schemaMappedCount: mapped,
+          warningCount: warnCount,
+          errorCount: errCount
+        };
+      },
+      provenanceCatalogueOptions() {
+        const set = /* @__PURE__ */ new Set();
+        (this.harvestProvenance || []).forEach((p) => {
+          if (p.catalogueName) set.add(p.catalogueName);
+        });
+        return Array.from(set).sort();
       },
       isWizardAllSelected() {
         const ids = this.harvestWizardRows.map((r) => r.id);
@@ -26548,7 +27154,7 @@ ex:publisher a ex:Property .`,
         const q = (this.promptSearch || "").trim().toLowerCase();
         if (!q) return this.prompts;
         return this.prompts.filter(
-          (p) => (p.id || "").toLowerCase().includes(q) || (p.sourceSchema || "").toLowerCase().includes(q) || (p.targetSchema || "").toLowerCase().includes(q) || (p.status || "").toLowerCase().includes(q)
+          (p) => (p.name || "").toLowerCase().includes(q) || (p.id || "").toLowerCase().includes(q) || (p.sourceSchema || "").toLowerCase().includes(q) || (p.targetSchema || "").toLowerCase().includes(q) || (p.status || "").toLowerCase().includes(q)
         );
       },
       promptTemplateParts() {
@@ -26590,6 +27196,17 @@ ex:publisher a ex:Property .`,
         return this.auditMini.filter(
           (r) => (r.level || "").toLowerCase().includes(q) || (r.step || "").toLowerCase().includes(q) || (r.timestamp || "").toLowerCase().includes(q)
         );
+      },
+      filteredAuditRowsInline() {
+        let rows = this.auditRows;
+        const f = this.auditFilters;
+        if (f.assetId) rows = rows.filter((r) => (r.assetId || "").toLowerCase().includes(f.assetId.toLowerCase()));
+        if (f.catalogueId) rows = rows.filter((r) => r.catalogueId === f.catalogueId);
+        if (f.promptVersion) rows = rows.filter((r) => r.promptVersion === f.promptVersion);
+        if (f.status) rows = rows.filter((r) => r.status === f.status);
+        if (f.dateFrom) rows = rows.filter((r) => (r.timestamp || "") >= f.dateFrom);
+        if (f.dateTo) rows = rows.filter((r) => (r.timestamp || "") <= f.dateTo + " 23:59");
+        return rows;
       },
       filteredMonitoringEvents() {
         const f = this.monitoringEventFilter;
@@ -26677,19 +27294,19 @@ ex:publisher a ex:Property .`,
       },
       overviewLifecycleLines() {
         const l = this.lifecycleMapping;
-        const updateText = l.updateHandling === "version" ? "Update Handling: Create new version" : "Update Handling: Create new catalog for new assets";
-        const deletionText = l.deletionHandling === "remove" ? "Deletion Handling: Remove deleted assets" : "Deletion Handling: Retain copy of old assets";
+        const updateText = l.updateHandling === "version" ? "Update Handling: Create new version of the corresponding local asset" : "Update Handling: Create a separate local asset";
+        const deletionText = l.deletionHandling === "remove" ? "Deletion Handling: Delete the corresponding local asset" : "Deletion Handling: Retain the local copy (mark as orphaned)";
         const lines = [updateText, deletionText];
         return lines;
       },
       overviewMappingCounts() {
-        const rows = Array.isArray(this.catalogsTable) ? this.catalogsTable : [];
+        const rows = this.wizardSelectedCatalogRows || [];
         const counts = { ai: 0, hybrid: 0, deterministic: 0, none: 0 };
         rows.forEach((r) => {
           const st = r.strategy || r.transformationStrategy || "none";
-          if (st === "ai" || st === "AI-driven") counts.ai++;
+          if (st === "ai-driven" || st === "ai" || st === "AI-driven") counts.ai++;
           else if (st === "hybrid" || st === "Hybrid") counts.hybrid++;
-          else if (st === "deterministic" || st === "Deterministic RDF") counts.deterministic++;
+          else if (st === "deterministic-rdf" || st === "deterministic" || st === "Deterministic RDF") counts.deterministic++;
           else counts.none++;
         });
         return counts;
@@ -26709,6 +27326,20 @@ ex:publisher a ex:Property .`,
       isInviteModal(v) {
         document.body.style.overflow = v ? "hidden" : "";
       },
+      provenanceFilters: {
+        handler() {
+          this.filterProvenance();
+        },
+        deep: true
+      },
+      currentTab(newTab) {
+        if (newTab === "localCatalogue") {
+          this.loadLocalCatalogs();
+        }
+        if (newTab === "provenance") {
+          this.loadLocalProvenance();
+        }
+      },
       currentPage(newPage) {
         if (newPage === "catalogueRegistry") {
           uibuilderService.send({
@@ -26724,6 +27355,10 @@ ex:publisher a ex:Property .`,
         }
         if (newPage === "harvester") {
           this.loadHarvestData();
+        }
+        if (newPage === "localCatalogue") {
+          this.loadLocalCatalogs();
+          this.loadLocalProvenance();
         }
       }
     },
@@ -26817,7 +27452,7 @@ ex:publisher a ex:Property .`,
           if (fType && String(item.type) !== String(fType)) return false;
           if (fStatus && String(item.integrationStatus) !== String(fStatus)) return false;
           if (q) {
-            const hay = normalizeText([item.assets, item.type, item.name, item.domain, item.integrationStatus].join(" "));
+            const hay = normalizeText([item.assets, item.title, item.type, item.name, item.domain, item.integrationStatus, item.sourceCatalogue, item.remoteAssetId].join(" "));
             if (!hay.includes(q)) return false;
           }
           return true;
@@ -26831,7 +27466,62 @@ ex:publisher a ex:Property .`,
         this.pagination.catalog.page = 1;
         this.runSearch();
       },
+      // ── Provenance Tab (Local Catalogue) ─────────────────────
+      filterProvenance() {
+        const q = (this.provenanceSearch || "").trim().toLowerCase();
+        const fCat = this.provenanceFilters.catalogue;
+        const fStrat = this.provenanceFilters.strategy;
+        const fMapped = this.provenanceFilters.mapped;
+        const all = this.harvestProvenance || [];
+        this.provenanceRows = all.filter((p) => {
+          if (fCat && p.catalogueName !== fCat) return false;
+          if (fStrat && p.strategy !== fStrat) return false;
+          if (fMapped === "yes" && !p.schemaMapped) return false;
+          if (fMapped === "no" && p.schemaMapped) return false;
+          if (q) {
+            const hay = [p.assetId, p.catalogueName, p.strategy, p.harvestDate, p.remoteAssetId].join(" ").toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          return true;
+        });
+        this.pagination.provenance.page = 1;
+      },
+      clearProvenanceFilters() {
+        this.provenanceSearch = "";
+        this.provenanceFilters = { catalogue: "", strategy: "", mapped: "" };
+        this.provenanceRows = this.harvestProvenance || [];
+        this.pagination.provenance.page = 1;
+      },
+      loadLocalProvenance() {
+        uibuilderService.send({
+          type: "getLocalProvenance",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        });
+      },
       // ── Asset Detail Panel (Milestone 1) ──────────────────────
+      openViewDetail(row) {
+        const original = row.originalForm || row;
+        const transformed = row.transformedForm || row;
+        this.originalJsonLines = this._jsonToLines(original);
+        this.localJsonLines = this._jsonToLines(transformed, original);
+        this.assetDetailRow = { ...row };
+        this.isViewModal = true;
+      },
+      _jsonToLines(obj, compareObj) {
+        try {
+          const text = JSON.stringify(obj, null, 2);
+          const lines = text.split("\n");
+          if (!compareObj) return lines.map((l) => ({ text: l, changeType: null }));
+          const origText = JSON.stringify(compareObj, null, 2);
+          const origLines = new Set(origText.split("\n"));
+          return lines.map((l) => ({
+            text: l,
+            changeType: origLines.has(l) ? null : "updated"
+          }));
+        } catch (e) {
+          return [{ text: JSON.stringify(obj), changeType: null }];
+        }
+      },
       openAssetDetail(row) {
         this.assetDetailRow = { ...row };
         this.isEditingAsset = false;
@@ -26919,7 +27609,19 @@ ex:publisher a ex:Property .`,
         if (!this.selectedRows.length) return;
         const count = this.selectedRows.length;
         this.showConfirm("Delete Assets", `Are you sure you want to delete ${count} selected asset${count > 1 ? "s" : ""}? This action cannot be undone.`, "Delete", () => {
+          for (const id2 of this.selectedRows) {
+            const row = this.tableRows.find((r) => r.id === id2);
+            const uid = row?.uniqueId || row?.id;
+            if (uid) {
+              uibuilderService.send({
+                type: "deleteLocalAsset",
+                auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+                data: { uniqueId: uid }
+              });
+            }
+          }
           this.tableRows = this.tableRows.filter((r) => !this.selectedRows.includes(r.id));
+          this.allCatalogsRaw = this.allCatalogsRaw.filter((r) => !this.selectedRows.includes(r.id));
           if (this.assetDetailRow && this.selectedRows.includes(this.assetDetailRow.id)) {
             this.closeAssetDetail();
           }
@@ -26930,25 +27632,48 @@ ex:publisher a ex:Property .`,
       bulkChangeStatus(status) {
         if (!this.selectedRows.length) return;
         const set = new Set(this.selectedRows);
+        for (const id2 of this.selectedRows) {
+          const row = this.tableRows.find((r) => r.id === id2);
+          const uid = row?.uniqueId || row?.id;
+          if (uid) {
+            uibuilderService.send({
+              type: "updateLocalAsset",
+              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              data: { uniqueId: uid, patch: { status } }
+            });
+          }
+        }
         this.tableRows = this.tableRows.map((r) => set.has(r.id) ? { ...r, integrationStatus: status } : r);
+        this.allCatalogsRaw = this.allCatalogsRaw.map((r) => set.has(r.id) ? { ...r, integrationStatus: status } : r);
         this.selectedRows = [];
+      },
+      _downloadCsv(rows, filename) {
+        const headers = ["ID", "Assets", "Type", "Name", "Domain", "Updated", "Integration Status", "Harvest Run", "Source Asset", "Strategy"];
+        const csvRows = rows.map((r) => [r.id || r.uniqueId, r.assets, r.type, r.name, r.domain, r.updated, r.integrationStatus, r.harvestRunId || "", r.sourceAssetId || "", r.strategy || ""].map((v) => `"${String(v || "").replace(/"/g, '""')}"`).join(","));
+        const content2 = "\uFEFF" + [headers.join(","), ...csvRows].join("\n");
+        const blob = new Blob([content2], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       },
       bulkExportAssets() {
         if (!this.selectedRows.length) return;
         const set = new Set(this.selectedRows);
         const rows = this.tableRows.filter((r) => set.has(r.id));
-        const headers = ["ID", "Assets", "Type", "Name", "Domain", "Updated", "Integration Status"];
-        const csvRows = rows.map((r) => [r.id, r.assets, r.type, r.name, r.domain, r.updated, r.integrationStatus].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-        const content2 = [headers.join(","), ...csvRows].join("\n");
-        const blob = new Blob([content2], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "assets-export.csv";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        this._downloadCsv(rows, "assets-export-selected.csv");
+      },
+      exportAllAssets() {
+        const rows = this.allCatalogsRaw.length > 0 ? this.allCatalogsRaw : this.tableRows;
+        if (!rows.length) {
+          this.addToast("warning", "No assets to export.");
+          return;
+        }
+        this._downloadCsv(rows, "local-catalogue-export.csv");
       },
       toggleSelectAll(e) {
         if (e.target.checked) {
@@ -26986,9 +27711,28 @@ ex:publisher a ex:Property .`,
           namespacesToPreserve: "",
           shaclShapeId: "",
           auth: "none",
+          authLoginEndpoint: "",
+          authUsername: "",
+          authPassword: "",
+          authPayloadTemplate: '{"email":"{{username}}","password":"{{password}}"}',
+          authTokenPath: "token",
+          authTokenInjection: "body",
+          authTokenFieldName: "token",
+          authTokenPrefix: "",
+          authStaticToken: "",
+          authApiKey: "",
+          authApiKeyHeader: "X-API-Key",
+          responseRootPath: "",
+          responseAssetIdField: "",
+          responseAssetNameField: "",
+          responseAssetTypeField: "",
           trustAnchor: "",
-          enabled: true
+          enabled: true,
+          sourceData: null,
+          sourceFileName: ""
         };
+        this.uploadedJsonFile = null;
+        this.jsonUploadError = "";
         this.showRegisterRemoteCatalogModal = true;
       },
       openEditRemoteCatalog(row) {
@@ -26996,6 +27740,12 @@ ex:publisher a ex:Property .`,
         this.editingRemoteCatalogId = row.id;
         this.remoteCatalogForm = JSON.parse(JSON.stringify(row));
         this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(row));
+        if (row.sourceData && row.sourceFileName) {
+          this.uploadedJsonFile = { name: row.sourceFileName };
+        } else {
+          this.uploadedJsonFile = null;
+        }
+        this.jsonUploadError = "";
         this.showRegisterRemoteCatalogModal = true;
       },
       closeRegisterRemoteCatalogModal() {
@@ -27005,13 +27755,28 @@ ex:publisher a ex:Property .`,
         this.isTestingConnection = true;
         this.testConnectionResult = { status: "", message: "", latency: 0 };
         const start = Date.now();
+        const auth = this.remoteCatalogForm.auth || "none";
+        const endpoint = this.remoteCatalogForm.baseEndpoint || this.remoteCatalogForm.queryEndpoint || "";
+        if (auth === "token-login") {
+          const loginUrl = this.remoteCatalogForm.authLoginEndpoint || "";
+          if (!loginUrl.trim()) {
+            this.testConnectionResult = { status: "error", message: "Login endpoint URL is required for Token Login auth.", latency: 0 };
+            this.isTestingConnection = false;
+            return;
+          }
+          if (!this.remoteCatalogForm.authUsername || !this.remoteCatalogForm.authPassword) {
+            this.testConnectionResult = { status: "error", message: "Username and password are required for Token Login auth.", latency: 0 };
+            this.isTestingConnection = false;
+            return;
+          }
+        }
         setTimeout(() => {
           const latency = Date.now() - start;
-          const endpoint = this.remoteCatalogForm.baseEndpoint || "";
           if (!endpoint.trim()) {
             this.testConnectionResult = { status: "error", message: "No endpoint URL provided.", latency: 0 };
           } else {
-            this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}`, latency };
+            const authLabel = auth === "token-login" ? " (Token Login authenticated)" : auth === "bearer" ? " (Bearer Token)" : auth === "apikey" ? " (API Key)" : auth === "oauth" ? " (OAuth2)" : "";
+            this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}${authLabel}`, latency };
           }
           this.isTestingConnection = false;
         }, 800 + Math.random() * 700);
@@ -27047,6 +27812,66 @@ ex:publisher a ex:Property .`,
           return;
         }
         this.registerRemoteCatalog();
+      },
+      // ── JSON File Upload for Catalogue Registration ──────────
+      handleJsonDrop(e) {
+        this.isDraggingJson = false;
+        const file = e.dataTransfer?.files?.[0];
+        if (file && file.type === "application/json") {
+          this.processJsonFile(file);
+        } else {
+          this.jsonUploadError = "Please upload a valid .json file.";
+        }
+      },
+      handleJsonFileSelect(e) {
+        const file = e.target?.files?.[0];
+        if (file) this.processJsonFile(file);
+      },
+      processJsonFile(file) {
+        this.jsonUploadError = "";
+        this.uploadedJsonFile = file;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const json = JSON.parse(ev.target.result);
+            if (Array.isArray(json)) {
+              uibuilderService.send({
+                type: "uploadCatalogJson",
+                auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+                data: { catalogs: json }
+              });
+            } else if (typeof json === "object") {
+              const f = this.remoteCatalogForm;
+              if (json.catalogId) f.catalogId = json.catalogId;
+              if (json.catalogName) f.catalogName = json.catalogName;
+              if (json.owner) f.owner = json.owner;
+              if (json.protocol) f.protocol = json.protocol;
+              if (json.baseEndpoint) f.baseEndpoint = json.baseEndpoint;
+              if (json.queryEndpoint) f.queryEndpoint = json.queryEndpoint;
+              if (json.queryLanguages) f.queryLanguages = json.queryLanguages;
+              if (json.mimeType) f.mimeType = json.mimeType;
+              if (json.strategy) f.strategy = json.strategy;
+              if (json.dcatCatalogUri) f.dcatCatalogUri = json.dcatCatalogUri;
+              if (json.linkedDataEndpoint) f.linkedDataEndpoint = json.linkedDataEndpoint;
+              if (json.metadataPrefix) f.metadataPrefix = json.metadataPrefix;
+              if (json.auth) f.auth = json.auth;
+              if (json.trustAnchor) f.trustAnchor = json.trustAnchor;
+              if (json.enabled !== void 0) f.enabled = json.enabled;
+              f.sourceData = json;
+              f.sourceFileName = file.name;
+              this.addToast("success", "Form pre-filled from JSON file.");
+            }
+          } catch (err) {
+            this.jsonUploadError = "Invalid JSON file: " + err.message;
+          }
+        };
+        reader.readAsText(file);
+      },
+      clearUploadedJson() {
+        this.uploadedJsonFile = null;
+        this.jsonUploadError = "";
+        this.remoteCatalogForm.sourceData = null;
+        this.remoteCatalogForm.sourceFileName = "";
       },
       // ── Admin Tools ────────────────────────────────────────────
       openManageMenu(e, user) {
@@ -27160,7 +27985,31 @@ ex:publisher a ex:Property .`,
       openRegisterSchemaEditModal() {
         this.isRegisterSchemaEditModal = true;
       },
+      openEditRemoteSchema(row) {
+        this.registerSchemaForm = {
+          name: row.schema || "",
+          format: row.format || "SHACL",
+          catalogSearch: "",
+          remoteCatalogs: row.remoteCatalogs || [],
+          namespaces: row.namespaces || [],
+          version: row.versioning || "",
+          sourceUrl: row.sourceUrl || "",
+          summaryTab: "SHACL",
+          editId: row.id
+        };
+        this.isRegisterSchemaEditModal = true;
+      },
       openRegisterSchemaNewModal() {
+        this.registerSchemaForm = {
+          name: "",
+          format: "SHACL",
+          catalogSearch: "",
+          remoteCatalogs: [],
+          namespaces: [],
+          version: "",
+          sourceUrl: "",
+          summaryTab: "SHACL"
+        };
         this.isRegisterSchemaNewModal = true;
       },
       closeRegisterSchemaNewModal() {
@@ -27180,10 +28029,38 @@ ex:publisher a ex:Property .`,
         this.registerSchemaForm.catalogSearch = "";
       },
       saveRegisterSchemaNew() {
+        if (!this.registerSchemaForm.name) return;
+        const data = {
+          schema: this.registerSchemaForm.name,
+          format: this.registerSchemaForm.format,
+          remoteCatalogs: this.registerSchemaForm.remoteCatalogs,
+          namespaces: this.registerSchemaForm.namespaces,
+          version: this.registerSchemaForm.version,
+          sourceUrl: this.registerSchemaForm.sourceUrl,
+          catalogs: this.registerSchemaForm.remoteCatalogs.length,
+          trustLevel: "Federated"
+        };
+        uibuilderService.send({
+          type: "saveRemoteSchema",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data
+        });
+        const maxId = this.remoteSchema.reduce((m, s) => Math.max(m, s.id), 0);
+        this.remoteSchema.push({
+          id: maxId + 1,
+          schema: data.schema,
+          catalogs: data.catalogs || 0,
+          localMapping: null,
+          versioning: data.version || "v1.0",
+          versionOptions: ["v1.0", "v1.1", "v2.0"],
+          trustLevel: data.trustLevel
+        });
         this.closeRegisterSchemaNewModal();
+        this.addToast("success", "Remote schema registered.");
       },
       saveRegisterSchemaEdit() {
         this.closeRegisterSchemaEditModal();
+        this.addToast("success", "Schema details updated.");
       },
       // ── Asset Type Registry ──────────────────────────────────────
       openAssetTypeForm() {
@@ -27229,13 +28106,15 @@ ex:publisher a ex:Property .`,
         this.isEnhancingPrompt = false;
         this.promptForm = {
           id: null,
+          name: "",
           version: "1.0",
           status: "draft",
           sourceSchema: "",
           targetSchema: "",
           template: "",
           examples: "",
-          constraints: ""
+          constraints: "",
+          author: ""
         };
         this.showPromptModal = true;
       },
@@ -27243,7 +28122,7 @@ ex:publisher a ex:Property .`,
         this.isEditingPrompt = true;
         this.promptFormError = "";
         this.isEnhancingPrompt = false;
-        this.promptForm = { ...p };
+        this.promptForm = { ...p, name: p.name || "", author: p.author || "" };
         this.showPromptModal = true;
       },
       closePromptModal() {
@@ -27273,12 +28152,21 @@ ex:publisher a ex:Property .`,
       // The backend sends a "codeGenerated" response asynchronously after the prompt is created.
       savePrompt() {
         if (!this.promptForm.sourceSchema || !this.promptForm.targetSchema || !this.promptForm.template) return;
+        let promptName = (this.promptForm.name || "").trim();
+        if (!promptName) {
+          let num;
+          do {
+            num = Math.floor(100 + Math.random() * 900);
+          } while (this.prompts.some((p) => p.name === `prompt-${num}`));
+          promptName = `prompt-${num}`;
+        }
         if (this.isEditingPrompt && this.promptForm.id) {
           uibuilderService.send({
             type: "updatePrompt",
             auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
             data: {
               promptId: this.promptForm.id,
+              name: promptName,
               version: this.promptForm.version || "1.0",
               sourceSchema: this.promptForm.sourceSchema,
               targetSchema: this.promptForm.targetSchema,
@@ -27286,7 +28174,8 @@ ex:publisher a ex:Property .`,
               examples: this.promptForm.examples || "",
               constraints: this.promptForm.constraints || "",
               status: this.promptForm.status || "active",
-              code: this.promptForm.generatedCode || ""
+              code: this.promptForm.generatedCode || "",
+              author: this.promptForm.author || ""
             }
           });
           this.closePromptModal();
@@ -27295,12 +28184,14 @@ ex:publisher a ex:Property .`,
             type: "createPrompt",
             auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
             data: {
+              name: promptName,
               version: this.promptForm.version || "1.0",
               sourceSchema: this.promptForm.sourceSchema,
               targetSchema: this.promptForm.targetSchema,
               template: this.promptForm.template,
               examples: this.promptForm.examples || "",
-              constraints: this.promptForm.constraints || ""
+              constraints: this.promptForm.constraints || "",
+              author: this.promptForm.author || ""
             }
           });
           this.closePromptModal();
@@ -27595,7 +28486,7 @@ ex:publisher a ex:Property .`,
       openProviderModal() {
         this.isEditingProvider = false;
         this.providerFormError = "";
-        this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
+        this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
         this.showProviderModal = true;
       },
       openEditProvider(p) {
@@ -27631,6 +28522,12 @@ ex:publisher a ex:Property .`,
       moveProviderUp(id2) {
         const idx = this.llmProviders.findIndex((p) => p.id === id2);
         if (idx <= 0) return;
+        const tmp = this.llmProviders[idx];
+        this.llmProviders.splice(idx, 1);
+        this.llmProviders.splice(idx - 1, 0, tmp);
+        this.llmProviders.forEach((p, i) => {
+          p.precedence = i + 1;
+        });
         uibuilderService.send({
           type: "reorderProvider",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -27640,6 +28537,12 @@ ex:publisher a ex:Property .`,
       moveProviderDown(id2) {
         const idx = this.llmProviders.findIndex((p) => p.id === id2);
         if (idx < 0 || idx >= this.llmProviders.length - 1) return;
+        const tmp = this.llmProviders[idx];
+        this.llmProviders.splice(idx, 1);
+        this.llmProviders.splice(idx + 1, 0, tmp);
+        this.llmProviders.forEach((p, i) => {
+          p.precedence = i + 1;
+        });
         uibuilderService.send({
           type: "reorderProvider",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -27708,39 +28611,39 @@ ex:publisher a ex:Property .`,
       },
       saveLocalSchema() {
         if (!this.localSchemaForm.schema) return;
-        const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+        const data = {
+          schema: this.localSchemaForm.schema,
+          format: this.localSchemaForm.format || "SHACL",
+          catalogs: this.localSchemaForm.catalogs,
+          localMapping: this.localSchemaForm.localMapping || null,
+          versioning: this.localSchemaForm.versioning,
+          trustLevel: this.localSchemaForm.trustLevel
+        };
         if (this.isEditingLocalSchema && this.editingLocalSchemaId != null) {
-          const idx = this.schemaRegistry.findIndex((s) => s.id === this.editingLocalSchemaId);
-          if (idx !== -1) {
-            this.schemaRegistry.splice(idx, 1, {
-              ...this.schemaRegistry[idx],
-              schema: this.localSchemaForm.schema,
-              catalogs: this.localSchemaForm.catalogs,
-              localMapping: this.localSchemaForm.localMapping || null,
-              versioning: this.localSchemaForm.versioning,
-              trustLevel: this.localSchemaForm.trustLevel
-            });
-          }
-        } else {
-          const maxId = this.schemaRegistry.reduce((m, s) => Math.max(m, s.id), 0);
-          this.schemaRegistry.push({
-            id: maxId + 1,
-            schema: this.localSchemaForm.schema,
-            catalogs: this.localSchemaForm.catalogs,
-            localMapping: this.localSchemaForm.localMapping || null,
-            versioning: this.localSchemaForm.versioning,
-            versionOptions: ["v1.0", "v1.1", "v2.0"],
-            trustLevel: this.localSchemaForm.trustLevel
-          });
+          data.id = this.editingLocalSchemaId;
         }
+        uibuilderService.send({
+          type: "saveLocalSchema",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data
+        });
         this.showCreateLocalSchemaModal = false;
-        this.addToast("success", this.isEditingLocalSchema ? "Schema updated." : "Schema created.");
       },
       confirmDeleteSchema(id2) {
         const schema = this.schemaRegistry.find((s) => s.id === id2);
         this.showConfirm("Delete Schema", `Are you sure you want to delete "${schema?.schema || "this schema"}"? This action cannot be undone.`, "Delete", () => {
-          this.schemaRegistry = this.schemaRegistry.filter((s) => s.id !== id2);
-          this.addToast("success", "Schema deleted.");
+          uibuilderService.send({
+            type: "deleteLocalSchema",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: { schemaId: id2 }
+          });
+        });
+      },
+      confirmDeleteRemoteSchema(id2) {
+        const schema = this.remoteSchema.find((s) => s.id === id2);
+        this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.schema || "this schema"}"?`, "Delete", () => {
+          this.remoteSchema = this.remoteSchema.filter((s) => s.id !== id2);
+          this.addToast("success", "Remote schema deleted.");
         });
       },
       // ── Schema Version Diff (Milestone 2) ─────────────────────
@@ -27834,17 +28737,16 @@ ex:publisher a ex:Property .`,
       },
       saveAddMapping() {
         if (!this.addMappingForm.remoteCatalogue || !this.addMappingForm.remoteSchema) return;
+        const data = { ...this.addMappingForm };
         if (this.isEditingMapping && this.editingMappingId != null) {
-          const idx = this.mappingRows.findIndex((r) => r.id === this.editingMappingId);
-          if (idx !== -1) {
-            this.mappingRows.splice(idx, 1, { ...this.mappingRows[idx], ...this.addMappingForm });
-          }
-        } else {
-          const maxId = this.mappingRows.reduce((m, r) => Math.max(m, r.id), 0);
-          this.mappingRows.push({ id: maxId + 1, ...this.addMappingForm });
+          data.id = this.editingMappingId;
         }
+        uibuilderService.send({
+          type: "saveMapping",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data
+        });
         this.showAddMappingModal = false;
-        this.addToast("success", this.isEditingMapping ? "Mapping updated." : "Mapping created.");
       },
       // ── Mapping View/Edit Detail (Milestone 2) ────────────────
       openMappingViewEdit(row) {
@@ -27872,12 +28774,12 @@ ex:publisher a ex:Property .`,
       },
       saveEditMappingDetail() {
         if (!this.mappingDetailRow) return;
-        const idx = this.mappingRows.findIndex((r) => r.id === this.mappingDetailRow.id);
-        if (idx !== -1) {
-          const updated = { ...this.mappingRows[idx], ...this.mappingDetailEditForm };
-          this.mappingRows.splice(idx, 1, updated);
-          this.mappingDetailRow = { ...updated };
-        }
+        const data = { id: this.mappingDetailRow.id, ...this.mappingDetailEditForm };
+        uibuilderService.send({
+          type: "saveMapping",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data
+        });
         this.isEditingMappingDetail = false;
       },
       openMappingPrompts(row) {
@@ -27893,12 +28795,11 @@ ex:publisher a ex:Property .`,
       removeMappingRow(id2) {
         const row = this.mappingRows.find((r) => r.id === id2);
         this.showConfirm("Delete Mapping", `Are you sure you want to delete the mapping for "${row?.remoteCatalogue || "this mapping"}"?`, "Delete", () => {
-          this.mappingRows = this.mappingRows.filter((r) => r.id !== id2);
-          this.selectedMappingRows = this.selectedMappingRows.filter((x) => x !== id2);
-          if (this.mappingDetailRow && this.mappingDetailRow.id === id2) {
-            this.closeMappingDetail();
-          }
-          this.addToast("success", "Mapping deleted.");
+          uibuilderService.send({
+            type: "deleteMapping",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: { mappingId: id2 }
+          });
         });
       },
       // ── Harvest Wizard ─────────────────────────────────────────
@@ -27928,6 +28829,10 @@ ex:publisher a ex:Property .`,
         this.harvestWizardRows = [];
         this.harvestWizardRowsBase = [];
         uibuilderService.send({
+          type: "getCatalogRegistry",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        });
+        uibuilderService.send({
           type: "getHarvestCatalogues",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
         });
@@ -27937,6 +28842,10 @@ ex:publisher a ex:Property .`,
         this.harvestWizardStep = 1;
       },
       nextHarvestWizardStep() {
+        if (this.harvestWizardStep === 1 && this.harvestWizardSelectedRows.length === 0) {
+          this.addToast("error", "Please select at least one remote catalogue.");
+          return;
+        }
         this.harvestWizardStep = Math.min(4, this.harvestWizardStep + 1);
       },
       prevHarvestWizardStep() {
@@ -27976,9 +28885,40 @@ ex:publisher a ex:Property .`,
           this.addToast("error", "Please select at least one catalogue to harvest.");
           return;
         }
-        const selectedCatalogues = this.harvestWizardRowsBase.filter((r) => this.harvestWizardSelectedRows.includes(r.id)).map((r) => ({ uniqueId: r.id, catalogName: r.catalog, strategy: r.strategy || "none", baseEndpoint: r.endpoint || "" }));
+        const selectedCatalogues = this.harvestWizardRowsBase.filter((r) => this.harvestWizardSelectedRows.includes(r.id)).map((r) => {
+          const fullCat = this.catalogsTable.find((c) => c.id === r.id || c.uniqueId === r.id);
+          return {
+            uniqueId: r.id,
+            catalogName: r.catalog,
+            strategy: r.strategy || "none",
+            baseEndpoint: r.endpoint || fullCat?.baseEndpoint || fullCat?.queryEndpoint || "",
+            sourceData: fullCat?.sourceData || null,
+            responseRootPath: fullCat?.responseRootPath || "",
+            responseAssetIdField: fullCat?.responseAssetIdField || "",
+            responseAssetNameField: fullCat?.responseAssetNameField || "",
+            responseAssetTypeField: fullCat?.responseAssetTypeField || "",
+            // Pass auth config so the harvest handler can make authenticated API calls
+            auth: fullCat?.auth || "none",
+            authLoginEndpoint: fullCat?.authLoginEndpoint || "",
+            authUsername: fullCat?.authUsername || "",
+            authPassword: fullCat?.authPassword || "",
+            authPayloadTemplate: fullCat?.authPayloadTemplate || "",
+            authTokenPath: fullCat?.authTokenPath || "token",
+            authTokenPrefix: fullCat?.authTokenPrefix || "",
+            authStaticToken: fullCat?.authStaticToken || "",
+            authApiKey: fullCat?.authApiKey || "",
+            authApiKeyHeader: fullCat?.authApiKeyHeader || "X-API-Key"
+          };
+        });
         this.isSubmittingHarvest = true;
         this.harvestSubmitError = "";
+        if (this._harvestTimeout) clearTimeout(this._harvestTimeout);
+        this._harvestTimeout = setTimeout(() => {
+          if (this.isSubmittingHarvest) {
+            this.isSubmittingHarvest = false;
+            this.addToast("error", "Harvest request timed out \u2014 no response from backend. Check Node-RED logs.");
+          }
+        }, 3e4);
         uibuilderService.send({
           type: "startHarvest",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -27997,7 +28937,8 @@ ex:publisher a ex:Property .`,
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
           data: { runId: run.id }
         });
-        this.harvestRunDetailData = { ...run, assets: [] };
+        this.harvestRunDetailData = { ...run, assets: [], logs: [], provenance: [] };
+        this.harvestDetailTab = "assets";
         this.showHarvestRunDetail = true;
       },
       closeHarvestRunDetail() {
@@ -28158,6 +29099,8 @@ ex:publisher a ex:Property .`,
       uibuilderService.send({ type: "listTestCases", data: {} });
       uibuilderService.send({ type: "listLlmConfigs", data: {} });
       uibuilderService.send({ type: "listProviders", data: {} });
+      uibuilderService.send({ type: "listLocalSchemas", data: {} });
+      uibuilderService.send({ type: "listMappings", data: {} });
       uibuilderService.send({
         type: "getCatalogRegistry",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
@@ -28259,11 +29202,20 @@ ex:publisher a ex:Property .`,
           }
         }
         if (resp?.action === "startHarvest") {
+          if (this._harvestTimeout) {
+            clearTimeout(this._harvestTimeout);
+            this._harvestTimeout = null;
+          }
           this.isSubmittingHarvest = false;
           if (resp?.status === "success") {
             const run = resp.run || {};
             const runStatus = run.status || "completed";
-            this.addToast("success", `Harvest ${runStatus}: ${run.assetsAdded || 0} assets imported from ${run.catalogueName || "catalogue"}.`);
+            const assetCount = run.assetsAdded || run.totalAssets || 0;
+            if (assetCount > 0) {
+              this.addToast("success", `Harvest ${runStatus}: ${assetCount} assets imported from ${run.catalogueName || "catalogue"}.`);
+            } else {
+              this.addToast("warning", `Harvest ${runStatus} but 0 assets were found. If harvesting an API source, the endpoint may be unreachable from this environment (CORS). Try uploading the API response as a JSON file when registering the catalogue.`);
+            }
             if (run.uniqueId) {
               this.applyHarvestProgress({
                 runId: run.uniqueId,
@@ -28277,8 +29229,33 @@ ex:publisher a ex:Property .`,
                 startedAt: run.startedAt || ""
               });
             }
+            if (Array.isArray(resp.allAssets) && resp.allAssets.length > 0) {
+              const normalized = resp.allAssets.map((a) => {
+                if (a.title && typeof a.title === "string" && a.title.trim()) {
+                  a.assets = a.title;
+                } else if (!a.assets && a.name && typeof a.name === "string") {
+                  a.assets = a.name;
+                }
+                if (!a.title && a.assets) a.title = a.assets;
+                return a;
+              });
+              console.log("[facis] startHarvest: populating local catalogue with", normalized.length, "assets");
+              this.allCatalogsRaw.splice(0, this.allCatalogsRaw.length, ...normalized);
+              this.tableRows.splice(0, this.tableRows.length, ...normalized);
+              this.localCatalogueStats = {
+                totalAssets: resp.totalAssets || resp.allAssets.length,
+                totalRuns: resp.totalRuns || 0
+              };
+              this.pagination.catalog.page = 1;
+            }
+            if (Array.isArray(resp.allProvenance) && resp.allProvenance.length > 0) {
+              this.harvestProvenance = resp.allProvenance;
+              this.provenanceRows = resp.allProvenance;
+              this.pagination.provenance.page = 1;
+            }
             this.loadHarvestData();
             this.loadLocalCatalogs();
+            this.loadLocalProvenance();
           } else {
             this.harvestSubmitError = resp?.message || "Harvest failed to start";
             this.addToast("error", this.harvestSubmitError);
@@ -28313,9 +29290,13 @@ ex:publisher a ex:Property .`,
               catalogue: resp.run.catalogueName || "-",
               started: resp.run.startedAt || "-",
               duration: resp.run.duration || "-",
-              imported: resp.run.imported || "-",
+              imported: resp.run.assetsAdded || resp.run.imported || "-",
               status: resp.run.status || "-",
-              assets: Array.isArray(resp.run.assets) ? resp.run.assets : []
+              successCount: resp.run.successCount || 0,
+              errorCount: resp.run.errorCount || 0,
+              assets: Array.isArray(resp.run.assets) ? resp.run.assets : [],
+              logs: Array.isArray(resp.logs) ? resp.logs : [],
+              provenance: Array.isArray(resp.provenance) ? resp.provenance : []
             };
           }
         }
@@ -28324,11 +29305,27 @@ ex:publisher a ex:Property .`,
         }
         if (resp?.action === "listHarvestProvenance" && resp?.status === "success") {
           this.harvestProvenance = Array.isArray(resp.provenance) ? resp.provenance : [];
+          this.provenanceRows = this.harvestProvenance;
+          this.pagination.provenance.page = 1;
+        }
+        if (resp?.action === "getLocalProvenance" && resp?.status === "success") {
+          this.harvestProvenance = Array.isArray(resp.provenance) ? resp.provenance : [];
+          this.provenanceRows = this.harvestProvenance;
+          this.pagination.provenance.page = 1;
         }
         if (resp?.action === "getLocalCatalogue" && resp?.status === "success") {
-          const assets = Array.isArray(resp.assets) ? resp.assets : [];
-          this.allCatalogsRaw = assets;
-          this.tableRows = assets;
+          const assets = (Array.isArray(resp.assets) ? resp.assets : []).map((a) => {
+            if (a.title && typeof a.title === "string" && a.title.trim()) {
+              a.assets = a.title;
+            } else if (!a.assets && a.name && typeof a.name === "string") {
+              a.assets = a.name;
+            }
+            if (!a.title && a.assets) a.title = a.assets;
+            return a;
+          });
+          console.log("[facis] getLocalCatalogue received", assets.length, "assets");
+          this.allCatalogsRaw.splice(0, this.allCatalogsRaw.length, ...assets);
+          this.tableRows.splice(0, this.tableRows.length, ...assets);
           this.localCatalogueStats = {
             totalAssets: resp.totalAssets || assets.length,
             totalRuns: resp.totalRuns || 0
@@ -28339,6 +29336,7 @@ ex:publisher a ex:Property .`,
           this.loadLocalCatalogs();
         }
         if (resp?.action === "updateLocalAsset" && resp?.status === "success") {
+          this.loadLocalCatalogs();
         }
         if (resp?.action === "inviteUser" && resp?.status === "success") {
           const sent = payload?.data ?? msg?.data ?? {};
@@ -28376,7 +29374,7 @@ ex:publisher a ex:Property .`,
           });
         }
         if (resp?.action === "logOut" && resp?.status === "success") {
-          window.location.href = "/-/login";
+          window.location.href = "/facis-facis/login";
           document.cookie = "userToken=; path=/; max-age=0";
         }
         if (resp?.action === "enhancePrompt") {
@@ -28540,6 +29538,53 @@ ex:publisher a ex:Property .`,
             this.llmProviders = resp.providers;
           }
         }
+        if (resp?.action === "listLocalSchemas" && resp?.status === "success") {
+          if (Array.isArray(resp.schemas) && resp.schemas.length > 0) {
+            this.schemaRegistry = resp.schemas;
+          }
+        }
+        if (resp?.action === "saveLocalSchema" && resp?.status === "success") {
+          if (resp.schema) {
+            const idx = this.schemaRegistry.findIndex((s) => s.id === resp.schema.id);
+            if (idx !== -1) {
+              this.schemaRegistry.splice(idx, 1, resp.schema);
+            } else {
+              this.schemaRegistry.push(resp.schema);
+            }
+          }
+          this.addToast("success", resp.isNew ? "Schema created." : "Schema updated.");
+        }
+        if (resp?.action === "deleteLocalSchema" && resp?.status === "success") {
+          this.schemaRegistry = this.schemaRegistry.filter((s) => s.id !== resp.schemaId);
+          this.addToast("success", "Schema deleted.");
+        }
+        if (resp?.action === "listMappings" && resp?.status === "success") {
+          if (Array.isArray(resp.mappings) && resp.mappings.length > 0) {
+            this.mappingRows = resp.mappings;
+          }
+        }
+        if (resp?.action === "saveMapping" && resp?.status === "success") {
+          if (resp.mapping) {
+            const idx = this.mappingRows.findIndex((r) => r.id === resp.mapping.id);
+            if (idx !== -1) {
+              this.mappingRows.splice(idx, 1, resp.mapping);
+            } else {
+              this.mappingRows.push(resp.mapping);
+            }
+            if (this.mappingDetailRow && this.mappingDetailRow.id === resp.mapping.id) {
+              this.mappingDetailRow = { ...resp.mapping };
+            }
+          }
+          this.addToast("success", resp.isNew ? "Mapping created." : "Mapping updated.");
+        }
+        if (resp?.action === "deleteMapping" && resp?.status === "success") {
+          this.mappingRows = this.mappingRows.filter((r) => r.id !== resp.mappingId);
+          this.selectedMappingRows = this.selectedMappingRows.filter((x) => x !== resp.mappingId);
+          if (this.mappingDetailRow && this.mappingDetailRow.id === resp.mappingId) {
+            this.closeMappingDetail();
+          }
+          this.addToast("success", "Mapping deleted.");
+        }
         if (resp?.action === "startBatchRetransform" && resp?.status === "success") {
           const b = this.batchRetransform;
           b.startedAt = resp.startedAt || (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 16);
@@ -28570,6 +29615,7 @@ ex:publisher a ex:Property .`,
       this.setPerPageByViewport();
       window.addEventListener("resize", this.onResize);
       this.loadLocalCatalogs();
+      this.loadLocalProvenance();
       window.addEventListener("scroll", this.updateMenuPosition, true);
       window.addEventListener("resize", this.updateMenuPosition);
     },

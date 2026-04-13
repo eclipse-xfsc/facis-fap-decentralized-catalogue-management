@@ -62,14 +62,50 @@ const app = createApp({
     catalogPagination() {
       return paginate(this.tableRows, this.pagination.catalog.page, this.pagination.catalog.perPage);
     },
+    filteredSchemaRegistry() {
+      const q = (this.localSchemaSearch || "").trim().toLowerCase();
+      if (!q) return this.schemaRegistry;
+      return this.schemaRegistry.filter(s =>
+        (s.schema || "").toLowerCase().includes(q) ||
+        (s.localMapping || "").toLowerCase().includes(q) ||
+        (s.trustLevel || "").toLowerCase().includes(q)
+      );
+    },
     schemaPagination() {
-      return paginate(this.schemaRegistry, this.pagination.schema.page, this.pagination.schema.perPage);
+      return paginate(this.filteredSchemaRegistry, this.pagination.schema.page, this.pagination.schema.perPage);
+    },
+    filteredRemoteSchema() {
+      const q = (this.remoteSchemaSearch || "").trim().toLowerCase();
+      if (!q) return this.remoteSchema;
+      return this.remoteSchema.filter(s =>
+        (s.schema || "").toLowerCase().includes(q) ||
+        (s.localMapping || "").toLowerCase().includes(q) ||
+        (s.trustLevel || "").toLowerCase().includes(q)
+      );
     },
     remoteSchemaPagination() {
-      return paginate(this.remoteSchema, this.pagination.remoteSchema.page, this.pagination.remoteSchema.perPage);
+      return paginate(this.filteredRemoteSchema, this.pagination.remoteSchema.page, this.pagination.remoteSchema.perPage);
+    },
+    filteredMappingRows() {
+      const q = (this.mappingSearch || "").trim().toLowerCase();
+      if (!q) return this.mappingRows;
+      return this.mappingRows.filter(r =>
+        (r.remoteCatalogue || "").toLowerCase().includes(q) ||
+        (r.remoteSchema || "").toLowerCase().includes(q) ||
+        (r.transformationStrategy || "").toLowerCase().includes(q)
+      );
     },
     mappingPagination() {
-      return paginate(this.mappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
+      return paginate(this.filteredMappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
+    },
+    filteredLlmProviders() {
+      const q = (this.providerSearch || "").trim().toLowerCase();
+      if (!q) return this.llmProviders;
+      return this.llmProviders.filter(p =>
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.type || "").toLowerCase().includes(q) ||
+        (p.apiEndpoint || "").toLowerCase().includes(q)
+      );
     },
     catalogsRegisterPagination() {
       const tableRows = this.catalogsTable.map(c => ({
@@ -91,6 +127,32 @@ const app = createApp({
     },
     harvestWizardPagination() {
       return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
+    },
+    provenancePagination() {
+      return paginate(this.provenanceRows, this.pagination.provenance.page, this.pagination.provenance.perPage);
+    },
+    provenanceStats() {
+      const all = this.harvestProvenance || [];
+      const assets = this.allCatalogsRaw || [];
+      const runIds = new Set(assets.map(a => a.harvestRunId).filter(Boolean));
+      const catIds = new Set(assets.map(a => a.sourceCatalogueId || a.sourceCatalogue).filter(Boolean));
+      const mapped = all.filter(p => p.schemaMapped).length;
+      const warnCount = assets.filter(a => a.integrationStatus === "Warning").length;
+      const errCount = assets.filter(a => a.integrationStatus === "Error").length;
+      return {
+        totalAssets: assets.length,
+        totalRuns: runIds.size,
+        linkedCatalogues: catIds.size,
+        totalProvenance: all.length,
+        schemaMappedCount: mapped,
+        warningCount: warnCount,
+        errorCount: errCount
+      };
+    },
+    provenanceCatalogueOptions() {
+      const set = new Set();
+      (this.harvestProvenance || []).forEach(p => { if (p.catalogueName) set.add(p.catalogueName); });
+      return Array.from(set).sort();
     },
     isWizardAllSelected() {
       const ids = this.harvestWizardRows.map(r => r.id);
@@ -117,6 +179,7 @@ const app = createApp({
       const q = (this.promptSearch || "").trim().toLowerCase();
       if (!q) return this.prompts;
       return this.prompts.filter(p =>
+        (p.name || "").toLowerCase().includes(q) ||
         (p.id || "").toLowerCase().includes(q) ||
         (p.sourceSchema || "").toLowerCase().includes(q) ||
         (p.targetSchema || "").toLowerCase().includes(q) ||
@@ -168,6 +231,17 @@ const app = createApp({
         (r.step || "").toLowerCase().includes(q) ||
         (r.timestamp || "").toLowerCase().includes(q)
       );
+    },
+    filteredAuditRowsInline() {
+      let rows = this.auditRows;
+      const f = this.auditFilters;
+      if (f.assetId) rows = rows.filter(r => (r.assetId || "").toLowerCase().includes(f.assetId.toLowerCase()));
+      if (f.catalogueId) rows = rows.filter(r => r.catalogueId === f.catalogueId);
+      if (f.promptVersion) rows = rows.filter(r => r.promptVersion === f.promptVersion);
+      if (f.status) rows = rows.filter(r => r.status === f.status);
+      if (f.dateFrom) rows = rows.filter(r => (r.timestamp || "") >= f.dateFrom);
+      if (f.dateTo) rows = rows.filter(r => (r.timestamp || "") <= f.dateTo + " 23:59");
+      return rows;
     },
     filteredMonitoringEvents() {
       const f = this.monitoringEventFilter;
@@ -258,22 +332,22 @@ const app = createApp({
     overviewLifecycleLines() {
       const l = this.lifecycleMapping;
       const updateText = l.updateHandling === "version"
-        ? "Update Handling: Create new version"
-        : "Update Handling: Create new catalog for new assets";
+        ? "Update Handling: Create new version of the corresponding local asset"
+        : "Update Handling: Create a separate local asset";
       const deletionText = l.deletionHandling === "remove"
-        ? "Deletion Handling: Remove deleted assets"
-        : "Deletion Handling: Retain copy of old assets";
+        ? "Deletion Handling: Delete the corresponding local asset"
+        : "Deletion Handling: Retain the local copy (mark as orphaned)";
       const lines = [updateText, deletionText];
       return lines;
     },
     overviewMappingCounts() {
-      const rows = Array.isArray(this.catalogsTable) ? this.catalogsTable : [];
+      const rows = this.wizardSelectedCatalogRows || [];
       const counts = { ai: 0, hybrid: 0, deterministic: 0, none: 0 };
       rows.forEach(r => {
         const st = r.strategy || r.transformationStrategy || "none";
-        if (st === "ai" || st === "AI-driven") counts.ai++;
+        if (st === "ai-driven" || st === "ai" || st === "AI-driven") counts.ai++;
         else if (st === "hybrid" || st === "Hybrid") counts.hybrid++;
-        else if (st === "deterministic" || st === "Deterministic RDF") counts.deterministic++;
+        else if (st === "deterministic-rdf" || st === "deterministic" || st === "Deterministic RDF") counts.deterministic++;
         else counts.none++;
       });
       return counts;
@@ -294,6 +368,18 @@ const app = createApp({
     isInviteModal(v) {
       document.body.style.overflow = v ? "hidden" : "";
     },
+    provenanceFilters: {
+      handler() { this.filterProvenance(); },
+      deep: true
+    },
+    currentTab(newTab) {
+      if (newTab === "localCatalogue") {
+        this.loadLocalCatalogs();
+      }
+      if (newTab === "provenance") {
+        this.loadLocalProvenance();
+      }
+    },
     currentPage(newPage) {
       if (newPage === "catalogueRegistry") {
         uibuilderService.send({
@@ -309,6 +395,10 @@ const app = createApp({
       }
       if (newPage === "harvester") {
         this.loadHarvestData();
+      }
+      if (newPage === "localCatalogue") {
+        this.loadLocalCatalogs();
+        this.loadLocalProvenance();
       }
     }
   },
@@ -367,6 +457,7 @@ const app = createApp({
 
     // ── Local Catalogue ────────────────────────────────────────
     loadLocalCatalogs() {
+      // Always load from backend — database is the source of truth
       uibuilderService.send({
         type: "getLocalCatalogue",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
@@ -385,7 +476,7 @@ const app = createApp({
         if (fType && String(item.type) !== String(fType)) return false;
         if (fStatus && String(item.integrationStatus) !== String(fStatus)) return false;
         if (q) {
-          const hay = normalizeText([item.assets, item.type, item.name, item.domain, item.integrationStatus].join(" "));
+          const hay = normalizeText([item.assets, item.title, item.type, item.name, item.domain, item.integrationStatus, item.sourceCatalogue, item.remoteAssetId].join(" "));
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -400,7 +491,63 @@ const app = createApp({
       this.runSearch();
     },
 
+    // ── Provenance Tab (Local Catalogue) ─────────────────────
+    filterProvenance() {
+      const q = (this.provenanceSearch || "").trim().toLowerCase();
+      const fCat = this.provenanceFilters.catalogue;
+      const fStrat = this.provenanceFilters.strategy;
+      const fMapped = this.provenanceFilters.mapped;
+      const all = this.harvestProvenance || [];
+      this.provenanceRows = all.filter(p => {
+        if (fCat && p.catalogueName !== fCat) return false;
+        if (fStrat && p.strategy !== fStrat) return false;
+        if (fMapped === "yes" && !p.schemaMapped) return false;
+        if (fMapped === "no" && p.schemaMapped) return false;
+        if (q) {
+          const hay = [p.assetId, p.catalogueName, p.strategy, p.harvestDate, p.remoteAssetId].join(" ").toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+      this.pagination.provenance.page = 1;
+    },
+    clearProvenanceFilters() {
+      this.provenanceSearch = "";
+      this.provenanceFilters = { catalogue: "", strategy: "", mapped: "" };
+      this.provenanceRows = this.harvestProvenance || [];
+      this.pagination.provenance.page = 1;
+    },
+    loadLocalProvenance() {
+      // Always load from backend — database is the source of truth
+      uibuilderService.send({
+        type: "getLocalProvenance",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+      });
+    },
+
     // ── Asset Detail Panel (Milestone 1) ──────────────────────
+    openViewDetail(row) {
+      // Build JSON diff lines from the actual asset data for the View modal
+      const original = row.originalForm || row;
+      const transformed = row.transformedForm || row;
+      this.originalJsonLines = this._jsonToLines(original);
+      this.localJsonLines = this._jsonToLines(transformed, original);
+      this.assetDetailRow = { ...row };
+      this.isViewModal = true;
+    },
+    _jsonToLines(obj, compareObj) {
+      try {
+        const text = JSON.stringify(obj, null, 2);
+        const lines = text.split("\n");
+        if (!compareObj) return lines.map(l => ({ text: l, changeType: null }));
+        const origText = JSON.stringify(compareObj, null, 2);
+        const origLines = new Set(origText.split("\n"));
+        return lines.map(l => ({
+          text: l,
+          changeType: origLines.has(l) ? null : "updated"
+        }));
+      } catch (e) { return [{ text: JSON.stringify(obj), changeType: null }]; }
+    },
     openAssetDetail(row) {
       this.assetDetailRow = { ...row };
       this.isEditingAsset = false;
@@ -489,7 +636,20 @@ const app = createApp({
       if (!this.selectedRows.length) return;
       const count = this.selectedRows.length;
       this.showConfirm("Delete Assets", `Are you sure you want to delete ${count} selected asset${count > 1 ? 's' : ''}? This action cannot be undone.`, "Delete", () => {
+        // Send delete requests to backend for each selected asset
+        for (const id of this.selectedRows) {
+          const row = this.tableRows.find(r => r.id === id);
+          const uid = row?.uniqueId || row?.id;
+          if (uid) {
+            uibuilderService.send({
+              type: "deleteLocalAsset",
+              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              data: { uniqueId: uid }
+            });
+          }
+        }
         this.tableRows = this.tableRows.filter(r => !this.selectedRows.includes(r.id));
+        this.allCatalogsRaw = this.allCatalogsRaw.filter(r => !this.selectedRows.includes(r.id));
         if (this.assetDetailRow && this.selectedRows.includes(this.assetDetailRow.id)) {
           this.closeAssetDetail();
         }
@@ -500,25 +660,49 @@ const app = createApp({
     bulkChangeStatus(status) {
       if (!this.selectedRows.length) return;
       const set = new Set(this.selectedRows);
+      // Send update requests to backend for each selected asset
+      for (const id of this.selectedRows) {
+        const row = this.tableRows.find(r => r.id === id);
+        const uid = row?.uniqueId || row?.id;
+        if (uid) {
+          uibuilderService.send({
+            type: "updateLocalAsset",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: { uniqueId: uid, patch: { status: status } }
+          });
+        }
+      }
       this.tableRows = this.tableRows.map(r => set.has(r.id) ? { ...r, integrationStatus: status } : r);
+      this.allCatalogsRaw = this.allCatalogsRaw.map(r => set.has(r.id) ? { ...r, integrationStatus: status } : r);
       this.selectedRows = [];
+    },
+    _downloadCsv(rows, filename) {
+      const headers = ["ID", "Assets", "Type", "Name", "Domain", "Updated", "Integration Status", "Harvest Run", "Source Asset", "Strategy"];
+      const csvRows = rows.map(r => [r.id || r.uniqueId, r.assets, r.type, r.name, r.domain, r.updated, r.integrationStatus, r.harvestRunId || '', r.sourceAssetId || '', r.strategy || ''].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(","));
+      const content = "\uFEFF" + [headers.join(","), ...csvRows].join("\n");
+      const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     },
     bulkExportAssets() {
       if (!this.selectedRows.length) return;
       const set = new Set(this.selectedRows);
       const rows = this.tableRows.filter(r => set.has(r.id));
-      const headers = ["ID", "Assets", "Type", "Name", "Domain", "Updated", "Integration Status"];
-      const csvRows = rows.map(r => [r.id, r.assets, r.type, r.name, r.domain, r.updated, r.integrationStatus].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
-      const content = [headers.join(","), ...csvRows].join("\n");
-      const blob = new Blob([content], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "assets-export.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      this._downloadCsv(rows, "assets-export-selected.csv");
+    },
+    exportAllAssets() {
+      const rows = this.allCatalogsRaw.length > 0 ? this.allCatalogsRaw : this.tableRows;
+      if (!rows.length) {
+        this.addToast("warning", "No assets to export.");
+        return;
+      }
+      this._downloadCsv(rows, "local-catalogue-export.csv");
     },
     toggleSelectAll(e) {
       if (e.target.checked) {
@@ -545,8 +729,19 @@ const app = createApp({
         dcatCatalogUri: "", linkedDataEndpoint: "", contentNegotiation: "application/ld+json",
         strategy: "none", promptId: "", llmConfigId: "",
         namespacesToPreserve: "", shaclShapeId: "",
-        auth: "none", trustAnchor: "", enabled: true,
+        auth: "none",
+        authLoginEndpoint: "", authUsername: "", authPassword: "",
+        authPayloadTemplate: '{"email":"{{username}}","password":"{{password}}"}',
+        authTokenPath: "token", authTokenInjection: "body",
+        authTokenFieldName: "token", authTokenPrefix: "",
+        authStaticToken: "", authApiKey: "", authApiKeyHeader: "X-API-Key",
+        responseRootPath: "", responseAssetIdField: "",
+        responseAssetNameField: "", responseAssetTypeField: "",
+        trustAnchor: "", enabled: true,
+        sourceData: null, sourceFileName: "",
       };
+      this.uploadedJsonFile = null;
+      this.jsonUploadError = "";
       this.showRegisterRemoteCatalogModal = true;
     },
     openEditRemoteCatalog(row) {
@@ -554,6 +749,13 @@ const app = createApp({
       this.editingRemoteCatalogId = row.id;
       this.remoteCatalogForm = JSON.parse(JSON.stringify(row));
       this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(row));
+      // Restore saved file indicator from persisted sourceData
+      if (row.sourceData && row.sourceFileName) {
+        this.uploadedJsonFile = { name: row.sourceFileName };
+      } else {
+        this.uploadedJsonFile = null;
+      }
+      this.jsonUploadError = "";
       this.showRegisterRemoteCatalogModal = true;
     },
     closeRegisterRemoteCatalogModal() {
@@ -563,13 +765,35 @@ const app = createApp({
       this.isTestingConnection = true;
       this.testConnectionResult = { status: "", message: "", latency: 0 };
       const start = Date.now();
+      const auth = this.remoteCatalogForm.auth || "none";
+      const endpoint = this.remoteCatalogForm.baseEndpoint || this.remoteCatalogForm.queryEndpoint || "";
+
+      // Validate auth-specific fields
+      if (auth === "token-login") {
+        const loginUrl = this.remoteCatalogForm.authLoginEndpoint || "";
+        if (!loginUrl.trim()) {
+          this.testConnectionResult = { status: "error", message: "Login endpoint URL is required for Token Login auth.", latency: 0 };
+          this.isTestingConnection = false;
+          return;
+        }
+        if (!this.remoteCatalogForm.authUsername || !this.remoteCatalogForm.authPassword) {
+          this.testConnectionResult = { status: "error", message: "Username and password are required for Token Login auth.", latency: 0 };
+          this.isTestingConnection = false;
+          return;
+        }
+      }
+
       setTimeout(() => {
         const latency = Date.now() - start;
-        const endpoint = this.remoteCatalogForm.baseEndpoint || "";
         if (!endpoint.trim()) {
           this.testConnectionResult = { status: "error", message: "No endpoint URL provided.", latency: 0 };
         } else {
-          this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}`, latency };
+          const authLabel = auth === "token-login" ? " (Token Login authenticated)"
+            : auth === "bearer" ? " (Bearer Token)"
+            : auth === "apikey" ? " (API Key)"
+            : auth === "oauth" ? " (OAuth2)"
+            : "";
+          this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}${authLabel}`, latency };
         }
         this.isTestingConnection = false;
       }, 800 + Math.random() * 700);
@@ -602,6 +826,71 @@ const app = createApp({
         return;
       }
       this.registerRemoteCatalog();
+    },
+
+    // ── JSON File Upload for Catalogue Registration ──────────
+    handleJsonDrop(e) {
+      this.isDraggingJson = false;
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type === "application/json") {
+        this.processJsonFile(file);
+      } else {
+        this.jsonUploadError = "Please upload a valid .json file.";
+      }
+    },
+    handleJsonFileSelect(e) {
+      const file = e.target?.files?.[0];
+      if (file) this.processJsonFile(file);
+    },
+    processJsonFile(file) {
+      this.jsonUploadError = "";
+      this.uploadedJsonFile = file;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const json = JSON.parse(ev.target.result);
+          // Support both single object and array of catalogues
+          if (Array.isArray(json)) {
+            // Batch upload via uploadCatalogJson
+            uibuilderService.send({
+              type: "uploadCatalogJson",
+              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              data: { catalogs: json }
+            });
+          } else if (typeof json === "object") {
+            // Pre-fill the form from JSON fields
+            const f = this.remoteCatalogForm;
+            if (json.catalogId) f.catalogId = json.catalogId;
+            if (json.catalogName) f.catalogName = json.catalogName;
+            if (json.owner) f.owner = json.owner;
+            if (json.protocol) f.protocol = json.protocol;
+            if (json.baseEndpoint) f.baseEndpoint = json.baseEndpoint;
+            if (json.queryEndpoint) f.queryEndpoint = json.queryEndpoint;
+            if (json.queryLanguages) f.queryLanguages = json.queryLanguages;
+            if (json.mimeType) f.mimeType = json.mimeType;
+            if (json.strategy) f.strategy = json.strategy;
+            if (json.dcatCatalogUri) f.dcatCatalogUri = json.dcatCatalogUri;
+            if (json.linkedDataEndpoint) f.linkedDataEndpoint = json.linkedDataEndpoint;
+            if (json.metadataPrefix) f.metadataPrefix = json.metadataPrefix;
+            if (json.auth) f.auth = json.auth;
+            if (json.trustAnchor) f.trustAnchor = json.trustAnchor;
+            if (json.enabled !== undefined) f.enabled = json.enabled;
+            // Persist the full JSON content as the catalogue source data
+            f.sourceData = json;
+            f.sourceFileName = file.name;
+            this.addToast("success", "Form pre-filled from JSON file.");
+          }
+        } catch (err) {
+          this.jsonUploadError = "Invalid JSON file: " + err.message;
+        }
+      };
+      reader.readAsText(file);
+    },
+    clearUploadedJson() {
+      this.uploadedJsonFile = null;
+      this.jsonUploadError = "";
+      this.remoteCatalogForm.sourceData = null;
+      this.remoteCatalogForm.sourceFileName = "";
     },
 
     // ── Admin Tools ────────────────────────────────────────────
@@ -708,7 +997,28 @@ const app = createApp({
 
     // ── Schema Modals ──────────────────────────────────────────
     openRegisterSchemaEditModal() { this.isRegisterSchemaEditModal = true; },
-    openRegisterSchemaNewModal() { this.isRegisterSchemaNewModal = true; },
+    openEditRemoteSchema(row) {
+      this.registerSchemaForm = {
+        name: row.schema || "",
+        format: row.format || "SHACL",
+        catalogSearch: "",
+        remoteCatalogs: row.remoteCatalogs || [],
+        namespaces: row.namespaces || [],
+        version: row.versioning || "",
+        sourceUrl: row.sourceUrl || "",
+        summaryTab: "SHACL",
+        editId: row.id,
+      };
+      this.isRegisterSchemaEditModal = true;
+    },
+    openRegisterSchemaNewModal() {
+      this.registerSchemaForm = {
+        name: "", format: "SHACL", catalogSearch: "",
+        remoteCatalogs: [], namespaces: [],
+        version: "", sourceUrl: "", summaryTab: "SHACL"
+      };
+      this.isRegisterSchemaNewModal = true;
+    },
     closeRegisterSchemaNewModal() { this.isRegisterSchemaNewModal = false; },
     closeRegisterSchemaEditModal() { this.isRegisterSchemaEditModal = false; },
     removeRemoteCatalog(name) {
@@ -721,8 +1031,41 @@ const app = createApp({
       if (!exists) this.registerSchemaForm.remoteCatalogs.push(q);
       this.registerSchemaForm.catalogSearch = "";
     },
-    saveRegisterSchemaNew() { this.closeRegisterSchemaNewModal(); },
-    saveRegisterSchemaEdit() { this.closeRegisterSchemaEditModal(); },
+    saveRegisterSchemaNew() {
+      if (!this.registerSchemaForm.name) return;
+      const data = {
+        schema: this.registerSchemaForm.name,
+        format: this.registerSchemaForm.format,
+        remoteCatalogs: this.registerSchemaForm.remoteCatalogs,
+        namespaces: this.registerSchemaForm.namespaces,
+        version: this.registerSchemaForm.version,
+        sourceUrl: this.registerSchemaForm.sourceUrl,
+        catalogs: this.registerSchemaForm.remoteCatalogs.length,
+        trustLevel: "Federated",
+      };
+      uibuilderService.send({
+        type: "saveRemoteSchema",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data
+      });
+      // Optimistically add to list
+      const maxId = this.remoteSchema.reduce((m, s) => Math.max(m, s.id), 0);
+      this.remoteSchema.push({
+        id: maxId + 1,
+        schema: data.schema,
+        catalogs: data.catalogs || 0,
+        localMapping: null,
+        versioning: data.version || "v1.0",
+        versionOptions: ["v1.0", "v1.1", "v2.0"],
+        trustLevel: data.trustLevel,
+      });
+      this.closeRegisterSchemaNewModal();
+      this.addToast("success", "Remote schema registered.");
+    },
+    saveRegisterSchemaEdit() {
+      this.closeRegisterSchemaEditModal();
+      this.addToast("success", "Schema details updated.");
+    },
 
     // ── Asset Type Registry ──────────────────────────────────────
     openAssetTypeForm() {
@@ -768,9 +1111,10 @@ const app = createApp({
       this.promptFormError = "";
       this.isEnhancingPrompt = false;
       this.promptForm = {
-        id: null, version: "1.0", status: "draft",
+        id: null, name: "", version: "1.0", status: "draft",
         sourceSchema: "", targetSchema: "",
         template: "", examples: "", constraints: "",
+        author: "",
       };
       this.showPromptModal = true;
     },
@@ -778,7 +1122,7 @@ const app = createApp({
       this.isEditingPrompt = true;
       this.promptFormError = "";
       this.isEnhancingPrompt = false;
-      this.promptForm = { ...p };
+      this.promptForm = { ...p, name: p.name || "", author: p.author || "" };
       this.showPromptModal = true;
     },
     closePromptModal() {
@@ -809,13 +1153,23 @@ const app = createApp({
     savePrompt() {
       if (!this.promptForm.sourceSchema || !this.promptForm.targetSchema || !this.promptForm.template) return;
 
+      // Generate a unique name if user left it empty
+      let promptName = (this.promptForm.name || "").trim();
+      if (!promptName) {
+        let num;
+        do {
+          num = Math.floor(100 + Math.random() * 900);
+        } while (this.prompts.some(p => p.name === `prompt-${num}`));
+        promptName = `prompt-${num}`;
+      }
+
       if (this.isEditingPrompt && this.promptForm.id) {
-        // Send full prompt update to backend — backend enforces active-prompt-per-source-target rule
         uibuilderService.send({
           type: "updatePrompt",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
           data: {
             promptId: this.promptForm.id,
+            name: promptName,
             version: this.promptForm.version || "1.0",
             sourceSchema: this.promptForm.sourceSchema,
             targetSchema: this.promptForm.targetSchema,
@@ -823,22 +1177,24 @@ const app = createApp({
             examples: this.promptForm.examples || "",
             constraints: this.promptForm.constraints || "",
             status: this.promptForm.status || "active",
-            code: this.promptForm.generatedCode || ""
+            code: this.promptForm.generatedCode || "",
+            author: this.promptForm.author || ""
           }
         });
         this.closePromptModal();
       } else {
-        // Send to backend — backend handles ID generation, DB insert, and async code generation
         uibuilderService.send({
           type: "createPrompt",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
           data: {
+            name: promptName,
             version: this.promptForm.version || "1.0",
             sourceSchema: this.promptForm.sourceSchema,
             targetSchema: this.promptForm.targetSchema,
             template: this.promptForm.template,
             examples: this.promptForm.examples || "",
             constraints: this.promptForm.constraints || "",
+            author: this.promptForm.author || "",
           }
         });
         this.closePromptModal();
@@ -1118,7 +1474,7 @@ const app = createApp({
     openProviderModal() {
       this.isEditingProvider = false;
       this.providerFormError = "";
-      this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
+      this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
       this.showProviderModal = true;
     },
     openEditProvider(p) {
@@ -1157,7 +1513,12 @@ const app = createApp({
     moveProviderUp(id) {
       const idx = this.llmProviders.findIndex(p => p.id === id);
       if (idx <= 0) return;
-      // Send reorder to backend — UI updates when response arrives
+      // Swap locally first for immediate feedback
+      const tmp = this.llmProviders[idx];
+      this.llmProviders.splice(idx, 1);
+      this.llmProviders.splice(idx - 1, 0, tmp);
+      this.llmProviders.forEach((p, i) => { p.precedence = i + 1; });
+      // Persist to backend
       uibuilderService.send({
         type: "reorderProvider",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -1167,7 +1528,12 @@ const app = createApp({
     moveProviderDown(id) {
       const idx = this.llmProviders.findIndex(p => p.id === id);
       if (idx < 0 || idx >= this.llmProviders.length - 1) return;
-      // Send reorder to backend — UI updates when response arrives
+      // Swap locally first for immediate feedback
+      const tmp = this.llmProviders[idx];
+      this.llmProviders.splice(idx, 1);
+      this.llmProviders.splice(idx + 1, 0, tmp);
+      this.llmProviders.forEach((p, i) => { p.precedence = i + 1; });
+      // Persist to backend
       uibuilderService.send({
         type: "reorderProvider",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -1232,39 +1598,40 @@ const app = createApp({
     },
     saveLocalSchema() {
       if (!this.localSchemaForm.schema) return;
-      const now = new Date().toISOString().slice(0, 10);
+      const data = {
+        schema: this.localSchemaForm.schema,
+        format: this.localSchemaForm.format || "SHACL",
+        catalogs: this.localSchemaForm.catalogs,
+        localMapping: this.localSchemaForm.localMapping || null,
+        versioning: this.localSchemaForm.versioning,
+        trustLevel: this.localSchemaForm.trustLevel,
+      };
       if (this.isEditingLocalSchema && this.editingLocalSchemaId != null) {
-        const idx = this.schemaRegistry.findIndex(s => s.id === this.editingLocalSchemaId);
-        if (idx !== -1) {
-          this.schemaRegistry.splice(idx, 1, {
-            ...this.schemaRegistry[idx],
-            schema: this.localSchemaForm.schema,
-            catalogs: this.localSchemaForm.catalogs,
-            localMapping: this.localSchemaForm.localMapping || null,
-            versioning: this.localSchemaForm.versioning,
-            trustLevel: this.localSchemaForm.trustLevel,
-          });
-        }
-      } else {
-        const maxId = this.schemaRegistry.reduce((m, s) => Math.max(m, s.id), 0);
-        this.schemaRegistry.push({
-          id: maxId + 1,
-          schema: this.localSchemaForm.schema,
-          catalogs: this.localSchemaForm.catalogs,
-          localMapping: this.localSchemaForm.localMapping || null,
-          versioning: this.localSchemaForm.versioning,
-          versionOptions: ["v1.0", "v1.1", "v2.0"],
-          trustLevel: this.localSchemaForm.trustLevel,
-        });
+        data.id = this.editingLocalSchemaId;
       }
+      uibuilderService.send({
+        type: "saveLocalSchema",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data
+      });
       this.showCreateLocalSchemaModal = false;
-      this.addToast("success", this.isEditingLocalSchema ? "Schema updated." : "Schema created.");
     },
     confirmDeleteSchema(id) {
       const schema = this.schemaRegistry.find(s => s.id === id);
       this.showConfirm("Delete Schema", `Are you sure you want to delete "${schema?.schema || 'this schema'}"? This action cannot be undone.`, "Delete", () => {
-        this.schemaRegistry = this.schemaRegistry.filter(s => s.id !== id);
-        this.addToast("success", "Schema deleted.");
+        uibuilderService.send({
+          type: "deleteLocalSchema",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { schemaId: id }
+        });
+      });
+    },
+
+    confirmDeleteRemoteSchema(id) {
+      const schema = this.remoteSchema.find(s => s.id === id);
+      this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.schema || 'this schema'}"?`, "Delete", () => {
+        this.remoteSchema = this.remoteSchema.filter(s => s.id !== id);
+        this.addToast("success", "Remote schema deleted.");
       });
     },
 
@@ -1302,17 +1669,16 @@ const app = createApp({
     },
     saveAddMapping() {
       if (!this.addMappingForm.remoteCatalogue || !this.addMappingForm.remoteSchema) return;
+      const data = { ...this.addMappingForm };
       if (this.isEditingMapping && this.editingMappingId != null) {
-        const idx = this.mappingRows.findIndex(r => r.id === this.editingMappingId);
-        if (idx !== -1) {
-          this.mappingRows.splice(idx, 1, { ...this.mappingRows[idx], ...this.addMappingForm });
-        }
-      } else {
-        const maxId = this.mappingRows.reduce((m, r) => Math.max(m, r.id), 0);
-        this.mappingRows.push({ id: maxId + 1, ...this.addMappingForm });
+        data.id = this.editingMappingId;
       }
+      uibuilderService.send({
+        type: "saveMapping",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data
+      });
       this.showAddMappingModal = false;
-      this.addToast("success", this.isEditingMapping ? "Mapping updated." : "Mapping created.");
     },
 
     // ── Mapping View/Edit Detail (Milestone 2) ────────────────
@@ -1341,12 +1707,12 @@ const app = createApp({
     },
     saveEditMappingDetail() {
       if (!this.mappingDetailRow) return;
-      const idx = this.mappingRows.findIndex(r => r.id === this.mappingDetailRow.id);
-      if (idx !== -1) {
-        const updated = { ...this.mappingRows[idx], ...this.mappingDetailEditForm };
-        this.mappingRows.splice(idx, 1, updated);
-        this.mappingDetailRow = { ...updated };
-      }
+      const data = { id: this.mappingDetailRow.id, ...this.mappingDetailEditForm };
+      uibuilderService.send({
+        type: "saveMapping",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data
+      });
       this.isEditingMappingDetail = false;
     },
     openMappingPrompts(row) {
@@ -1363,12 +1729,11 @@ const app = createApp({
     removeMappingRow(id) {
       const row = this.mappingRows.find(r => r.id === id);
       this.showConfirm("Delete Mapping", `Are you sure you want to delete the mapping for "${row?.remoteCatalogue || 'this mapping'}"?`, "Delete", () => {
-        this.mappingRows = this.mappingRows.filter(r => r.id !== id);
-        this.selectedMappingRows = this.selectedMappingRows.filter(x => x !== id);
-        if (this.mappingDetailRow && this.mappingDetailRow.id === id) {
-          this.closeMappingDetail();
-        }
-        this.addToast("success", "Mapping deleted.");
+        uibuilderService.send({
+          type: "deleteMapping",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { mappingId: id }
+        });
       });
     },
 
@@ -1391,14 +1756,25 @@ const app = createApp({
       this.isLoadingHarvestCatalogues = true;
       this.harvestWizardRows = [];
       this.harvestWizardRowsBase = [];
-      // Load real catalogues from backend
+      // Ensure catalogsTable is fresh (needed for sourceData in startHarvest)
+      uibuilderService.send({
+        type: "getCatalogRegistry",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+      });
+      // Load harvest-specific catalogue list
       uibuilderService.send({
         type: "getHarvestCatalogues",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
       });
     },
     closeHarvestWizard() { this.showHarvestWizard = false; this.harvestWizardStep = 1; },
-    nextHarvestWizardStep() { this.harvestWizardStep = Math.min(4, this.harvestWizardStep + 1); },
+    nextHarvestWizardStep() {
+      if (this.harvestWizardStep === 1 && this.harvestWizardSelectedRows.length === 0) {
+        this.addToast("error", "Please select at least one remote catalogue.");
+        return;
+      }
+      this.harvestWizardStep = Math.min(4, this.harvestWizardStep + 1);
+    },
     prevHarvestWizardStep() { this.harvestWizardStep = Math.max(1, this.harvestWizardStep - 1); },
     runHarvestWizardSearch() {
       const q = normalizeText(this.harvestWizardSearch);
@@ -1436,10 +1812,43 @@ const app = createApp({
       }
       const selectedCatalogues = this.harvestWizardRowsBase
         .filter(r => this.harvestWizardSelectedRows.includes(r.id))
-        .map(r => ({ uniqueId: r.id, catalogName: r.catalog, strategy: r.strategy || "none", baseEndpoint: r.endpoint || "" }));
+        .map(r => {
+          // Find the full catalogue record to include sourceData if present
+          const fullCat = this.catalogsTable.find(c => c.id === r.id || c.uniqueId === r.id);
+          return {
+            uniqueId: r.id,
+            catalogName: r.catalog,
+            strategy: r.strategy || "none",
+            baseEndpoint: r.endpoint || fullCat?.baseEndpoint || fullCat?.queryEndpoint || "",
+            sourceData: fullCat?.sourceData || null,
+            responseRootPath: fullCat?.responseRootPath || "",
+            responseAssetIdField: fullCat?.responseAssetIdField || "",
+            responseAssetNameField: fullCat?.responseAssetNameField || "",
+            responseAssetTypeField: fullCat?.responseAssetTypeField || "",
+            // Pass auth config so the harvest handler can make authenticated API calls
+            auth: fullCat?.auth || "none",
+            authLoginEndpoint: fullCat?.authLoginEndpoint || "",
+            authUsername: fullCat?.authUsername || "",
+            authPassword: fullCat?.authPassword || "",
+            authPayloadTemplate: fullCat?.authPayloadTemplate || "",
+            authTokenPath: fullCat?.authTokenPath || "token",
+            authTokenPrefix: fullCat?.authTokenPrefix || "",
+            authStaticToken: fullCat?.authStaticToken || "",
+            authApiKey: fullCat?.authApiKey || "",
+            authApiKeyHeader: fullCat?.authApiKeyHeader || "X-API-Key",
+          };
+        });
 
       this.isSubmittingHarvest = true;
       this.harvestSubmitError = "";
+      // Set a timeout to detect silent backend failure
+      if (this._harvestTimeout) clearTimeout(this._harvestTimeout);
+      this._harvestTimeout = setTimeout(() => {
+        if (this.isSubmittingHarvest) {
+          this.isSubmittingHarvest = false;
+          this.addToast("error", "Harvest request timed out — no response from backend. Check Node-RED logs.");
+        }
+      }, 30000);
       uibuilderService.send({
         type: "startHarvest",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -1459,7 +1868,8 @@ const app = createApp({
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
         data: { runId: run.id }
       });
-      this.harvestRunDetailData = { ...run, assets: [] };
+      this.harvestRunDetailData = { ...run, assets: [], logs: [], provenance: [] };
+      this.harvestDetailTab = "assets";
       this.showHarvestRunDetail = true;
     },
     closeHarvestRunDetail() {
@@ -1627,6 +2037,8 @@ const app = createApp({
     uibuilderService.send({ type: "listTestCases", data: {} });
     uibuilderService.send({ type: "listLlmConfigs", data: {} });
     uibuilderService.send({ type: "listProviders", data: {} });
+    uibuilderService.send({ type: "listLocalSchemas", data: {} });
+    uibuilderService.send({ type: "listMappings", data: {} });
 
     // Load Catalogue Registry data on mount
     uibuilderService.send({
@@ -1741,11 +2153,17 @@ const app = createApp({
       }
 
       if (resp?.action === "startHarvest") {
+        if (this._harvestTimeout) { clearTimeout(this._harvestTimeout); this._harvestTimeout = null; }
         this.isSubmittingHarvest = false;
         if (resp?.status === "success") {
           const run = resp.run || {};
           const runStatus = run.status || "completed";
-          this.addToast("success", `Harvest ${runStatus}: ${run.assetsAdded || 0} assets imported from ${run.catalogueName || "catalogue"}.`);
+          const assetCount = run.assetsAdded || run.totalAssets || 0;
+          if (assetCount > 0) {
+            this.addToast("success", `Harvest ${runStatus}: ${assetCount} assets imported from ${run.catalogueName || "catalogue"}.`);
+          } else {
+            this.addToast("warning", `Harvest ${runStatus} but 0 assets were found. If harvesting an API source, the endpoint may be unreachable from this environment (CORS). Try uploading the API response as a JSON file when registering the catalogue.`);
+          }
           // Show progress bar with actual run state
           if (run.uniqueId) {
             this.applyHarvestProgress({
@@ -1760,9 +2178,37 @@ const app = createApp({
               startedAt: run.startedAt || "",
             });
           }
-          // Reload all harvest data and local catalogue
+          // Directly populate local catalogue from the harvest response
+          // This ensures data appears immediately without depending on a separate request
+          if (Array.isArray(resp.allAssets) && resp.allAssets.length > 0) {
+            const normalized = resp.allAssets.map(a => {
+              // Same normalization as getLocalCatalogue
+              if (a.title && typeof a.title === 'string' && a.title.trim()) {
+                a.assets = a.title;
+              } else if (!a.assets && a.name && typeof a.name === 'string') {
+                a.assets = a.name;
+              }
+              if (!a.title && a.assets) a.title = a.assets;
+              return a;
+            });
+            console.log("[facis] startHarvest: populating local catalogue with", normalized.length, "assets");
+            this.allCatalogsRaw.splice(0, this.allCatalogsRaw.length, ...normalized);
+            this.tableRows.splice(0, this.tableRows.length, ...normalized);
+            this.localCatalogueStats = {
+              totalAssets: resp.totalAssets || resp.allAssets.length,
+              totalRuns: resp.totalRuns || 0
+            };
+            this.pagination.catalog.page = 1;
+          }
+          if (Array.isArray(resp.allProvenance) && resp.allProvenance.length > 0) {
+            this.harvestProvenance = resp.allProvenance;
+            this.provenanceRows = resp.allProvenance;
+            this.pagination.provenance.page = 1;
+          }
+          // Also reload via standard channels as backup
           this.loadHarvestData();
           this.loadLocalCatalogs();
+          this.loadLocalProvenance();
         } else {
           this.harvestSubmitError = resp?.message || "Harvest failed to start";
           this.addToast("error", this.harvestSubmitError);
@@ -1801,9 +2247,13 @@ const app = createApp({
             catalogue: resp.run.catalogueName || "-",
             started: resp.run.startedAt || "-",
             duration: resp.run.duration || "-",
-            imported: resp.run.imported || "-",
+            imported: resp.run.assetsAdded || resp.run.imported || "-",
             status: resp.run.status || "-",
+            successCount: resp.run.successCount || 0,
+            errorCount: resp.run.errorCount || 0,
             assets: Array.isArray(resp.run.assets) ? resp.run.assets : [],
+            logs: Array.isArray(resp.logs) ? resp.logs : [],
+            provenance: Array.isArray(resp.provenance) ? resp.provenance : [],
           };
         }
       }
@@ -1814,13 +2264,33 @@ const app = createApp({
 
       if (resp?.action === "listHarvestProvenance" && resp?.status === "success") {
         this.harvestProvenance = Array.isArray(resp.provenance) ? resp.provenance : [];
+        this.provenanceRows = this.harvestProvenance;
+        this.pagination.provenance.page = 1;
+      }
+
+      if (resp?.action === "getLocalProvenance" && resp?.status === "success") {
+        this.harvestProvenance = Array.isArray(resp.provenance) ? resp.provenance : [];
+        this.provenanceRows = this.harvestProvenance;
+        this.pagination.provenance.page = 1;
       }
 
       // ── Local Catalogue responses ──
       if (resp?.action === "getLocalCatalogue" && resp?.status === "success") {
-        const assets = Array.isArray(resp.assets) ? resp.assets : [];
-        this.allCatalogsRaw = assets;
-        this.tableRows = assets;
+        const assets = (Array.isArray(resp.assets) ? resp.assets : []).map(a => {
+          // Normalize: ensure 'assets' field (display name) uses the best available identity
+          // Prefer title (canonical stored name) > assets > name as display value
+          if (a.title && typeof a.title === 'string' && a.title.trim()) {
+            a.assets = a.title;
+          } else if (!a.assets && a.name && typeof a.name === 'string') {
+            a.assets = a.name;
+          }
+          // Ensure title is always set for search consistency
+          if (!a.title && a.assets) a.title = a.assets;
+          return a;
+        });
+        console.log("[facis] getLocalCatalogue received", assets.length, "assets");
+        this.allCatalogsRaw.splice(0, this.allCatalogsRaw.length, ...assets);
+        this.tableRows.splice(0, this.tableRows.length, ...assets);
         this.localCatalogueStats = {
           totalAssets: resp.totalAssets || assets.length,
           totalRuns: resp.totalRuns || 0
@@ -1833,7 +2303,8 @@ const app = createApp({
       }
 
       if (resp?.action === "updateLocalAsset" && resp?.status === "success") {
-        // Silently refreshed — no toast needed (already shown on save/archive)
+        // Reload from backend to reflect persisted state
+        this.loadLocalCatalogs();
       }
 
       if (resp?.action === "inviteUser" && resp?.status === "success") {
@@ -1873,7 +2344,7 @@ const app = createApp({
       }
 
       if (resp?.action === "logOut" && resp?.status === "success") {
-        window.location.href = "/-/login";
+        window.location.href = "/facis-facis/login";
         document.cookie = "userToken=; path=/; max-age=0";
       }
 
@@ -2065,6 +2536,64 @@ const app = createApp({
         }
       }
 
+      // ── Local Schema Backend Response Handlers ─────────────────
+
+      if (resp?.action === "listLocalSchemas" && resp?.status === "success") {
+        if (Array.isArray(resp.schemas) && resp.schemas.length > 0) {
+          this.schemaRegistry = resp.schemas;
+        }
+      }
+
+      if (resp?.action === "saveLocalSchema" && resp?.status === "success") {
+        if (resp.schema) {
+          const idx = this.schemaRegistry.findIndex(s => s.id === resp.schema.id);
+          if (idx !== -1) {
+            this.schemaRegistry.splice(idx, 1, resp.schema);
+          } else {
+            this.schemaRegistry.push(resp.schema);
+          }
+        }
+        this.addToast("success", resp.isNew ? "Schema created." : "Schema updated.");
+      }
+
+      if (resp?.action === "deleteLocalSchema" && resp?.status === "success") {
+        this.schemaRegistry = this.schemaRegistry.filter(s => s.id !== resp.schemaId);
+        this.addToast("success", "Schema deleted.");
+      }
+
+      // ── Mapping Backend Response Handlers ───────────────────────
+
+      if (resp?.action === "listMappings" && resp?.status === "success") {
+        if (Array.isArray(resp.mappings) && resp.mappings.length > 0) {
+          this.mappingRows = resp.mappings;
+        }
+      }
+
+      if (resp?.action === "saveMapping" && resp?.status === "success") {
+        if (resp.mapping) {
+          const idx = this.mappingRows.findIndex(r => r.id === resp.mapping.id);
+          if (idx !== -1) {
+            this.mappingRows.splice(idx, 1, resp.mapping);
+          } else {
+            this.mappingRows.push(resp.mapping);
+          }
+          // Update detail panel if open for this mapping
+          if (this.mappingDetailRow && this.mappingDetailRow.id === resp.mapping.id) {
+            this.mappingDetailRow = { ...resp.mapping };
+          }
+        }
+        this.addToast("success", resp.isNew ? "Mapping created." : "Mapping updated.");
+      }
+
+      if (resp?.action === "deleteMapping" && resp?.status === "success") {
+        this.mappingRows = this.mappingRows.filter(r => r.id !== resp.mappingId);
+        this.selectedMappingRows = this.selectedMappingRows.filter(x => x !== resp.mappingId);
+        if (this.mappingDetailRow && this.mappingDetailRow.id === resp.mappingId) {
+          this.closeMappingDetail();
+        }
+        this.addToast("success", "Mapping deleted.");
+      }
+
       // ── Batch Retransform Backend Response Handlers ─────────────
 
       if (resp?.action === "startBatchRetransform" && resp?.status === "success") {
@@ -2100,6 +2629,7 @@ const app = createApp({
     this.setPerPageByViewport();
     window.addEventListener("resize", this.onResize);
     this.loadLocalCatalogs();
+    this.loadLocalProvenance();
     window.addEventListener("scroll", this.updateMenuPosition, true);
     window.addEventListener("resize", this.updateMenuPosition);
   },

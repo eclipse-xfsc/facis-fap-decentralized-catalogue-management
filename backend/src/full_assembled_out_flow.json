@@ -1,0 +1,4782 @@
+[
+    {
+        "id": "fba9a024d6c9f5b400000001",
+        "type": "tab",
+        "label": "PostFlow",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "08651bcbec5aaa0a",
+        "type": "tab",
+        "label": "Interface",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "aa01000000000000",
+        "type": "tab",
+        "label": "M1_DCM-SchemaRegistry",
+        "disabled": false,
+        "info": "Backend flows for Schema Registry Management.\n\n════════════════════════════════════════════════\n  HOW TO SET YOUR OPENAI API KEY\n════════════════════════════════════════════════\n\n1. Double-click this flow tab name (DCM-SchemaRegistry)\n2. In the Edit Flow panel, click the 'Environment Variables' section\n3. Find the variable named: OPENAI_API_KEY\n4. Replace PUT_OPENAI_API_KEY_HERE with your real OpenAI API key\n   (e.g. sk-proj-abc123...)\n5. Click Done, then Deploy\n\nAll OpenAI request nodes in this flow use this single key.\nDo NOT paste the key anywhere else.\n\n════════════════════════════════════════════════\n\nOpenAI calls use real http request nodes — not simulated.\n\nMongoDB collections used:\n  sr_prompts        – prompt records\n  sr_test_cases     – saved test cases\n  sr_llm_configs    – LLM configuration records\n  sr_providers      – multi-model provider records\n  sr_local_schemas  – local schema definitions\n  sr_mappings       – schema mapping configurations\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin.",
+        "env": [
+            {
+                "name": "OPENAI_API_KEY",
+                "value": "PUT_OPENAI_API_KEY_HERE",
+                "type": "str"
+            },
+            {
+                "name": "OPENAI_MODEL",
+                "value": "gpt-4o",
+                "type": "str"
+            }
+        ]
+    },
+    {
+        "id": "52b819f7ec3ad8e1",
+        "type": "tab",
+        "label": "M2_DCM-CatalogueRegistry",
+        "disabled": false,
+        "info": "Backend flows for Catalogue Registry.\n\nMongoDB collection: cr_catalogues\n\nOperations:\n  - registerRemoteCatalog (insertOne)\n  - getCatalogRegistry (find all)\n  - updateRemoteCatalog (updateOne with patch)\n  - deleteRemoteCatalog (deleteOne)\n  - uploadCatalogJson (bulk insertMany)\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin (1320340df737c22e).",
+        "env": []
+    },
+    {
+        "id": "bb03000000000000",
+        "type": "tab",
+        "label": "M3_DCM-Harvester",
+        "disabled": false,
+        "info": "Backend flows for Asset Crawler + Mapper (Harvester).\n\nMongoDB collections:\n  hv_runs         – harvest run records (config, status, results, embedded logs + provenance)\n  lc_assets       – local catalogue assets (written during harvest, owned by M5_DCM-LocalCatalogue)\n  cr_catalogues   – catalogue registry (read-only, shared)\n\nOperations:\n  - getHarvestCatalogues (reads from cr_catalogues)\n  - startHarvest (creates run, generates assets into lc_assets, stores log + provenance)\n  - listHarvestRuns (find all runs)\n  - getHarvestRunDetail (find one run)\n  - listHarvestLogs (extract logs from runs)\n  - listHarvestProvenance (extract provenance from runs)\n  - pauseHarvest / resumeHarvest / cancelHarvest (update run status)\n\nSRS Requirements covered:\n  FR-ACM-01: Initiating a Harvest\n  FR-ACM-02: Harvest Scope\n  FR-ACM-03: Lifecycle of Imported Assets\n  FR-ACM-04: Linked Assets\n  FR-ACM-05: Crawling References\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin.",
+        "env": []
+    },
+    {
+        "id": "cc04000000000000",
+        "type": "tab",
+        "label": "M4_DCM-AdminTools",
+        "disabled": false,
+        "info": "Backend flows for Access Control & Admin Tools.\n\nMongoDB collections:\n  - users\n  - roles\n\nOperations:\n  - getAdminTools: list all users\n  - inviteUser: create/invite a user\n  - updateUser: update user roles/access\n  - deleteUser: remove a user\n\nSRS Requirements covered:\n  FR-AC-01: User Roles - CRUD for Asset Crawler, Schema Registry, Catalogue Registry access",
+        "env": []
+    },
+    {
+        "id": "dd05000000000000",
+        "type": "tab",
+        "label": "M5_DCM-LocalCatalogue",
+        "disabled": false,
+        "info": "Backend flow for Local Catalogue.\n\nMongoDB collection:\n  lc_assets – normalized local catalogue asset records\n             populated by Harvest (M3), managed here.\n\nOperations:\n  getLocalCatalogue  – list all lc_assets\n  getLocalAssetDetail – get single asset detail\n  deleteLocalAsset   – delete by uniqueId\n  updateLocalAsset   – update fields by uniqueId\n  getLocalProvenance – list provenance (extracted from hv_runs)\n  getLocalStats      – summary stats\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin (c48570326bcd6b3d).",
+        "env": []
+    },
+    {
+        "id": "ae7470d77bf8e67e",
+        "type": "subflow",
+        "name": "mongo db",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 1700,
+                "y": 60,
+                "wires": [
+                    {
+                        "id": "05de5cc3772c9614"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 2520,
+                "y": 40,
+                "wires": [
+                    {
+                        "id": "0a6acae42213e90a",
+                        "port": 0
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99"
+    },
+    {
+        "id": "b991ffcd8f6c360a",
+        "type": "mongodb4-client",
+        "name": "",
+        "protocol": "mongodb+srv",
+        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "port": "",
+        "dbName": "PartnerOnboarding",
+        "appName": "",
+        "authSource": "",
+        "authMechanism": "DEFAULT",
+        "tls": true,
+        "tlsCAFile": "",
+        "tlsCertificateKeyFile": "",
+        "tlsInsecure": false,
+        "connectTimeoutMS": "30000",
+        "socketTimeoutMS": "0",
+        "minPoolSize": "0",
+        "maxPoolSize": "100",
+        "maxIdleTimeMS": "0",
+        "uri": "",
+        "advanced": "{}",
+        "uriTabActive": "tab-uri-simple"
+    },
+    {
+        "id": "bb03000000000100",
+        "type": "tls-config",
+        "name": "Allow self-signed certs",
+        "cert": "",
+        "key": "",
+        "ca": "",
+        "certname": "",
+        "keyname": "",
+        "caname": "",
+        "servername": "",
+        "verifyservercert": false,
+        "alpnprotocol": ""
+    },
+    {
+        "id": "05de5cc3772c9614",
+        "type": "mongodb4",
+        "z": "ae7470d77bf8e67e",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 1902.5,
+        "y": 60,
+        "wires": [
+            [
+                "21c2267332124369"
+            ]
+        ]
+    },
+    {
+        "id": "0a6acae42213e90a",
+        "type": "switch",
+        "z": "ae7470d77bf8e67e",
+        "name": "check db awnser",
+        "property": "db.payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "nnull"
+            },
+            {
+                "t": "null"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 2297.5,
+        "y": 60,
+        "wires": [
+            [],
+            [
+                "044f0949b96800c6"
+            ]
+        ]
+    },
+    {
+        "id": "76b7fbfe029f0e4e",
+        "type": "debug",
+        "z": "ae7470d77bf8e67e",
+        "name": "db-null",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2777.5,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "21c2267332124369",
+        "type": "function",
+        "z": "ae7470d77bf8e67e",
+        "name": "set msg.db",
+        "func": "let message=msg\nmsg={}\nmsg.db=message.payload\nmsg.session=message.session\nmsg.recordDetails=message.recordDetails\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2082.5,
+        "y": 300,
+        "wires": [
+            [
+                "0a6acae42213e90a"
+            ]
+        ]
+    },
+    {
+        "id": "044f0949b96800c6",
+        "type": "function",
+        "z": "ae7470d77bf8e67e",
+        "name": "set msg.db.error",
+        "func": "let message=msg\nmsg={}\nmsg.data.error='there is no such a document in db'\nmsg.data=message.data\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2457.5,
+        "y": 300,
+        "wires": [
+            [
+                "76b7fbfe029f0e4e"
+            ]
+        ]
+    },
+    {
+        "id": "af356aea5113f9d0",
+        "type": "http in",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "POST /uiapp (zip)",
+        "url": "/backendtest",
+        "method": "post",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 177.5,
+        "y": 280,
+        "wires": [
+            [
+                "96234f884777ce3c",
+                "abf85b8036260bdb"
+            ]
+        ]
+    },
+    {
+        "id": "96234f884777ce3c",
+        "type": "debug",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "Incoming (inspect)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 552.5,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "cc0c0b4784b8e78b",
+        "type": "http response",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "HTTP Response",
+        "statusCode": "",
+        "headers": {},
+        "x": 1497.5,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "19063ceefb7ea3b7",
+        "type": "file",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "Write upload.zip",
+        "filename": "filename",
+        "filenameType": "msg",
+        "appendNewline": false,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "setbymsg",
+        "x": 857.5,
+        "y": 380,
+        "wires": [
+            [
+                "c44fd8a5c0d81874",
+                "0f5d14520b629490"
+            ]
+        ]
+    },
+    {
+        "id": "abf85b8036260bdb",
+        "type": "function",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "write upload data",
+        "func": "let buf = null;\nmsg.uibuildername =\"ui\"\nif (Buffer.isBuffer(msg.payload)) {\n    buf = msg.payload;\n}\nelse if (msg.req && msg.req.rawBody && Buffer.isBuffer(msg.req.rawBody)) {\n    buf = msg.req.rawBody;\n}\nelse if (typeof msg.payload === 'string') {\n    buf = Buffer.from(msg.payload, 'binary');\n    node.warn('Payload arrived as string; converted using latin1. Prefer application/octet-stream to avoid corruption.');\n} else {\n    node.error('❌ Payload is not Buffer/String and no rawBody present');\n    return null;\n}\n\nif (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4B) {\n    node.warn('⚠️ Payload does not start with PK (ZIP). Check Content-Type or middleware.');\n}\n\nmsg.payload = buf;\nmsg.filename = \"/data/uibuilder/backend-dist.zip\";\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 567.5,
+        "y": 380,
+        "wires": [
+            [
+                "19063ceefb7ea3b7"
+            ]
+        ]
+    },
+    {
+        "id": "c44fd8a5c0d81874",
+        "type": "function",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "set http response",
+        "func": "msg.statusCode = 200;\nmsg.headers = { \"Content-Type\": \"text/plain; charset=utf-8\" };\nmsg.payload = \"OK\";\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1167.5,
+        "y": 380,
+        "wires": [
+            [
+                "cc0c0b4784b8e78b"
+            ]
+        ]
+    },
+    {
+        "id": "337faca851558c3a",
+        "type": "exec",
+        "z": "fba9a024d6c9f5b400000001",
+        "command": "",
+        "addpay": "command",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "unzip and paste",
+        "x": 1147.5,
+        "y": 520,
+        "wires": [
+            [],
+            [],
+            [
+                "13468ae2ba9751f4"
+            ]
+        ]
+    },
+    {
+        "id": "0f5d14520b629490",
+        "type": "function",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "command unzip",
+        "func": "\nconst name = msg.uibuildername;\nmsg.command =\n    `sh -c 'ZIP=\"/data/uibuilder/backend-dist.zip\"; ` +\n    `DST=\"/data/uibuilder/${name}/src\"; ` +\n    `TMP=\"$(mktemp -d)\"; ` +\n    `mkdir -p \"$DST\"; ` +\n    `unzip -q -o \"$ZIP\" -d \"$TMP\"; ` +\n    `SRC=\"$TMP/dist\"; [ -d \"$SRC\" ] || SRC=\"$TMP\"; ` +\n    `rm -rf \"$DST\"/*; ` +\n    `cp -a \"$SRC\"/. \"$DST\"/; ` +\n    `chmod -R u+rw,g+rw,o+rw \"$DST\"; ` +\n    `rm -rf \"$TMP\"'`;\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 857.5,
+        "y": 520,
+        "wires": [
+            [
+                "337faca851558c3a"
+            ]
+        ]
+    },
+    {
+        "id": "13468ae2ba9751f4",
+        "type": "function",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "command update",
+        "func": "\nconst name = msg.uibuildername;\n\nconst file = `/data/uibuilder/${name}/src/index.html`;\n\nmsg.command =\n    `sh -c '[ -f \"${file}\" ] || { echo \"index.html not found: ${file}\" >&2; exit 1; }; ` +\n    `sed -E -i \"s#(src|href)=\\\\\\\"/assets/#\\\\\\\\1=\\\\\\\"/${name}/assets/#g\" \"${file}\"'`;\n\nreturn msg;\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1467.5,
+        "y": 500,
+        "wires": [
+            [
+                "1040d51522d62286"
+            ]
+        ]
+    },
+    {
+        "id": "1040d51522d62286",
+        "type": "exec",
+        "z": "fba9a024d6c9f5b400000001",
+        "command": "",
+        "addpay": "command",
+        "append": "",
+        "useSpawn": "false",
+        "timer": "",
+        "winHide": false,
+        "oldrc": false,
+        "name": "update html file",
+        "x": 1777.5,
+        "y": 460,
+        "wires": [
+            [],
+            [
+                "5ea2c2ec1e5c1ed5"
+            ],
+            [
+                "6481cf1c14f8fb46"
+            ]
+        ]
+    },
+    {
+        "id": "5ea2c2ec1e5c1ed5",
+        "type": "debug",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "debug 103",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2072.5,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "6481cf1c14f8fb46",
+        "type": "debug",
+        "z": "fba9a024d6c9f5b400000001",
+        "name": "debug 104",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 2052.5,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "5ed3b874a84375a5",
+        "type": "uibuilder",
+        "z": "08651bcbec5aaa0a",
+        "name": "",
+        "topic": "",
+        "url": "ui",
+        "okToGo": true,
+        "fwdInMessages": false,
+        "allowScripts": false,
+        "allowStyles": false,
+        "copyIndex": true,
+        "templateFolder": "blank",
+        "extTemplate": "",
+        "showfolder": false,
+        "reload": false,
+        "sourceFolder": "src",
+        "deployedVersion": "7.5.0",
+        "showMsgUib": false,
+        "title": "",
+        "descr": "",
+        "editurl": "vscode://vscode-remote/ssh-remote+hub.facis.com/data/uibuilder/uitestiatoosa/?windowId=_blank",
+        "x": 677.5,
+        "y": 320,
+        "wires": [
+            [
+                "ff01000000000020"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "ff01000000000020",
+        "type": "switch",
+        "z": "08651bcbec5aaa0a",
+        "name": "route by msg.route",
+        "property": "route",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "schema-registry",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "catalogue-registry",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "harvest",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "admin-tools",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "local-catalogue",
+                "vt": "str"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 6,
+        "x": 1012.5,
+        "y": 160,
+        "wires": [
+            [
+                "ff01000000000035"
+            ],
+            [
+                "ff01000000000032"
+            ],
+            [
+                "ff01000000000033"
+            ],
+            [
+                "ff01000000000034"
+            ],
+            [
+                "ff01000000000036"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "c48570326bcd6b3d",
+        "type": "link in",
+        "z": "08651bcbec5aaa0a",
+        "name": "dashboard-response-in",
+        "links": [
+            "bb010000000000f0",
+            "f8063c93b0f6d90b",
+            "bb03000000000099",
+            "cc04000000000099",
+            "dd05000000000099"
+        ],
+        "x": 350,
+        "y": 160,
+        "wires": [
+            [
+                "5ed3b874a84375a5"
+            ]
+        ]
+    },
+    {
+        "id": "ff01000000000035",
+        "type": "link out",
+        "z": "08651bcbec5aaa0a",
+        "name": "→ Schema Registry",
+        "mode": "link",
+        "links": [
+            "02e79a37e339b305"
+        ],
+        "x": 1085,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "ff01000000000032",
+        "type": "link out",
+        "z": "08651bcbec5aaa0a",
+        "name": "→ Catalogue Registry",
+        "mode": "link",
+        "links": [
+            "e2f70557fca63bd2"
+        ],
+        "x": 1085,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "ff01000000000033",
+        "type": "link out",
+        "z": "08651bcbec5aaa0a",
+        "name": "→ Harvest",
+        "mode": "link",
+        "links": [
+            "bb03000000000002"
+        ],
+        "x": 1085,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "ff01000000000034",
+        "type": "link out",
+        "z": "08651bcbec5aaa0a",
+        "name": "→ Admin Tools",
+        "mode": "link",
+        "links": [
+            "cc04000000000002"
+        ],
+        "x": 1085,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "ff01000000000036",
+        "type": "link out",
+        "z": "08651bcbec5aaa0a",
+        "name": "→ Local Catalogue",
+        "mode": "link",
+        "links": [
+            "dd05000000000002"
+        ],
+        "x": 1085,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "aa01000000000005",
+        "type": "switch",
+        "z": "aa01000000000000",
+        "name": "Route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "enhancePrompt",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "createPrompt",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listPrompts",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updatePromptCode",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deletePrompt",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "dryRunPrompt",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "saveTestCase",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listTestCases",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteTestCase",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updatePrompt",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updatePromptStatus",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "saveLlmConfig",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteLlmConfig",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "saveProvider",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteProvider",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "reorderProvider",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "startBatchRetransform",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "cancelBatchRetransform",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listLlmConfigs",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listProviders",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "saveLocalSchema",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listLocalSchemas",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteLocalSchema",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "saveMapping",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listMappings",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteMapping",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 26,
+        "x": 182.5,
+        "y": 740,
+        "wires": [
+            [
+                "bb01000000000010"
+            ],
+            [
+                "bb01000000000020"
+            ],
+            [
+                "bb01000000000060"
+            ],
+            [
+                "bb01000000000070"
+            ],
+            [
+                "bb01000000000080"
+            ],
+            [
+                "bb01000000000090"
+            ],
+            [
+                "bb010000000000a0"
+            ],
+            [
+                "bb010000000000b0"
+            ],
+            [
+                "bb010000000000c0"
+            ],
+            [
+                "bb010000000000d3"
+            ],
+            [
+                "bb010000000000e3"
+            ],
+            [
+                "cc01000000000010"
+            ],
+            [
+                "cc01000000000020"
+            ],
+            [
+                "cc01000000000030"
+            ],
+            [
+                "cc01000000000040"
+            ],
+            [
+                "cc01000000000050"
+            ],
+            [
+                "cc01000000000060"
+            ],
+            [
+                "cc01000000000070"
+            ],
+            [
+                "dd01000000000010"
+            ],
+            [
+                "dd01000000000020"
+            ],
+            [
+                "ee01000000000010"
+            ],
+            [
+                "ee01000000000020"
+            ],
+            [
+                "ee01000000000030"
+            ],
+            [
+                "ee01000000000040"
+            ],
+            [
+                "ee01000000000050"
+            ],
+            [
+                "ee01000000000060"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000f0",
+        "type": "link out",
+        "z": "aa01000000000000",
+        "name": "→ Dashboard (uibuilder response)",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 1645,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000099",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 1. ENHANCE PROMPT (real OpenAI POST) ──────────────────",
+        "info": "",
+        "x": 805,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000010",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Build Enhance Request Payload",
+        "func": "const d = msg.data || {};\nconst apiKey = flow.get(\"openai_api_key\") || \"\";\nconst model  = flow.get(\"openai_model\")  || \"gpt-4o\";\n\nif (!apiKey) {\n    msg.response = { action:\"enhancePrompt\", status:\"error\", message:\"No OpenAI API key configured. Set OPENAI_API_KEY on the flow.\" };\n    return [null, msg];            // output 2 → error path\n}\n\nmsg.url = \"https://api.openai.com/v1/chat/completions\";\nmsg.headers = {\n    \"Content-Type\":  \"application/json\",\n    \"Authorization\": \"Bearer \" + apiKey\n};\nmsg.payload = {\n    model: model,\n    temperature: 0.3,\n    max_tokens: 4096,\n    messages: [\n        {\n            role: \"system\",\n            content: \"You are an expert at writing LLM transformation prompts for schema-to-schema data conversion. Given a user's rough prompt, improve it to be clearer, more specific, and more effective. Keep the user's original intent. Return ONLY the improved prompt text, nothing else.\"\n        },\n        {\n            role: \"user\",\n            content: \"Source schema: \" + (d.sourceSchema || \"\") +\n                     \"\\nTarget schema: \" + (d.targetSchema || \"\") +\n                     \"\\n\\nSchema context:\\n\" + (d.schemaContext || \"(none)\") +\n                     \"\\n\\nUser's raw prompt:\\n\" + (d.rawPrompt || \"\") +\n                     \"\\n\\nReturn the improved prompt only.\"\n        }\n    ]\n};\n\nreturn [msg, null];               // output 1 → http request",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 620,
+        "wires": [
+            [
+                "bb01000000000011"
+            ],
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000011",
+        "type": "http request",
+        "z": "aa01000000000000",
+        "name": "POST OpenAI – Enhance",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": true,
+        "headers": [],
+        "x": 1485,
+        "y": 620,
+        "wires": [
+            [
+                "bb01000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000012",
+        "type": "switch",
+        "z": "aa01000000000000",
+        "name": "HTTP OK?",
+        "property": "statusCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "200",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1695,
+        "y": 620,
+        "wires": [
+            [
+                "bb01000000000013"
+            ],
+            [
+                "bb01000000000014"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000013",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Parse Enhance Response (success)",
+        "func": "const body = msg.payload || {};\nconst content = (body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) || \"\";\n\nmsg.response = {\n    action: \"enhancePrompt\",\n    status: \"success\",\n    enhancedPrompt: content.trim()\n};\ndelete msg.payload;\ndelete msg.headers;\ndelete msg.url;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1685,
+        "y": 640,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000014",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Parse Enhance Error",
+        "func": "const status = msg.statusCode || 0;\nconst body   = msg.payload || {};\nconst errMsg = (body.error && body.error.message) || JSON.stringify(body);\n\nmsg.response = {\n    action: \"enhancePrompt\",\n    status: \"error\",\n    message: \"OpenAI returned HTTP \" + status + \": \" + errMsg\n};\ndelete msg.payload;\ndelete msg.headers;\ndelete msg.url;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 825,
+        "y": 630,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009a",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 2. CREATE PROMPT + CODE GENERATION (real OpenAI POST) ─",
+        "info": "",
+        "x": 835,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000020",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Build Prompt Record for Insert",
+        "func": "const d = msg.data || {};\n\n// generate unique id\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 8; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst id  = 'prompt-' + Date.now().toString(36) + rnd;\nconst now = new Date().toISOString().slice(0, 10);\n\nconst prompt = {\n    id:                   id,\n    version:              d.version || \"1.0\",\n    status:               \"writing code\",\n    sourceSchema:         d.sourceSchema || \"\",\n    targetSchema:         d.targetSchema || \"\",\n    template:             d.template || \"\",\n    examples:             d.examples || \"\",\n    constraints:          d.constraints || \"\",\n    originalPrompt:       d.template || \"\",\n    enhancedPrompt:       d.enhancedPrompt || \"\",\n    generatedCode:        \"\",\n    codeGenerationStatus: \"generating\",\n    createdAt:            now,\n    updatedAt:            now,\n    lastGeneratedAt:      \"\"\n};\n\nmsg._promptData = prompt;\nmsg.collection  = \"sr_prompts\";\nmsg.operation   = \"insertOne\";\nmsg.payload     = prompt;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 760,
+        "wires": [
+            [
+                "bb01000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000021",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Insert Prompt",
+        "x": 1465,
+        "y": 760,
+        "wires": [
+            [
+                "bb01000000000022",
+                "bb01000000000030"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000022",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Send Immediate \"writing code\" Response",
+        "func": "// This goes straight to the UI so the user sees the prompt appear immediately.\nmsg.response = {\n    action: \"createPrompt\",\n    status: \"success\",\n    prompt: msg._promptData\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1805,
+        "y": 740,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000030",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Build Code-Gen Request Payload",
+        "func": "const p      = msg._promptData || {};\nconst apiKey = flow.get(\"openai_api_key\") || \"\";\nconst model  = flow.get(\"openai_model\")  || \"gpt-4o\";\n\nif (!apiKey) {\n    // No API key → cannot generate code. Mark as error.\n    msg._codeGenError = \"No OpenAI API key configured.\";\n    msg._generatedCode = \"\";\n    return [null, msg];   // output 2 → skip to update-with-error\n}\n\nmsg.url = \"https://api.openai.com/v1/chat/completions\";\nmsg.headers = {\n    \"Content-Type\":  \"application/json\",\n    \"Authorization\": \"Bearer \" + apiKey\n};\nmsg.payload = {\n    model: model,\n    temperature: 0.3,\n    max_tokens: 4096,\n    messages: [\n        {\n            role: \"system\",\n            content: \"You are a code generator. Output ONLY a single JavaScript function named `transform` that takes one argument `input` (a plain object) and returns the transformed object. No markdown fences, no explanation, no imports. The function must be deterministic, handle missing fields gracefully, and produce valid JSON-serialisable output.\"\n        },\n        {\n            role: \"user\",\n            content: \"Source schema: \" + (p.sourceSchema || \"\") +\n                     \"\\nTarget schema: \" + (p.targetSchema || \"\") +\n                     \"\\n\\nPrompt / mapping instructions:\\n\" + (p.template || \"\") +\n                     \"\\n\\nGenerate the JavaScript transform function now.\"\n        }\n    ]\n};\n\nreturn [msg, null];      // output 1 → http request",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 860,
+        "wires": [
+            [
+                "bb01000000000031"
+            ],
+            [
+                "bb01000000000040"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000031",
+        "type": "http request",
+        "z": "aa01000000000000",
+        "name": "POST OpenAI – Code Gen",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": true,
+        "headers": [],
+        "x": 1485,
+        "y": 860,
+        "wires": [
+            [
+                "bb01000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000032",
+        "type": "switch",
+        "z": "aa01000000000000",
+        "name": "HTTP OK?",
+        "property": "statusCode",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "200",
+                "vt": "num"
+            },
+            {
+                "t": "else"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 2,
+        "x": 1705,
+        "y": 860,
+        "wires": [
+            [
+                "bb01000000000033"
+            ],
+            [
+                "bb01000000000034"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000033",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Extract Generated Code (success)",
+        "func": "const body = msg.payload || {};\nlet code = (body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) || \"\";\n\n// Strip markdown fences if present\ncode = code.replace(/^```(?:javascript|js)?\\s*\\n?/i, \"\")\n           .replace(/\\n?```\\s*$/i, \"\")\n           .trim();\n\nmsg._generatedCode = code;\nmsg._codeGenError  = null;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 855,
+        "y": 820,
+        "wires": [
+            [
+                "bb01000000000040"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000034",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Handle Code-Gen HTTP Error",
+        "func": "const status = msg.statusCode || 0;\nconst body   = msg.payload || {};\nconst errMsg = (body.error && body.error.message) || JSON.stringify(body);\n\nmsg._generatedCode = \"\";\nmsg._codeGenError  = \"OpenAI HTTP \" + status + \": \" + errMsg;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 845,
+        "y": 870,
+        "wires": [
+            [
+                "bb01000000000040"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000040",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare DB Update (code + status)",
+        "func": "const p   = msg._promptData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst hasCode = !!msg._generatedCode;\n\nmsg.collection = \"sr_prompts\";\nmsg.operation  = \"updateOne\";\nmsg.payload = [\n    { id: p.id },\n    { $set: {\n        generatedCode:        msg._generatedCode || \"\",\n        codeGenerationStatus: hasCode ? \"completed\" : \"error\",\n        status:               hasCode ? \"active\"    : \"error\",\n        lastGeneratedAt:      hasCode ? now : \"\",\n        updatedAt:            now\n    }}\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1195,
+        "y": 960,
+        "wires": [
+            [
+                "bb01000000000041"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000041",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Update Prompt Status+Code",
+        "x": 1505,
+        "y": 960,
+        "wires": [
+            [
+                "bb01000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000042",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Send \"codeGenerated\" Response to UI",
+        "func": "const p       = msg._promptData || {};\nconst now     = new Date().toISOString().slice(0, 10);\nconst hasCode = !!msg._generatedCode;\n\nmsg.response = {\n    action:         \"codeGenerated\",\n    status:         hasCode ? \"success\" : \"error\",\n    promptId:       p.id,\n    generatedCode:  msg._generatedCode || \"\",\n    lastGeneratedAt: hasCode ? now : \"\",\n    updatedAt:      now,\n    message:        msg._codeGenError || \"\"\n};\n\ndelete msg._promptData;\ndelete msg._generatedCode;\ndelete msg._codeGenError;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1825,
+        "y": 960,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009b",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 3. LIST PROMPTS ────────────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 1060,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000060",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Prompts",
+        "func": "msg.collection = \"sr_prompts\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1165,
+        "y": 1100,
+        "wires": [
+            [
+                "bb01000000000061"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000061",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Prompts",
+        "x": 1425,
+        "y": 1100,
+        "wires": [
+            [
+                "bb01000000000062"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000062",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listPrompts Response",
+        "func": "msg.response = {\n    action:  \"listPrompts\",\n    status:  \"success\",\n    prompts: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1705,
+        "y": 1100,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009c",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 4. UPDATE PROMPT CODE (Edit Code save) ────────────────",
+        "info": "",
+        "x": 825,
+        "y": 1160,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000070",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare updateOne (code)",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\nmsg._promptId  = d.promptId;\nmsg._savedCode = d.code || \"\";\nmsg.collection = \"sr_prompts\";\nmsg.operation  = \"updateOne\";\nmsg.payload    = [\n    { id: d.promptId },\n    { $set: { generatedCode: d.code || \"\", updatedAt: now } }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 1200,
+        "wires": [
+            [
+                "bb01000000000071"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000071",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Update Code",
+        "x": 1425,
+        "y": 1200,
+        "wires": [
+            [
+                "bb01000000000072"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000072",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format updatePromptCode Response",
+        "func": "msg.response = {\n    action:    \"updatePromptCode\",\n    status:    \"success\",\n    promptId:  msg._promptId,\n    code:      msg._savedCode,\n    updatedAt: new Date().toISOString().slice(0, 10)\n};\ndelete msg._promptId;\ndelete msg._savedCode;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 1200,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009d",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 5. DELETE PROMPT ───────────────────────────────────────",
+        "info": "",
+        "x": 795,
+        "y": 1260,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000080",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (prompt)",
+        "func": "const d = msg.data || {};\nmsg._promptId  = d.promptId;\nmsg.collection = \"sr_prompts\";\nmsg.operation  = \"deleteOne\";\nmsg.payload    = { id: d.promptId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 1300,
+        "wires": [
+            [
+                "bb01000000000081"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000081",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete Prompt",
+        "x": 1435,
+        "y": 1300,
+        "wires": [
+            [
+                "bb01000000000082"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000082",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deletePrompt Response",
+        "func": "msg.response = {\n    action:   \"deletePrompt\",\n    status:   \"success\",\n    promptId: msg._promptId\n};\ndelete msg._promptId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 1300,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009e",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 6. DRY RUN (execute saved transform code) ────────────",
+        "info": "",
+        "x": 815,
+        "y": 1360,
+        "wires": []
+    },
+    {
+        "id": "bb01000000000090",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare findOne (prompt for dry run)",
+        "func": "const d = msg.data || {};\nmsg._dryRunData = d;\nmsg.collection  = \"sr_prompts\";\nmsg.operation   = \"findOne\";\nmsg.payload     = { id: d.promptId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1195,
+        "y": 1400,
+        "wires": [
+            [
+                "bb01000000000091"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000091",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Prompt by ID",
+        "x": 1495,
+        "y": 1400,
+        "wires": [
+            [
+                "bb01000000000092"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000092",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Execute Transform Function",
+        "func": "const d      = msg._dryRunData || {};\nconst prompt = msg.payload;\n\nif (!prompt) {\n    msg.response = { action:\"dryRunPrompt\", status:\"error\", message:\"Prompt not found\" };\n    delete msg.payload;\n    return msg;\n}\n\nconst code = prompt.generatedCode || \"\";\nif (!code) {\n    msg.response = { action:\"dryRunPrompt\", status:\"error\", message:\"No generated code for this prompt\" };\n    delete msg.payload;\n    return msg;\n}\n\n// Parse sample input\nlet input;\ntry {\n    input = JSON.parse(d.sampleInput || \"{}\");\n} catch (e) {\n    input = d.sampleInput;\n}\n\n// Execute the saved/edited transformation function\ntry {\n    const fn     = new Function(\"input\", code + \"\\nreturn transform(input);\");\n    const result = fn(input);\n    msg.response = {\n        action:   \"dryRunPrompt\",\n        status:   \"success\",\n        result:   JSON.stringify(result, null, 2),\n        promptId: d.promptId\n    };\n} catch (execErr) {\n    msg.response = {\n        action:   \"dryRunPrompt\",\n        status:   \"error\",\n        message:  \"Code execution failed: \" + execErr.message,\n        promptId: d.promptId\n    };\n}\n\ndelete msg._dryRunData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 10,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1775,
+        "y": 1400,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb0100000000009f",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 7. SAVE TEST CASE ──────────────────────────────────────",
+        "info": "",
+        "x": 795,
+        "y": 1460,
+        "wires": []
+    },
+    {
+        "id": "bb010000000000a0",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Test Case insert/update",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nif (d.id) {\n    // Update existing\n    msg._testCaseId = d.id;\n    var tc = {\n        id:             d.id,\n        name:           d.name || \"\",\n        promptId:       d.promptId || \"\",\n        llmConfigId:    d.llmConfigId || \"\",\n        sampleInput:    d.sampleInput || \"\",\n        expectedOutput: d.expectedOutput || \"\",\n        updatedAt:      now\n    };\n    msg._testCaseData = tc;\n    msg.collection  = \"sr_test_cases\";\n    msg.operation   = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            name:           tc.name,\n            promptId:       tc.promptId,\n            llmConfigId:    tc.llmConfigId,\n            sampleInput:    tc.sampleInput,\n            expectedOutput: tc.expectedOutput,\n            updatedAt:      now\n        }}\n    ];\n} else {\n    // Insert new\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'tc-' + rnd;\n    msg._testCaseId = id;\n    msg._isNew      = true;\n    var newTc = {\n        id:             id,\n        name:           d.name || \"\",\n        promptId:       d.promptId || \"\",\n        llmConfigId:    d.llmConfigId || \"\",\n        sampleInput:    d.sampleInput || \"\",\n        expectedOutput: d.expectedOutput || \"\",\n        lastResult:     \"\",\n        lastRunAt:      \"\",\n        createdAt:      now,\n        updatedAt:      now\n    };\n    msg._testCaseData = newTc;\n    msg.collection   = \"sr_test_cases\";\n    msg.operation    = \"insertOne\";\n    msg.payload      = newTc;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 1500,
+        "wires": [
+            [
+                "bb010000000000a1"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000a1",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Upsert Test Case",
+        "x": 1455,
+        "y": 1500,
+        "wires": [
+            [
+                "bb010000000000a2"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000a2",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format saveTestCase Response",
+        "func": "msg.response = {\n    action:     \"saveTestCase\",\n    status:     \"success\",\n    testCaseId: msg._testCaseId,\n    isNew:      !!msg._isNew,\n    testCase:   msg._testCaseData || null\n};\ndelete msg._testCaseId;\ndelete msg._isNew;\ndelete msg._testCaseData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 1500,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000100",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 8. LIST TEST CASES ─────────────────────────────────────",
+        "info": "",
+        "x": 795,
+        "y": 1560,
+        "wires": []
+    },
+    {
+        "id": "bb010000000000b0",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Test Cases",
+        "func": "msg.collection = \"sr_test_cases\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 1600,
+        "wires": [
+            [
+                "bb010000000000b1"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000b1",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Test Cases",
+        "x": 1445,
+        "y": 1600,
+        "wires": [
+            [
+                "bb010000000000b2"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000b2",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listTestCases Response",
+        "func": "msg.response = {\n    action:    \"listTestCases\",\n    status:    \"success\",\n    testCases: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1725,
+        "y": 1600,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000101",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 9. DELETE TEST CASE ────────────────────────────────────",
+        "info": "",
+        "x": 795,
+        "y": 1660,
+        "wires": []
+    },
+    {
+        "id": "bb010000000000c0",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (test case)",
+        "func": "const d = msg.data || {};\nmsg._testCaseId = d.testCaseId;\nmsg.collection  = \"sr_test_cases\";\nmsg.operation   = \"deleteOne\";\nmsg.payload     = { id: d.testCaseId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 1700,
+        "wires": [
+            [
+                "bb010000000000c1"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000c1",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete Test Case",
+        "x": 1455,
+        "y": 1700,
+        "wires": [
+            [
+                "bb010000000000c2"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000c2",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deleteTestCase Response",
+        "func": "msg.response = {\n    action:     \"deleteTestCase\",\n    status:     \"success\",\n    testCaseId: msg._testCaseId\n};\ndelete msg._testCaseId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 1700,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000102",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 10. UPDATE PROMPT (full metadata edit + conflict check) ─",
+        "info": "",
+        "x": 815,
+        "y": 1760,
+        "wires": []
+    },
+    {
+        "id": "bb010000000000d3",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Check if Active Conflict Query Needed",
+        "func": "const d = msg.data || {};\nmsg._updateOriginalData = d;\nmsg._promptId = d.promptId;\n\nif (d.status === \"active\") {\n    msg.collection = \"sr_prompts\";\n    msg.operation  = \"findOne\";\n    msg.payload    = {\n        status: \"active\",\n        sourceSchema: d.sourceSchema,\n        targetSchema: d.targetSchema,\n        id: { $ne: d.promptId }\n    };\n    return [msg, null];  // output 1 → conflict check\n}\nreturn [null, msg];      // output 2 → skip to update",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 1780,
+        "wires": [
+            [
+                "bb010000000000d4"
+            ],
+            [
+                "bb010000000000d0"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000d4",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Check Active Conflict",
+        "x": 1455,
+        "y": 1760,
+        "wires": [
+            [
+                "bb010000000000d5"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000d5",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Evaluate Conflict (updatePrompt)",
+        "func": "const conflict = msg.payload;\nif (conflict) {\n    const cid = conflict.id || \"unknown\";\n    msg.response = {\n        action: \"updatePrompt\",\n        status: \"error\",\n        message: 'Only one active prompt allowed per source-target pair. \"' + cid + '\" is already active.'\n    };\n    delete msg.payload;\n    delete msg.collection;\n    delete msg.operation;\n    return [null, msg];  // output 2 → error response\n}\nmsg.data = msg._updateOriginalData;\ndelete msg._updateOriginalData;\nreturn [msg, null];      // output 1 → proceed to update",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 1760,
+        "wires": [
+            [
+                "bb010000000000d0"
+            ],
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000d0",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare updateOne (full prompt)",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\nmsg._promptId   = d.promptId;\nmsg._updateData = d;\nmsg.collection  = \"sr_prompts\";\nmsg.operation   = \"updateOne\";\n\nconst update = {};\nif (d.version      !== undefined) update.version      = d.version;\nif (d.sourceSchema !== undefined) update.sourceSchema = d.sourceSchema;\nif (d.targetSchema !== undefined) update.targetSchema = d.targetSchema;\nif (d.template     !== undefined) update.template     = d.template;\nif (d.examples     !== undefined) update.examples     = d.examples;\nif (d.constraints  !== undefined) update.constraints  = d.constraints;\nif (d.status       !== undefined) update.status       = d.status;\nif (d.code         !== undefined) update.generatedCode = d.code;\nupdate.updatedAt = now;\n\nmsg.payload = [\n    { id: d.promptId },\n    { $set: update }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 1800,
+        "wires": [
+            [
+                "bb010000000000d1"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000d1",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Update Prompt",
+        "x": 1435,
+        "y": 1800,
+        "wires": [
+            [
+                "bb010000000000d2"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000d2",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format updatePrompt Response",
+        "func": "var d = msg._updateData || {};\nmsg.response = {\n    action:       \"updatePrompt\",\n    status:       \"success\",\n    promptId:     msg._promptId,\n    version:      d.version,\n    sourceSchema: d.sourceSchema,\n    targetSchema: d.targetSchema,\n    template:     d.template,\n    examples:     d.examples,\n    constraints:  d.constraints,\n    promptStatus: d.status,\n    code:         d.code,\n    updatedAt:    new Date().toISOString().slice(0, 10)\n};\ndelete msg._promptId;\ndelete msg._updateData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 1800,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb01000000000103",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 11. UPDATE PROMPT STATUS (+ conflict check) ────────────",
+        "info": "",
+        "x": 815,
+        "y": 1960,
+        "wires": []
+    },
+    {
+        "id": "bb010000000000e3",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Check if Active Status Conflict Needed",
+        "func": "const d = msg.data || {};\nmsg._statusOriginalData = d;\nmsg._promptId   = d.promptId;\nmsg._newStatus  = d.status;\n\nif (d.status === \"active\") {\n    msg.collection = \"sr_prompts\";\n    msg.operation  = \"findOne\";\n    msg.payload    = {\n        status: \"active\",\n        sourceSchema: d.sourceSchema,\n        targetSchema: d.targetSchema,\n        id: { $ne: d.promptId }\n    };\n    return [msg, null];  // output 1 → conflict check\n}\nreturn [null, msg];      // output 2 → skip to update",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 1980,
+        "wires": [
+            [
+                "bb010000000000e4"
+            ],
+            [
+                "bb010000000000e0"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000e4",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Check Active Conflict (Status)",
+        "x": 1475,
+        "y": 1960,
+        "wires": [
+            [
+                "bb010000000000e5"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000e5",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Evaluate Conflict (updateStatus)",
+        "func": "const conflict = msg.payload;\nif (conflict) {\n    const cid = conflict.id || \"unknown\";\n    msg.response = {\n        action: \"updatePromptStatus\",\n        status: \"error\",\n        message: 'Cannot activate: \"' + cid + '\" is already active for this source-target pair.'\n    };\n    delete msg.payload;\n    delete msg.collection;\n    delete msg.operation;\n    return [null, msg];  // output 2 → error response\n}\nmsg.data = msg._statusOriginalData;\ndelete msg._statusOriginalData;\nreturn [msg, null];      // output 1 → proceed to update",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 1960,
+        "wires": [
+            [
+                "bb010000000000e0"
+            ],
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000e0",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare updateOne (status)",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\nmsg._promptId    = d.promptId;\nmsg._newStatus   = d.status;\nmsg.collection   = \"sr_prompts\";\nmsg.operation    = \"updateOne\";\nmsg.payload = [\n    { id: d.promptId },\n    { $set: { status: d.status, updatedAt: now } }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2040,
+        "wires": [
+            [
+                "bb010000000000e1"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000e1",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Update Prompt Status",
+        "x": 1455,
+        "y": 2040,
+        "wires": [
+            [
+                "bb010000000000e2"
+            ]
+        ]
+    },
+    {
+        "id": "bb010000000000e2",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format updatePromptStatus Response",
+        "func": "msg.response = {\n    action:    \"updatePromptStatus\",\n    status:    \"success\",\n    promptId:  msg._promptId,\n    newStatus: msg._newStatus,\n    updatedAt: new Date().toISOString().slice(0, 10)\n};\ndelete msg._promptId;\ndelete msg._newStatus;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1745,
+        "y": 2040,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000001",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 12. SAVE LLM CONFIG (create/update) ────────────────────",
+        "info": "",
+        "x": 815,
+        "y": 2140,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000010",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare LLM Config insert/update",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nif (d.id) {\n    msg._configId = d.id;\n    msg._isNew    = false;\n    msg._configData = d;\n    msg.collection  = \"sr_llm_configs\";\n    msg.operation   = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            name:        d.name || \"\",\n            provider:    d.provider || \"OpenAI\",\n            model:       d.model || \"\",\n            temperature: d.temperature ?? 0.3,\n            maxTokens:   d.maxTokens ?? 4096,\n            timeout:     d.timeout ?? 30,\n            status:      d.status || \"active\",\n            updatedAt:   now\n        }}\n    ];\n} else {\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'llm-' + rnd;\n    msg._configId = id;\n    msg._isNew    = true;\n    const config = {\n        id:          id,\n        name:        d.name || \"\",\n        provider:    d.provider || \"OpenAI\",\n        model:       d.model || \"\",\n        temperature: d.temperature ?? 0.3,\n        maxTokens:   d.maxTokens ?? 4096,\n        timeout:     d.timeout ?? 30,\n        status:      d.status || \"active\",\n        createdAt:   now,\n        updatedAt:   now\n    };\n    msg._configData = config;\n    msg.collection  = \"sr_llm_configs\";\n    msg.operation   = \"insertOne\";\n    msg.payload     = config;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 2180,
+        "wires": [
+            [
+                "cc01000000000011"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000011",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Upsert LLM Config",
+        "x": 1455,
+        "y": 2180,
+        "wires": [
+            [
+                "cc01000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000012",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format saveLlmConfig Response",
+        "func": "const d   = msg._configData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst config = {\n    id:          msg._configId,\n    name:        d.name || \"\",\n    provider:    d.provider || \"OpenAI\",\n    model:       d.model || \"\",\n    temperature: d.temperature ?? 0.3,\n    maxTokens:   d.maxTokens ?? 4096,\n    timeout:     d.timeout ?? 30,\n    status:      d.status || \"active\",\n    createdAt:   d.createdAt || now,\n    updatedAt:   now\n};\nmsg.response = {\n    action:   \"saveLlmConfig\",\n    status:   \"success\",\n    configId: msg._configId,\n    isNew:    !!msg._isNew,\n    config:   config\n};\ndelete msg._configId;\ndelete msg._isNew;\ndelete msg._configData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 2180,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000002",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 13. DELETE LLM CONFIG ──────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 2240,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000020",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (llm config)",
+        "func": "const d = msg.data || {};\nmsg._configId  = d.configId;\nmsg.collection = \"sr_llm_configs\";\nmsg.operation  = \"deleteOne\";\nmsg.payload    = { id: d.configId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2280,
+        "wires": [
+            [
+                "cc01000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000021",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete LLM Config",
+        "x": 1445,
+        "y": 2280,
+        "wires": [
+            [
+                "cc01000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000022",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deleteLlmConfig Response",
+        "func": "msg.response = {\n    action:   \"deleteLlmConfig\",\n    status:   \"success\",\n    configId: msg._configId\n};\ndelete msg._configId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 2280,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000003",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 14. SAVE PROVIDER (create/update) ──────────────────────",
+        "info": "",
+        "x": 815,
+        "y": 2360,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000030",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Provider insert/update",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst models = Array.isArray(d.models) ? d.models : [];\n\nif (d.id) {\n    msg._providerId   = d.id;\n    msg._isNew        = false;\n    msg._providerData = d;\n    msg.collection    = \"sr_providers\";\n    msg.operation     = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            name:        d.name || \"\",\n            type:        d.type || \"openai\",\n            apiEndpoint: d.apiEndpoint || \"\",\n            models:      models,\n            isDefault:   !!d.isDefault,\n            precedence:  d.precedence || 1,\n            status:      d.status || \"active\",\n            updatedAt:   now\n        }}\n    ];\n} else {\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'prov-' + rnd;\n    msg._providerId = id;\n    msg._isNew      = true;\n    const provider = {\n        id:          id,\n        name:        d.name || \"\",\n        type:        d.type || \"openai\",\n        apiEndpoint: d.apiEndpoint || \"\",\n        models:      models,\n        isDefault:   !!d.isDefault,\n        precedence:  d.precedence || 1,\n        status:      d.status || \"active\",\n        createdAt:   now,\n        updatedAt:   now\n    };\n    msg._providerData = provider;\n    msg.collection    = \"sr_providers\";\n    msg.operation     = \"insertOne\";\n    msg.payload       = provider;\n}\n\n// If this provider is default, clear default from others\nif (d.isDefault) {\n    msg._enforceDefault = true;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2400,
+        "wires": [
+            [
+                "cc01000000000031"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000031",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Upsert Provider",
+        "x": 1435,
+        "y": 2400,
+        "wires": [
+            [
+                "cc01000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000032",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format saveProvider Response",
+        "func": "const d   = msg._providerData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst provider = {\n    id:          msg._providerId,\n    name:        d.name || \"\",\n    type:        d.type || \"openai\",\n    apiEndpoint: d.apiEndpoint || \"\",\n    models:      Array.isArray(d.models) ? d.models : [],\n    isDefault:   !!d.isDefault,\n    precedence:  d.precedence || 1,\n    status:      d.status || \"active\",\n    createdAt:   d.createdAt || now,\n    updatedAt:   now\n};\nmsg.response = {\n    action:     \"saveProvider\",\n    status:     \"success\",\n    providerId: msg._providerId,\n    isNew:      !!msg._isNew,\n    provider:   provider\n};\ndelete msg._providerId;\ndelete msg._isNew;\ndelete msg._providerData;\ndelete msg._enforceDefault;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 2400,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000004",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 15. DELETE PROVIDER ────────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 2460,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000040",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (provider)",
+        "func": "const d = msg.data || {};\nmsg._providerId = d.providerId;\nmsg.collection  = \"sr_providers\";\nmsg.operation   = \"deleteOne\";\nmsg.payload     = { id: d.providerId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2500,
+        "wires": [
+            [
+                "cc01000000000041"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000041",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete Provider",
+        "x": 1435,
+        "y": 2500,
+        "wires": [
+            [
+                "cc01000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000042",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deleteProvider Response",
+        "func": "msg.response = {\n    action:     \"deleteProvider\",\n    status:     \"success\",\n    providerId: msg._providerId\n};\ndelete msg._providerId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 2500,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000005",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 16. REORDER PROVIDER ───────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 2560,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000050",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Providers (for reorder)",
+        "func": "const d = msg.data || {};\nmsg._reorderProviderId = d.providerId;\nmsg._reorderDirection  = d.direction || \"up\";\nmsg.collection = \"sr_providers\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 }, sort: { precedence: 1 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1195,
+        "y": 2600,
+        "wires": [
+            [
+                "cc01000000000051"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000051",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find All Providers",
+        "x": 1455,
+        "y": 2600,
+        "wires": [
+            [
+                "cc01000000000052"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000052",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Reorder + Format Response",
+        "func": "const providers = Array.isArray(msg.payload) ? msg.payload : [];\nconst id   = msg._reorderProviderId;\nconst dir  = msg._reorderDirection;\nconst idx  = providers.findIndex(p => p.id === id);\n\nif (idx !== -1) {\n    if (dir === \"up\" && idx > 0) {\n        const tmp = providers[idx];\n        providers[idx] = providers[idx - 1];\n        providers[idx - 1] = tmp;\n    } else if (dir === \"down\" && idx < providers.length - 1) {\n        const tmp = providers[idx];\n        providers[idx] = providers[idx + 1];\n        providers[idx + 1] = tmp;\n    }\n    providers.forEach((p, i) => { p.precedence = i + 1; });\n}\n\nmsg.response = {\n    action:    \"reorderProvider\",\n    status:    \"success\",\n    providers: providers\n};\ndelete msg._reorderProviderId;\ndelete msg._reorderDirection;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 2600,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000006",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 17. START BATCH RETRANSFORM ────────────────────────────",
+        "info": "",
+        "x": 815,
+        "y": 2680,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000060",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Batch Retransform (simulated processing)",
+        "func": "const d = msg.data || {};\nconst total = d.scope === \"all\" ? 275 : d.scope === \"catalogue\" ? 120 : 50;\nconst startedAt = new Date().toISOString().replace(\"T\", \" \").slice(0, 16);\n\n// Send immediate \"started\" response\nvar startMsg = RED.util.cloneMessage(msg);\nstartMsg.response = {\n    action: \"startBatchRetransform\",\n    status: \"success\",\n    totalAssets: total,\n    startedAt: startedAt\n};\ndelete startMsg.payload;\nnode.send(startMsg);\n\n// Store batch state in flow context\nvar state = { status: \"running\", total: total, processed: 0, startedAt: startedAt };\nflow.set(\"batchState\", state);\n\nvar processed = 0;\nvar errorCount = 0;\nvar errors = [];\n\nvar intervalId = setInterval(function() {\n    var bs = flow.get(\"batchState\") || {};\n    if (bs.status !== \"running\") {\n        clearInterval(intervalId);\n        flow.set(\"batchIntervalId\", null);\n        return;\n    }\n    var step = Math.ceil(total / 20);\n    processed = Math.min(total, processed + step);\n    var progress = Math.round((processed / total) * 100);\n\n    if (processed > total * 0.6 && errorCount === 0) {\n        errorCount = Math.ceil(total * 0.02);\n        errors = [\n            { assetId: \"asset-err-001\", message: \"SHACL validation failed\", timestamp: new Date().toISOString().slice(0, 19) },\n            { assetId: \"asset-err-002\", message: \"LLM timeout exceeded\", timestamp: new Date().toISOString().slice(0, 19) }\n        ];\n    }\n\n    var update = {\n        action: \"batchRetransformProgress\",\n        status: processed >= total ? \"completed\" : \"running\",\n        progress: progress,\n        processedAssets: processed,\n        totalAssets: total,\n        successCount: processed - errorCount,\n        errorCount: errorCount,\n        skippedCount: 0,\n        errors: errors,\n        startedAt: startedAt,\n        completedAt: processed >= total ? new Date().toISOString().replace(\"T\", \" \").slice(0, 16) : \"\"\n    };\n\n    if (processed >= total) {\n        clearInterval(intervalId);\n        flow.set(\"batchIntervalId\", null);\n        flow.set(\"batchState\", { status: \"completed\" });\n        var triggerLabels = { prompt_change: \"Prompt changed\", strategy_change: \"Strategy changed\", llm_change: \"LLM config changed\", manual: \"Manual trigger\" };\n        var scopeLabels = { all: \"All assets\", catalogue: \"Catalogue: \" + (d.catalogueFilter || \"—\"), query: \"Query: \" + (d.queryFilter || \"—\") };\n        update.historyEntry = {\n            id: \"br-\" + String(Date.now()).slice(-6),\n            trigger: triggerLabels[d.trigger] || d.trigger,\n            scope: scopeLabels[d.scope] || d.scope,\n            dryRun: !!d.dryRun,\n            total: total,\n            success: processed - errorCount,\n            errors: errorCount,\n            skipped: 0,\n            startedAt: startedAt,\n            completedAt: update.completedAt,\n            status: \"completed\"\n        };\n    }\n\n    var progressMsg = RED.util.cloneMessage(msg);\n    progressMsg.response = update;\n    delete progressMsg.payload;\n    node.send(progressMsg);\n}, 400);\n\nflow.set(\"batchIntervalId\", intervalId);\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1205,
+        "y": 2720,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "cc01000000000007",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 18. CANCEL BATCH RETRANSFORM ───────────────────────────",
+        "info": "",
+        "x": 815,
+        "y": 2780,
+        "wires": []
+    },
+    {
+        "id": "cc01000000000070",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Cancel Batch Retransform",
+        "func": "var intervalId = flow.get(\"batchIntervalId\");\nif (intervalId) {\n    clearInterval(intervalId);\n    flow.set(\"batchIntervalId\", null);\n}\nflow.set(\"batchState\", { status: \"cancelled\" });\n\nmsg.response = {\n    action: \"batchRetransformProgress\",\n    status: \"cancelled\",\n    completedAt: new Date().toISOString().replace(\"T\", \" \").slice(0, 16)\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2820,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "dd0100000000000a",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 19. LIST LLM CONFIGS ───────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 2880,
+        "wires": []
+    },
+    {
+        "id": "dd01000000000010",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All LLM Configs",
+        "func": "msg.collection = \"sr_llm_configs\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 2920,
+        "wires": [
+            [
+                "dd01000000000011"
+            ]
+        ]
+    },
+    {
+        "id": "dd01000000000011",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find LLM Configs",
+        "x": 1445,
+        "y": 2920,
+        "wires": [
+            [
+                "dd01000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "dd01000000000012",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listLlmConfigs Response",
+        "func": "msg.response = {\n    action:  \"listLlmConfigs\",\n    status:  \"success\",\n    configs: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 2920,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "dd0100000000000b",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 20. LIST PROVIDERS ─────────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 2980,
+        "wires": []
+    },
+    {
+        "id": "dd01000000000020",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Providers",
+        "func": "msg.collection = \"sr_providers\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 }, sort: { precedence: 1 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1165,
+        "y": 3020,
+        "wires": [
+            [
+                "dd01000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "dd01000000000021",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Providers",
+        "x": 1435,
+        "y": 3020,
+        "wires": [
+            [
+                "dd01000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "dd01000000000022",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listProviders Response",
+        "func": "msg.response = {\n    action:    \"listProviders\",\n    status:    \"success\",\n    providers: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 3020,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000001",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 21. SAVE LOCAL SCHEMA (create/update) ──────────────────",
+        "info": "",
+        "x": 815,
+        "y": 3100,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000010",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Local Schema insert/update",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nif (d.id) {\n    msg._schemaId   = d.id;\n    msg._isNew      = false;\n    msg._schemaData = d;\n    msg.collection  = \"sr_local_schemas\";\n    msg.operation   = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            schema:       d.schema || \"\",\n            format:       d.format || \"SHACL\",\n            catalogs:     d.catalogs || 1,\n            localMapping: d.localMapping || null,\n            versioning:   d.versioning || \"v1.0\",\n            trustLevel:   d.trustLevel || \"Federated\",\n            updatedAt:    now\n        }}\n    ];\n} else {\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'schema-' + Date.now().toString(36) + rnd;\n    msg._schemaId = id;\n    msg._isNew    = true;\n    const schema = {\n        id:           id,\n        schema:       d.schema || \"\",\n        format:       d.format || \"SHACL\",\n        catalogs:     d.catalogs || 1,\n        localMapping: d.localMapping || null,\n        versioning:   d.versioning || \"v1.0\",\n        versionOptions: [\"v1.0\", \"v1.1\", \"v2.0\"],\n        trustLevel:   d.trustLevel || \"Federated\",\n        createdAt:    now,\n        updatedAt:    now\n    };\n    msg._schemaData = schema;\n    msg.collection  = \"sr_local_schemas\";\n    msg.operation   = \"insertOne\";\n    msg.payload     = schema;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 3140,
+        "wires": [
+            [
+                "ee01000000000011"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000011",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Upsert Local Schema",
+        "x": 1455,
+        "y": 3140,
+        "wires": [
+            [
+                "ee01000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000012",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format saveLocalSchema Response",
+        "func": "const d   = msg._schemaData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst schema = {\n    id:           msg._schemaId,\n    schema:       d.schema || \"\",\n    format:       d.format || \"SHACL\",\n    catalogs:     d.catalogs || 1,\n    localMapping: d.localMapping || null,\n    versioning:   d.versioning || \"v1.0\",\n    versionOptions: d.versionOptions || [\"v1.0\", \"v1.1\", \"v2.0\"],\n    trustLevel:   d.trustLevel || \"Federated\",\n    createdAt:    d.createdAt || now,\n    updatedAt:    now\n};\nmsg.response = {\n    action:   \"saveLocalSchema\",\n    status:   \"success\",\n    schemaId: msg._schemaId,\n    isNew:    !!msg._isNew,\n    schema:   schema\n};\ndelete msg._schemaId;\ndelete msg._isNew;\ndelete msg._schemaData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 3140,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000002",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 22. LIST LOCAL SCHEMAS ─────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 3200,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000020",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Local Schemas",
+        "func": "msg.collection = \"sr_local_schemas\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 3240,
+        "wires": [
+            [
+                "ee01000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000021",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Local Schemas",
+        "x": 1445,
+        "y": 3240,
+        "wires": [
+            [
+                "ee01000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000022",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listLocalSchemas Response",
+        "func": "msg.response = {\n    action:  \"listLocalSchemas\",\n    status:  \"success\",\n    schemas: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 3240,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000003",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 23. DELETE LOCAL SCHEMA ────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 3300,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000030",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (local schema)",
+        "func": "const d = msg.data || {};\nmsg._schemaId  = d.schemaId;\nmsg.collection = \"sr_local_schemas\";\nmsg.operation  = \"deleteOne\";\nmsg.payload    = { id: d.schemaId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 3340,
+        "wires": [
+            [
+                "ee01000000000031"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000031",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete Local Schema",
+        "x": 1445,
+        "y": 3340,
+        "wires": [
+            [
+                "ee01000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000032",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deleteLocalSchema Response",
+        "func": "msg.response = {\n    action:   \"deleteLocalSchema\",\n    status:   \"success\",\n    schemaId: msg._schemaId\n};\ndelete msg._schemaId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1735,
+        "y": 3340,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000004",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 24. SAVE MAPPING (create/update) ───────────────────────",
+        "info": "",
+        "x": 815,
+        "y": 3420,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000040",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Mapping insert/update",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nif (d.id) {\n    msg._mappingId   = d.id;\n    msg._isNew       = false;\n    msg._mappingData = d;\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            remoteCatalogue:        d.remoteCatalogue || \"\",\n            remoteSchema:           d.remoteSchema || \"\",\n            remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n            transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n            promptsCount:           d.promptsCount || 0,\n            shaclCount:             d.shaclCount || 0,\n            updatedAt:              now\n        }}\n    ];\n} else {\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'map-' + Date.now().toString(36) + rnd;\n    msg._mappingId = id;\n    msg._isNew     = true;\n    const mapping = {\n        id:                     id,\n        remoteCatalogue:        d.remoteCatalogue || \"\",\n        remoteSchema:           d.remoteSchema || \"\",\n        remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n        transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n        promptsCount:           d.promptsCount || 0,\n        shaclCount:             d.shaclCount || 0,\n        createdAt:              now,\n        updatedAt:              now\n    };\n    msg._mappingData = mapping;\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"insertOne\";\n    msg.payload      = mapping;\n}\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1185,
+        "y": 3460,
+        "wires": [
+            [
+                "ee01000000000041"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000041",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Upsert Mapping",
+        "x": 1435,
+        "y": 3460,
+        "wires": [
+            [
+                "ee01000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000042",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format saveMapping Response",
+        "func": "const d   = msg._mappingData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst mapping = {\n    id:                     msg._mappingId,\n    remoteCatalogue:        d.remoteCatalogue || \"\",\n    remoteSchema:           d.remoteSchema || \"\",\n    remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n    transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n    promptsCount:           d.promptsCount || 0,\n    shaclCount:             d.shaclCount || 0,\n    createdAt:              d.createdAt || now,\n    updatedAt:              now\n};\nmsg.response = {\n    action:    \"saveMapping\",\n    status:    \"success\",\n    mappingId: msg._mappingId,\n    isNew:     !!msg._isNew,\n    mapping:   mapping\n};\ndelete msg._mappingId;\ndelete msg._isNew;\ndelete msg._mappingData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 3460,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000005",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 25. LIST MAPPINGS ──────────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 3520,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000050",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare Find All Mappings",
+        "func": "msg.collection = \"sr_mappings\";\nmsg.operation  = \"find\";\nmsg.payload    = [{}, { projection: { _id: 0 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1165,
+        "y": 3560,
+        "wires": [
+            [
+                "ee01000000000051"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000051",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Mappings",
+        "x": 1435,
+        "y": 3560,
+        "wires": [
+            [
+                "ee01000000000052"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000052",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format listMappings Response",
+        "func": "msg.response = {\n    action:   \"listMappings\",\n    status:   \"success\",\n    mappings: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 3560,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000006",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "── 26. DELETE MAPPING ─────────────────────────────────────",
+        "info": "",
+        "x": 805,
+        "y": 3620,
+        "wires": []
+    },
+    {
+        "id": "ee01000000000060",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Prepare deleteOne (mapping)",
+        "func": "const d = msg.data || {};\nmsg._mappingId  = d.mappingId;\nmsg.collection  = \"sr_mappings\";\nmsg.operation   = \"deleteOne\";\nmsg.payload     = { id: d.mappingId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1175,
+        "y": 3660,
+        "wires": [
+            [
+                "ee01000000000061"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000061",
+        "type": "mongodb4",
+        "z": "aa01000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Delete Mapping",
+        "x": 1435,
+        "y": 3660,
+        "wires": [
+            [
+                "ee01000000000062"
+            ]
+        ]
+    },
+    {
+        "id": "ee01000000000062",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "Format deleteMapping Response",
+        "func": "msg.response = {\n    action:    \"deleteMapping\",\n    status:    \"success\",\n    mappingId: msg._mappingId\n};\ndelete msg._mappingId;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1715,
+        "y": 3660,
+        "wires": [
+            [
+                "bb010000000000f0"
+            ]
+        ]
+    },
+    {
+        "id": "02e79a37e339b305",
+        "type": "link in",
+        "z": "aa01000000000000",
+        "name": "dcm-registry",
+        "links": [
+            "ff01000000000035"
+        ],
+        "x": 185,
+        "y": 240,
+        "wires": [
+            [
+                "aa01000000000005"
+            ]
+        ]
+    },
+    {
+        "id": "73931adcc1392022",
+        "type": "comment",
+        "z": "aa01000000000000",
+        "name": "══ SETUP: Double-click the flow tab → set OPENAI_API_KEY env var ══",
+        "info": "WHERE TO PUT YOUR OPENAI API KEY:\n\n1. Double-click the tab name 'DCM-SchemaRegistry' at the top\n2. Open 'Environment Variables'\n3. Replace PUT_OPENAI_API_KEY_HERE with your real key\n4. Click Done → Deploy\n\nAll OpenAI-dependent operations (enhance prompt, code generation)\nuse real http request nodes that POST to\nhttps://api.openai.com/v1/chat/completions.\n\nFunction nodes are used ONLY for:\n  – payload shaping / request preparation\n  – response parsing\n  – validation and status updates\n  – MongoDB query preparation\n  – dry-run code execution",
+        "x": 300,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "affbaa0602ac3a95",
+        "type": "inject",
+        "z": "aa01000000000000",
+        "name": "Init Config on Deploy",
+        "props": [
+            {
+                "p": "payload",
+                "v": "init",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0.5",
+        "topic": "",
+        "x": 782.5,
+        "y": 140,
+        "wires": [
+            [
+                "7b5c596ada751f96"
+            ]
+        ]
+    },
+    {
+        "id": "7b5c596ada751f96",
+        "type": "function",
+        "z": "aa01000000000000",
+        "name": "▶ Store OpenAI Config in Flow Context",
+        "func": "const apiKey = env.get(\"OPENAI_API_KEY\") || \"\";\nconst model  = \"gpt-4o\";\n\nflow.set(\"openai_api_key\", apiKey);\nflow.set(\"openai_model\", model);\n\nnode.status({\n    fill: \"green\",\n    shape: \"dot\",\n    text: \"API key set locally\"\n});\n\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1110,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c8f50f43d21eca9c",
+        "type": "comment",
+        "z": "52b819f7ec3ad8e1",
+        "name": "══ Catalogue Registry Backend ══",
+        "info": "Handles all Catalogue Registry operations.\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "x": 260,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "e2f70557fca63bd2",
+        "type": "link in",
+        "z": "52b819f7ec3ad8e1",
+        "name": "catalogue-registry-in",
+        "links": [
+            "ff01000000000032"
+        ],
+        "x": 115,
+        "y": 200,
+        "wires": [
+            [
+                "d4696fb0da556bb1"
+            ]
+        ]
+    },
+    {
+        "id": "d4696fb0da556bb1",
+        "type": "switch",
+        "z": "52b819f7ec3ad8e1",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "registerRemoteCatalog",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getCatalogRegistry",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateRemoteCatalog",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteRemoteCatalog",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "uploadCatalogJson",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 5,
+        "x": 330,
+        "y": 200,
+        "wires": [
+            [
+                "28b04a031cdca03c"
+            ],
+            [
+                "3fca2c79d5500301"
+            ],
+            [
+                "ec4c68ae263a3cec"
+            ],
+            [
+                "858298690d53be42"
+            ],
+            [
+                "af924e78dc8378a0"
+            ]
+        ]
+    },
+    {
+        "id": "28b04a031cdca03c",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "Register Remote Catalog",
+        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet randomPart = '';\nfor (let i = 0; i < 12; i++) {\n  randomPart += chars[Math.floor(Math.random() * chars.length)];\n}\nconst id = Date.now().toString(36) + randomPart;\n\nconst d = msg.data || {};\nd.createdAt = new Date().toISOString();\nd.updatedAt = d.createdAt;\n\nmsg.uniqueId = id;\nmsg.operation = \"insertOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = {\n    catalog: d,\n    uniqueId: id\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 622.5,
+        "y": 100,
+        "wires": [
+            [
+                "3da920f6b916d82b"
+            ]
+        ]
+    },
+    {
+        "id": "3da920f6b916d82b",
+        "type": "mongodb4",
+        "z": "52b819f7ec3ad8e1",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 880,
+        "y": 100,
+        "wires": [
+            [
+                "44141c44f27e9af0"
+            ]
+        ]
+    },
+    {
+        "id": "44141c44f27e9af0",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "response",
+        "func": "msg.response = {\n    action: \"registerRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.uniqueId\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 100,
+        "wires": [
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "3fca2c79d5500301",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "Get Catalog Registry",
+        "func": "msg.operation = \"find\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n    {},\n    { projection: { catalog: 1, uniqueId: 1, _id: 0 } }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 620,
+        "y": 200,
+        "wires": [
+            [
+                "ea9703dee343d155"
+            ]
+        ]
+    },
+    {
+        "id": "ea9703dee343d155",
+        "type": "mongodb4",
+        "z": "52b819f7ec3ad8e1",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 880,
+        "y": 200,
+        "wires": [
+            [
+                "7babcfad97f61929"
+            ]
+        ]
+    },
+    {
+        "id": "7babcfad97f61929",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "response",
+        "func": "msg.response = {\n    action: \"getCatalogRegistry\",\n    status: \"success\",\n    catalogs: msg.payload\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 200,
+        "wires": [
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "ec4c68ae263a3cec",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "Update Remote Catalog",
+        "func": "const patch = msg.data.patch;\nconst update = Object.fromEntries(\n  Object.entries(patch).map(([key, value]) => [\n    `catalog.${key}`,\n    value\n  ])\n);\n\nmsg.operation = \"updateOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n  { uniqueId: msg.data.uniqueId },\n  { $set: update }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 622.5,
+        "y": 300,
+        "wires": [
+            [
+                "f29cfd0961168adb"
+            ]
+        ]
+    },
+    {
+        "id": "f29cfd0961168adb",
+        "type": "mongodb4",
+        "z": "52b819f7ec3ad8e1",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 880,
+        "y": 300,
+        "wires": [
+            [
+                "d6727fd31daf3d3e"
+            ]
+        ]
+    },
+    {
+        "id": "d6727fd31daf3d3e",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "response",
+        "func": "msg.response = {\n    action: \"updateRemoteCatalog\",\n    status: \"success\"\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 300,
+        "wires": [
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "858298690d53be42",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "Delete Remote Catalog",
+        "func": "msg.operation = \"deleteOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = { uniqueId: msg.data.uniqueId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 622.5,
+        "y": 400,
+        "wires": [
+            [
+                "c5ea6dc6be7cd5de"
+            ]
+        ]
+    },
+    {
+        "id": "c5ea6dc6be7cd5de",
+        "type": "mongodb4",
+        "z": "52b819f7ec3ad8e1",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 880,
+        "y": 400,
+        "wires": [
+            [
+                "c215fd54bb69977d"
+            ]
+        ]
+    },
+    {
+        "id": "c215fd54bb69977d",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "response",
+        "func": "msg.response = {\n    action: \"deleteRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.data.uniqueId\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 400,
+        "wires": [
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "af924e78dc8378a0",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "Upload Catalog JSON (bulk insert)",
+        "func": "// Expects msg.data.catalogs = array of catalog objects\nconst catalogs = msg.data.catalogs || [];\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n\nconst docs = catalogs.map(c => {\n    let randomPart = '';\n    for (let i = 0; i < 12; i++) {\n        randomPart += chars[Math.floor(Math.random() * chars.length)];\n    }\n    const id = Date.now().toString(36) + randomPart;\n    return { catalog: c, uniqueId: id };\n});\n\nif (docs.length === 0) {\n    msg.response = {\n        action: \"uploadCatalogJson\",\n        status: \"error\",\n        message: \"No catalogue entries found in JSON file.\"\n    };\n    return [null, msg];\n}\n\nmsg._uploadedDocs = docs;\nmsg.operation = \"insertMany\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = docs;\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 500,
+        "wires": [
+            [
+                "65a986661f55b529"
+            ],
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "65a986661f55b529",
+        "type": "mongodb4",
+        "z": "52b819f7ec3ad8e1",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 880,
+        "y": 500,
+        "wires": [
+            [
+                "a696f4e764e66002"
+            ]
+        ]
+    },
+    {
+        "id": "a696f4e764e66002",
+        "type": "function",
+        "z": "52b819f7ec3ad8e1",
+        "name": "response",
+        "func": "msg.response = {\n    action: \"uploadCatalogJson\",\n    status: \"success\",\n    catalogs: msg._uploadedDocs || []\n};\ndelete msg._uploadedDocs;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1342.5,
+        "y": 620,
+        "wires": [
+            [
+                "f8063c93b0f6d90b"
+            ]
+        ]
+    },
+    {
+        "id": "f8063c93b0f6d90b",
+        "type": "link out",
+        "z": "52b819f7ec3ad8e1",
+        "name": "→ Dashboard uibuilder",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 1315,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "bb03000000000001",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "══ Asset Crawler + Mapper (Harvester) Backend ══",
+        "info": "Handles all Harvest operations per SRS FR-ACM-01 through FR-ACM-05.\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "x": 300,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "bb03000000000002",
+        "type": "link in",
+        "z": "bb03000000000000",
+        "name": "harvest-in",
+        "links": [
+            "ff01000000000033"
+        ],
+        "x": 115,
+        "y": 300,
+        "wires": [
+            [
+                "bb03000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000003",
+        "type": "switch",
+        "z": "bb03000000000000",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "getHarvestCatalogues",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "startHarvest",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listHarvestRuns",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getHarvestRunDetail",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listHarvestLogs",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listHarvestProvenance",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "pauseHarvest",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "resumeHarvest",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "cancelHarvest",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 9,
+        "x": 330,
+        "y": 300,
+        "wires": [
+            [
+                "bb03000000000010"
+            ],
+            [
+                "bb03000000000024"
+            ],
+            [
+                "bb03000000000030"
+            ],
+            [
+                "bb03000000000040"
+            ],
+            [
+                "bb03000000000060"
+            ],
+            [
+                "bb03000000000070"
+            ],
+            [
+                "bb03000000000080"
+            ],
+            [
+                "bb03000000000081"
+            ],
+            [
+                "bb03000000000082"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000099",
+        "type": "link out",
+        "z": "bb03000000000000",
+        "name": "→ Dashboard (uibuilder response)",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 1375,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "bb03000000000010",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Get Harvest Catalogues (from cr_catalogues)",
+        "func": "msg.operation = \"find\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n    {},\n    { projection: { catalog: 1, uniqueId: 1, _id: 0 } }\n];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 100,
+        "wires": [
+            [
+                "bb03000000000011"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000011",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 100,
+        "wires": [
+            [
+                "bb03000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000012",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: getHarvestCatalogues",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst catalogs = docs.map(d => {\n    const c = d.catalog || d;\n    return {\n        uniqueId: d.uniqueId || c.catalogId || d._id,\n        catalogId: c.catalogId || d.uniqueId,\n        catalogName: c.catalogName || c.catalogId || '-',\n        owner: c.owner || '-',\n        strategy: c.strategy || 'none',\n        baseEndpoint: c.baseEndpoint || '',\n        enabled: c.enabled !== false,\n        protocol: c.protocol || 'Query interface',\n        updatedAt: c.updatedAt || '',\n        auth: c.auth || 'none',\n        authLoginEndpoint: c.authLoginEndpoint || '',\n        authUsername: c.authUsername || '',\n        authPassword: c.authPassword || '',\n        authPayloadTemplate: c.authPayloadTemplate || '',\n        authTokenPath: c.authTokenPath || 'token',\n        authTokenInjection: c.authTokenInjection || 'body',\n        authTokenFieldName: c.authTokenFieldName || 'token',\n        authTokenPrefix: c.authTokenPrefix || '',\n        authStaticToken: c.authStaticToken || '',\n        authApiKey: c.authApiKey || '',\n        authApiKeyHeader: c.authApiKeyHeader || 'X-API-Key',\n        responseRootPath: c.responseRootPath || '',\n        responseAssetIdField: c.responseAssetIdField || '',\n        responseAssetNameField: c.responseAssetNameField || '',\n        responseAssetTypeField: c.responseAssetTypeField || '',\n        sourceData: c.sourceData || null,\n        sourceFileName: c.sourceFileName || '',\n        mimeType: c.mimeType || ''\n    };\n});\nmsg.response = {\n    action: \"getHarvestCatalogues\",\n    status: \"success\",\n    catalogs: catalogs\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1160,
+        "y": 100,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000020",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Start Harvest — build run + lc_assets",
+        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst runId = 'run-' + Date.now().toString(36) + rnd;\n\nconst catalogues = msg.data?.catalogues || [];\nconst catNames = catalogues.map(c => c.catalogName).filter(Boolean);\nconst now = new Date();\nconst nowISO = now.toISOString();\nconst nowShort = nowISO.replace('T', ' ').slice(0, 19);\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    const parts = path.split('.');\n    let cur = obj;\n    for (const p of parts) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[p];\n    }\n    return cur;\n}\n\nfunction extractEntries(data, rootPath) {\n    if (!data) return [];\n    if (rootPath) {\n        const resolved = resolvePath(data, rootPath);\n        if (Array.isArray(resolved)) return resolved;\n        if (resolved && typeof resolved === 'object') return [resolved];\n    }\n    if (Array.isArray(data)) return data;\n    if (data['dcat:dataset'] && Array.isArray(data['dcat:dataset'])) return data['dcat:dataset'];\n    if (data.dataset && Array.isArray(data.dataset)) return data.dataset;\n    if (data.datasets && Array.isArray(data.datasets)) return data.datasets;\n    if (data.data && Array.isArray(data.data)) return data.data;\n    if (data.results && Array.isArray(data.results)) return data.results;\n    if (data.result && data.result.results && Array.isArray(data.result.results)) return data.result.results;\n    if (data.items && Array.isArray(data.items)) return data.items;\n    if (data.records && Array.isArray(data.records)) return data.records;\n    if (data.entries && Array.isArray(data.entries)) return data.entries;\n    if (data.assets && Array.isArray(data.assets)) return data.assets;\n    if (data.catalogs && Array.isArray(data.catalogs)) return data.catalogs;\n    if (data.title || data.name || data.identifier || data['@type']) return [data];\n    if (data._id || data.requestId != null || data.companyDetails) return [data];\n    const skipKeys = ['auditInfo','approveInfo','decisionHistory','errors','warnings','logs'];\n    for (const key of Object.keys(data)) {\n        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object' && !skipKeys.includes(key)) return data[key];\n    }\n    return [data];\n}\n\nfunction extractName(entry, nameField) {\n    if (!entry || typeof entry !== 'object') return 'Unknown Asset';\n    if (nameField) { const v = resolvePath(entry, nameField); if (v && typeof v === 'string' && v.trim()) return v; }\n    const cands = ['title','name','catalogName','label','displayName','companyName','organisationName','organization','fullName','shortName','legalName','tradingName','firma'];\n    for (const f of cands) { if (entry[f] && typeof entry[f] === 'string' && entry[f].trim()) return entry[f]; }\n    const cd = entry.companyDetails;\n    if (cd && typeof cd === 'object') {\n        if (cd['A.1.1.1'] && typeof cd['A.1.1.1'] === 'string') return cd['A.1.1.1'];\n        if (cd['A.2.1.1'] && typeof cd['A.2.1.1'] === 'string') return cd['A.2.1.1'];\n        for (const f of cands) { if (cd[f] && typeof cd[f] === 'string' && cd[f].trim()) return cd[f]; }\n    }\n    if (entry.createdBy && entry.createdBy.fullName && typeof entry.createdBy.fullName === 'string') return entry.createdBy.fullName;\n    for (const key of Object.keys(entry)) {\n        const nested = entry[key];\n        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {\n            for (const f of cands) { if (nested[f] && typeof nested[f] === 'string' && nested[f].trim()) return nested[f]; }\n        }\n    }\n    for (const key of Object.keys(entry)) {\n        const val = entry[key];\n        if (typeof val === 'string' && val.length > 2 && val.length < 200 && !/^[\\d\\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !key.startsWith('_')) return val;\n    }\n    return 'Unknown Asset';\n}\n\nfunction extractId(entry, idField) {\n    if (idField) { const v = resolvePath(entry, idField); if (v) return String(v); }\n    return String(entry.identifier || entry.id || entry._id || entry.requestId || entry.uuid || ('remote-' + Math.random().toString(36).slice(2, 10)));\n}\n\nfunction extractType(entry, typeField) {\n    if (typeField) { const v = resolvePath(entry, typeField); if (v) return String(v); }\n    const cd = entry.companyDetails;\n    return String(entry['@type'] || entry.type || entry.assetType || (cd && cd['A.1.1.0']) || (cd && cd['A.2.1.4']) || 'dcat:Dataset');\n}\n\nconst provenance = [];\nconst logs = [];\nconst assetDetails = [];\nconst lcDocs = [];\nlet assetCounter = 0;\n\nfor (const cat of catalogues) {\n    const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n    const catId = cat.uniqueId || cat.catalogId || '';\n    const strategy = cat.strategy || 'none';\n    const rootPath = cat.responseRootPath || '';\n    const idField = cat.responseAssetIdField || '';\n    const nameField = cat.responseAssetNameField || '';\n    const typeField = cat.responseAssetTypeField || '';\n    const sourceData = cat.sourceData || null;\n    let entries = [];\n    if (sourceData) {\n        entries = extractEntries(sourceData, rootPath);\n        logs.push({ runId, assetId: '', level: 'info', message: 'Extracted ' + entries.length + ' entries from sourceData', catalogue: catName, timestamp: nowISO });\n    }\n\n    for (let i = 0; i < entries.length; i++) {\n        assetCounter++;\n        const entry = entries[i];\n        if (!entry || typeof entry !== 'object') continue;\n        const assetId = 'asset-' + runId + '-' + assetCounter;\n        const lcId = 'lc-' + runId + '-' + assetCounter;\n        const rawId = extractId(entry, idField);\n        const assetName = extractName(entry, nameField);\n        const assetType = extractType(entry, typeField);\n        const domain = entry.domain || entry.theme || entry.category || catName;\n\n        assetDetails.push({ assetId: assetId, title: assetName, catalogue: catName, status: 'success', strategy: strategy, sourceId: rawId });\n        lcDocs.push({\n            uniqueId: lcId,\n            id: lcId,\n            assets: assetName,\n            title: assetName,\n            type: assetType,\n            name: catName,\n            domain: domain,\n            updated: nowShort,\n            integrationStatus: 'Active',\n            sourceCatalogue: catName,\n            sourceCatalogueId: catId,\n            harvestRunId: runId,\n            remoteAssetId: rawId,\n            originalForm: entry,\n            transformedForm: null,\n            sourceAssetId: rawId,\n            harvestedAt: nowISO,\n            createdAt: nowISO\n        });\n        provenance.push({ runId: runId, assetId: assetId, title: assetName, catalogue: catName, action: 'imported', strategy: strategy, timestamp: nowISO, status: 'success', sourceId: rawId });\n        logs.push({ runId: runId, assetId: assetId, level: 'info', message: 'Imported: ' + assetName, catalogue: catName, timestamp: nowISO });\n    }\n\n    logs.push({ runId: runId, assetId: '', level: 'info', message: 'Harvest completed for ' + catName + ': ' + entries.length + ' entries processed', catalogue: catName, timestamp: nowISO });\n}\n\nconst successCount = assetDetails.filter(a => a.status === 'success').length;\nconst errorCount = assetDetails.filter(a => a.status === 'error').length;\n\nconst run = {\n    uniqueId: runId,\n    catalogueName: catNames.join(', ') || 'Harvest',\n    scope: msg.data?.scope || {},\n    lifecycle: msg.data?.lifecycle || {},\n    status: 'completed',\n    startedAt: nowShort,\n    totalAssets: assetCounter,\n    assetsAdded: successCount,\n    successCount: successCount,\n    errorCount: errorCount,\n    result: errorCount === 0 ? 'Success' : 'Partial',\n    tool: 'Harvester',\n    provenance: provenance,\n    logs: logs,\n    assetIds: lcDocs.map(a => a.id)\n};\n\nconst msg1 = { _harvestRun: run, _lcDocs: lcDocs, operation: 'insertOne', collection: 'hv_runs', payload: run, _msgid: msg._msgid, _uib: msg._uib, _socketId: msg._socketId };\nreturn msg1;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000021",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "insert run",
+        "x": 940,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000022",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Insert lc_assets",
+        "func": "const lcDocs = msg._lcDocs || [];\nif (lcDocs.length === 0) {\n    // No assets to insert, skip to response\n    return msg;\n}\nmsg.operation = 'insertMany';\nmsg.collection = 'lc_assets';\nmsg.payload = [lcDocs];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1140,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000023"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000023",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "insert lc_assets",
+        "x": 1340,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000026"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000026",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: startHarvest",
+        "func": "const run = msg._harvestRun || {};\nconst lcDocs = msg._lcDocs || [];\ndelete msg._harvestRun;\ndelete msg._lcDocs;\n\nmsg.response = {\n    action: 'startHarvest',\n    status: 'success',\n    run: run,\n    allAssets: lcDocs,\n    allProvenance: run.provenance || [],\n    totalAssets: lcDocs.length,\n    totalRuns: 1\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1560,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000030",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "List Harvest Runs",
+        "func": "msg.operation = 'find';\nmsg.collection = 'hv_runs';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 300,
+        "wires": [
+            [
+                "bb03000000000031"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000031",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 300,
+        "wires": [
+            [
+                "bb03000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000032",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: listHarvestRuns",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst runs = docs.map(d => {\n    const r = Object.assign({}, d);\n    delete r.provenance;\n    delete r.logs;\n    delete r.assets;\n    return r;\n});\nruns.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));\nmsg.response = {\n    action: 'listHarvestRuns',\n    status: 'success',\n    runs: runs\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1160,
+        "y": 300,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000040",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Get Harvest Run Detail",
+        "func": "msg.operation = 'findOne';\nmsg.collection = 'hv_runs';\nmsg.payload = { uniqueId: msg.data.runId };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 670,
+        "y": 400,
+        "wires": [
+            [
+                "bb03000000000041"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000041",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 400,
+        "wires": [
+            [
+                "bb03000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000042",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: getHarvestRunDetail",
+        "func": "const run = msg.payload || null;\nmsg.response = {\n    action: 'getHarvestRunDetail',\n    status: 'success',\n    run: run\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1170,
+        "y": 400,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000060",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "List Harvest Logs",
+        "func": "msg.operation = 'find';\nmsg.collection = 'hv_runs';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 500,
+        "wires": [
+            [
+                "bb03000000000061"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000061",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 500,
+        "wires": [
+            [
+                "bb03000000000062"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000062",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: listHarvestLogs — extract from runs",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst logs = [];\nfor (const d of docs) {\n    if (Array.isArray(d.logs)) {\n        for (const l of d.logs) logs.push(l);\n    }\n}\nmsg.response = {\n    action: 'listHarvestLogs',\n    status: 'success',\n    logs: logs\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1200,
+        "y": 500,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000070",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "List Harvest Provenance",
+        "func": "msg.operation = 'find';\nmsg.collection = 'hv_runs';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 670,
+        "y": 600,
+        "wires": [
+            [
+                "bb03000000000071"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000071",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 600,
+        "wires": [
+            [
+                "bb03000000000072"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000072",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: listHarvestProvenance — extract from runs",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst provenance = [];\nfor (const d of docs) {\n    if (Array.isArray(d.provenance)) {\n        for (const p of d.provenance) provenance.push(p);\n    }\n}\nmsg.response = {\n    action: 'listHarvestProvenance',\n    status: 'success',\n    provenance: provenance\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1220,
+        "y": 600,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000080",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Pause Harvest",
+        "func": "msg.operation = 'updateOne';\nmsg.collection = 'hv_runs';\nmsg.payload = [\n    { uniqueId: msg.data.runId },\n    { $set: { status: 'paused' } }\n];\nmsg._action = 'pauseHarvest';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
+        "y": 700,
+        "wires": [
+            [
+                "bb03000000000083"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000081",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Resume Harvest",
+        "func": "msg.operation = 'updateOne';\nmsg.collection = 'hv_runs';\nmsg.payload = [\n    { uniqueId: msg.data.runId },\n    { $set: { status: 'running' } }\n];\nmsg._action = 'resumeHarvest';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 760,
+        "wires": [
+            [
+                "bb03000000000083"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000082",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Cancel Harvest",
+        "func": "msg.operation = 'updateOne';\nmsg.collection = 'hv_runs';\nmsg.payload = [\n    { uniqueId: msg.data.runId },\n    { $set: { status: 'cancelled' } }\n];\nmsg._action = 'cancelHarvest';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 820,
+        "wires": [
+            [
+                "bb03000000000083"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000083",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "",
+        "x": 940,
+        "y": 760,
+        "wires": [
+            [
+                "bb03000000000084"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000084",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: pause/resume/cancel",
+        "func": "msg.response = {\n    action: msg._action || 'harvestControl',\n    status: 'success'\n};\ndelete msg._action;\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1170,
+        "y": 760,
+        "wires": [
+            [
+                "bb03000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000024",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Resolve API sources",
+        "func": "var catalogues = (msg.data && msg.data.catalogues) ? msg.data.catalogues : [];\nvar queue = [];\n\nfor (var i = 0; i < catalogues.length; i++) {\n    var cat = catalogues[i];\n    if (cat.sourceData) continue;\n\n    var endpoint = cat.baseEndpoint || '';\n    if (!endpoint) continue;\n\n    var authType = cat.auth || 'none';\n\n    if (authType === 'token-login' && cat.authLoginEndpoint) {\n        var body = (cat.authPayloadTemplate || '{\"email\":\"{{username}}\",\"password\":\"{{password}}\"}').replace('{{username}}', cat.authUsername || '').replace('{{password}}', cat.authPassword || '');\n        queue.push({ step: 'login', catIdx: i, url: cat.authLoginEndpoint, hdrs: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: body, tokenPath: cat.authTokenPath || 'token', tokenPrefix: cat.authTokenPrefix || 'Bearer' });\n    }\n\n    var hdrs = { 'Accept': 'application/json', 'Content-Type': 'application/json' };\n    if (authType === 'static-token' && cat.authStaticToken) {\n        hdrs['Authorization'] = (cat.authTokenPrefix || 'Bearer') + ' ' + cat.authStaticToken;\n    } else if (authType === 'api-key' && cat.authApiKey) {\n        hdrs[cat.authApiKeyHeader || 'X-API-Key'] = cat.authApiKey;\n    }\n    queue.push({ step: 'data', catIdx: i, url: endpoint, hdrs: hdrs, body: '', catName: cat.catalogName || '' });\n}\n\nif (queue.length === 0) {\n    return [null, msg];\n}\n\nmsg._fetchQueue = queue;\nmsg._fetchIdx = 0;\nvar first = queue[0];\nmsg.url = first.url;\nmsg.method = 'POST';\nmsg.headers = first.hdrs;\nmsg.payload = first.body || '';\nnode.warn('[harvest] Fetching API: ' + first.url);\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 150,
+        "wires": [
+            [
+                "bb03000000000025"
+            ],
+            [
+                "bb03000000000020"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000025",
+        "type": "http request",
+        "z": "bb03000000000000",
+        "name": "Fetch Catalogue API",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "bb03000000000100",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 940,
+        "y": 120,
+        "wires": [
+            [
+                "bb03000000000028"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000028",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Handle API response + loop",
+        "func": "var queue = msg._fetchQueue || [];\nvar idx = msg._fetchIdx || 0;\nvar current = queue[idx];\nvar catalogues = (msg.data && msg.data.catalogues) ? msg.data.catalogues : [];\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    var parts = path.split('.');\n    var cur = obj;\n    for (var pi = 0; pi < parts.length; pi++) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[parts[pi]];\n    }\n    return cur;\n}\n\nif (current) {\n    var status = msg.statusCode || 0;\n    var data = msg.payload;\n    if (typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { data = null; } }\n\n    if (current.step === 'login') {\n        if (data && typeof data === 'object' && status >= 200 && status < 300) {\n            var token = resolvePath(data, current.tokenPath || 'token');\n            if (token) {\n                for (var j = idx + 1; j < queue.length; j++) {\n                    if (queue[j].catIdx === current.catIdx && queue[j].step === 'data') {\n                        queue[j].hdrs['Authorization'] = (current.tokenPrefix || 'Bearer') + ' ' + String(token);\n                        break;\n                    }\n                }\n            }\n        }\n        node.warn('[harvest] Login ' + (status >= 200 && status < 300 ? 'OK' : 'failed HTTP ' + status) + ' for catalogue idx ' + current.catIdx);\n    } else if (current.step === 'data') {\n        if (data && typeof data === 'object' && status >= 200 && status < 300) {\n            catalogues[current.catIdx].sourceData = data;\n            node.warn('[harvest] Fetched API data for ' + (current.catName || 'catalogue') + ' (HTTP ' + status + ')');\n        } else {\n            node.warn('[harvest] API fetch failed for ' + (current.catName || 'catalogue') + ' (HTTP ' + status + ')');\n        }\n    }\n}\n\nvar nextIdx = idx + 1;\nmsg._fetchIdx = nextIdx;\n\nif (nextIdx < queue.length) {\n    var next = queue[nextIdx];\n    msg.url = next.url;\n    msg.method = 'POST';\n    msg.headers = next.hdrs;\n    msg.payload = next.body || '';\n    node.warn('[harvest] Next fetch: ' + next.url);\n    return [msg, null];\n}\n\ndelete msg._fetchQueue;\ndelete msg._fetchIdx;\nmsg.payload = '';\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1180,
+        "y": 120,
+        "wires": [
+            [
+                "bb03000000000025"
+            ],
+            [
+                "bb03000000000020"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000029",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "API Fetch Loop: resolve remote API sources before harvest",
+        "info": "When a catalogue has baseEndpoint but no sourceData,\nfetches data via HTTP POST before harvesting.\nSupports auth: none, static-token, api-key, token-login.",
+        "x": 960,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "cc04000000000001",
+        "type": "comment",
+        "z": "cc04000000000000",
+        "name": "══ Admin Tools & Access Control Backend (FR-AC-01) ══",
+        "info": "Handles user management and role-based access control.\nFR-AC-01: Define user roles that allow/deny accessing:\n  - Asset Crawler operations\n  - Schema Registry CRUD\n  - Catalogue Registry CRUD\n\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "x": 320,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "cc04000000000002",
+        "type": "link in",
+        "z": "cc04000000000000",
+        "name": "admin-tools-in",
+        "links": [
+            "ff01000000000034"
+        ],
+        "x": 115,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000003",
+        "type": "switch",
+        "z": "cc04000000000000",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "getAdminTools",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "inviteUser",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateUser",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteUser",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 4,
+        "x": 330,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000010"
+            ],
+            [
+                "cc04000000000011"
+            ],
+            [
+                "cc04000000000012"
+            ],
+            [
+                "cc04000000000013"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000010",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getAdminTools",
+        "func": "// List all users with their roles and access permissions\n// FR-AC-01: Each user has roles controlling access to:\n//   - Asset Crawler: harvest initiation, scope CRUD, lifecycle, crawling\n//   - Schema Registry: CRUD operations (FR-SR-01, -03)\n//   - Catalogue Registry: CRUD operations (FR-CR-01, -02, -03)\nmsg.payload = {\n  response: {\n    action: 'getAdminTools',\n    status: 'success',\n    users: []\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 600,
+        "y": 140,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000011",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "inviteUser",
+        "func": "const d = msg.data || {};\nconst uid = 'user-' + Date.now().toString(36);\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'inviteUser',\n    status: 'success',\n    uniqueId: uid\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000012",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUser",
+        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'updateUser',\n    status: 'success'\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 260,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000013",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser",
+        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'deleteUser',\n    status: 'success',\n    uniqueId: d.uniqueId\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 320,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000099",
+        "type": "link out",
+        "z": "cc04000000000000",
+        "name": "→ dashboard response",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 900,
+        "y": 230,
+        "wires": []
+    },
+    {
+        "id": "dd05000000000001",
+        "type": "comment",
+        "z": "dd05000000000000",
+        "name": "══ Local Catalogue Backend ══",
+        "info": "Handles Local Catalogue operations.\nlc_assets are written during Harvest (M3) and managed here.",
+        "x": 240,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "dd05000000000002",
+        "type": "link in",
+        "z": "dd05000000000000",
+        "name": "local-catalogue-in",
+        "links": [
+            "ff01000000000036"
+        ],
+        "x": 115,
+        "y": 200,
+        "wires": [
+            [
+                "dd05000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000003",
+        "type": "switch",
+        "z": "dd05000000000000",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "getLocalCatalogue",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalAssetDetail",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteLocalAsset",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateLocalAsset",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalProvenance",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalStats",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 6,
+        "x": 330,
+        "y": 200,
+        "wires": [
+            [
+                "dd05000000000010"
+            ],
+            [
+                "dd05000000000020"
+            ],
+            [
+                "dd05000000000030"
+            ],
+            [
+                "dd05000000000040"
+            ],
+            [
+                "dd05000000000050"
+            ],
+            [
+                "dd05000000000060"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000010",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Get Local Catalogue — query lc_assets",
+        "func": "msg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 100,
+        "wires": [
+            [
+                "dd05000000000011"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000011",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "find lc_assets",
+        "x": 960,
+        "y": 100,
+        "wires": [
+            [
+                "dd05000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000012",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — getLocalCatalogue",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Build table-ready asset list\nconst assets = docs.map(d => ({\n    id: d.uniqueId,\n    assets: d.title || '-',\n    type: d.type || 'Dataset',\n    name: d.catalogue || '-',\n    domain: d.domain || d.catalogue || '-',\n    updated: (d.harvestedAt || d.createdAt || '-').replace('T', ' ').slice(0, 19),\n    integrationStatus: d.status || 'Active',\n    harvestRunId: d.harvestRunId || '',\n    sourceAssetId: d.sourceAssetId || '',\n    strategy: d.strategy || '',\n    catalogueId: d.catalogueId || '',\n    harvestScope: d.harvestScope || {},\n    uniqueId: d.uniqueId\n}));\n\nassets.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));\n\n// Compute stats\nconst runIds = new Set();\nfor (const d of docs) { if (d.harvestRunId) runIds.add(d.harvestRunId); }\n\nmsg.response = {\n    action: 'getLocalCatalogue',\n    status: 'success',\n    assets: assets,\n    totalAssets: assets.length,\n    totalRuns: runIds.size\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 100,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000020",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Get Local Asset Detail — by uniqueId",
+        "func": "const uid = msg.data?.uniqueId || msg.data?.assetId || '';\nmsg._assetId = uid;\nmsg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{ uniqueId: uid }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 180,
+        "wires": [
+            [
+                "dd05000000000021"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000021",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "find asset",
+        "x": 960,
+        "y": 180,
+        "wires": [
+            [
+                "dd05000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000022",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — getLocalAssetDetail",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst asset = docs[0] || null;\nmsg.response = {\n    action: 'getLocalAssetDetail',\n    status: 'success',\n    asset: asset\n};\ndelete msg.payload;\ndelete msg._assetId;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 180,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000030",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Delete Local Asset — by uniqueId",
+        "func": "const uid = msg.data?.uniqueId;\nif (!uid) {\n    msg.response = {\n        action: 'deleteLocalAsset',\n        status: 'error',\n        message: 'Missing uniqueId'\n    };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg.operation = 'deleteOne';\nmsg.collection = 'lc_assets';\nmsg.payload = { uniqueId: uid };\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 260,
+        "wires": [
+            [
+                "dd05000000000031"
+            ],
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000031",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "delete from lc_assets",
+        "x": 980,
+        "y": 240,
+        "wires": [
+            [
+                "dd05000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000032",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — deleteLocalAsset",
+        "func": "msg.response = {\n    action: 'deleteLocalAsset',\n    status: 'success'\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 240,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000040",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Update Local Asset — by uniqueId",
+        "func": "const uid = msg.data?.uniqueId;\nconst patch = msg.data?.patch || {};\nif (!uid) {\n    msg.response = {\n        action: 'updateLocalAsset',\n        status: 'error',\n        message: 'Missing uniqueId'\n    };\n    delete msg.payload;\n    return [null, msg];\n}\npatch.updatedAt = new Date().toISOString();\nmsg.operation = 'updateOne';\nmsg.collection = 'lc_assets';\nmsg.payload = [\n    { uniqueId: uid },\n    { $set: patch }\n];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 340,
+        "wires": [
+            [
+                "dd05000000000041"
+            ],
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000041",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "update lc_assets",
+        "x": 980,
+        "y": 320,
+        "wires": [
+            [
+                "dd05000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000042",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — updateLocalAsset",
+        "func": "msg.response = {\n    action: 'updateLocalAsset',\n    status: 'success'\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 320,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000050",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Get Local Provenance — from hv_runs",
+        "func": "msg.operation = 'find';\nmsg.collection = 'hv_runs';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 670,
+        "y": 420,
+        "wires": [
+            [
+                "dd05000000000051"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000051",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "find hv_runs",
+        "x": 960,
+        "y": 420,
+        "wires": [
+            [
+                "dd05000000000052"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000052",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — getLocalProvenance",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst provenance = [];\nfor (const d of docs) {\n    if (Array.isArray(d.provenance)) {\n        for (const p of d.provenance) provenance.push(p);\n    }\n}\nmsg.response = {\n    action: 'getLocalProvenance',\n    status: 'success',\n    provenance: provenance,\n    total: provenance.length\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 420,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000060",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "Get Local Stats — from lc_assets",
+        "func": "msg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 500,
+        "wires": [
+            [
+                "dd05000000000061"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000061",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "find lc_assets",
+        "x": 960,
+        "y": 500,
+        "wires": [
+            [
+                "dd05000000000062"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000062",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "response — getLocalStats",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\nconst runIds = new Set();\nconst catalogueIds = new Set();\nconst statusCounts = { Active: 0, Warning: 0, Error: 0, Archived: 0 };\n\nfor (const d of docs) {\n    if (d.harvestRunId) runIds.add(d.harvestRunId);\n    if (d.catalogueId || d.catalogue) catalogueIds.add(d.catalogueId || d.catalogue);\n    const s = d.status || 'Active';\n    if (statusCounts[s] !== undefined) statusCounts[s]++;\n    else statusCounts.Active++;\n}\n\nmsg.response = {\n    action: 'getLocalStats',\n    status: 'success',\n    totalAssets: docs.length,\n    totalRuns: runIds.size,\n    linkedCatalogues: catalogueIds.size,\n    totalProvenance: docs.length,\n    statusCounts: statusCounts,\n    warningCount: statusCounts.Warning,\n    errorCount: statusCounts.Error\n};\ndelete msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1280,
+        "y": 500,
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000099",
+        "type": "link out",
+        "z": "dd05000000000000",
+        "name": "→ Dashboard uibuilder",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 1475,
+        "y": 300,
+        "wires": []
+    }
+]

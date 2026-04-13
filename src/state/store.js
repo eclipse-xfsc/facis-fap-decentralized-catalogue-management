@@ -71,9 +71,29 @@ export function createStoreData() {
       namespacesToPreserve: "",
       shaclShapeId: "",
       auth: "none",
+      authLoginEndpoint: "",
+      authUsername: "",
+      authPassword: "",
+      authPayloadTemplate: '{"email":"{{username}}","password":"{{password}}"}',
+      authTokenPath: "token",
+      authTokenInjection: "body",
+      authTokenFieldName: "token",
+      authTokenPrefix: "",
+      authStaticToken: "",
+      authApiKey: "",
+      authApiKeyHeader: "X-API-Key",
+      responseRootPath: "",
+      responseAssetIdField: "",
+      responseAssetNameField: "",
+      responseAssetTypeField: "",
       trustAnchor: "",
       enabled: true,
     },
+
+    // JSON File Upload for Catalogue Registration
+    isDraggingJson: false,
+    uploadedJsonFile: null,
+    jsonUploadError: "",
 
     // Pagination
     pagination: {
@@ -83,6 +103,7 @@ export function createStoreData() {
       catalogsRegister: { page: 1, perPage: 5 },
       users: { page: 1, perPage: 5 },
       harvest: { page: 1, perPage: 5 },
+      provenance: { page: 1, perPage: 10 },
       mapping: { page: 1, perPage: 5 },
       harvestWizard: { page: 1, perPage: 5 }
     },
@@ -346,6 +367,7 @@ ex:publisher a ex:Property .`,
     isEditingPrompt: false,
     promptForm: {
       id: null,
+      name: "",
       version: "1.0",
       status: "draft",
       sourceSchema: "",
@@ -353,6 +375,7 @@ ex:publisher a ex:Property .`,
       template: "",
       examples: "",
       constraints: "",
+      author: "",
     },
     promptFormError: "",
     promptSearch: "",
@@ -470,6 +493,9 @@ ex:publisher a ex:Property .`,
 
     // Provenance metadata per imported asset (FR-ACM-01)
     harvestProvenance: [],
+    provenanceRows: [],
+    provenanceSearch: "",
+    provenanceFilters: { catalogue: "", strategy: "", mapped: "" },
 
     // Loading states for harvest
     isLoadingHarvestCatalogues: false,
@@ -516,6 +542,8 @@ ex:publisher a ex:Property .`,
       type: "openai",
       apiEndpoint: "",
       models: "",
+      rateLimits: "",
+      timeout: 30,
       isDefault: false,
       precedence: 1,
       status: "active",
@@ -524,6 +552,10 @@ ex:publisher a ex:Property .`,
     providerSearch: "",
 
     // ── Milestone 2: Schema & Mapping Workflows ─────────────
+    localSchemaSearch: "",
+    remoteSchemaSearch: "",
+    mappingSearch: "",
+
     // Local Schema create modal
     showCreateLocalSchemaModal: false,
     isEditingLocalSchema: false,
@@ -562,6 +594,7 @@ ex:publisher a ex:Property .`,
     // Harvest run detail view
     showHarvestRunDetail: false,
     harvestRunDetailData: null,
+    harvestDetailTab: "assets",
 
     // Live harvest progress
     activeHarvest: {

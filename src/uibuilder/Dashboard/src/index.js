@@ -28376,7 +28376,7 @@ ex:publisher a ex:Property .`,
           });
         }
         if (resp?.action === "logOut" && resp?.status === "success") {
-          window.location.href = "/-/login";
+          window.location.href = "/facis-facis/login";
           document.cookie = "userToken=; path=/; max-age=0";
         }
         if (resp?.action === "enhancePrompt") {

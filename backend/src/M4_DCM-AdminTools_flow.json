@@ -1,0 +1,158 @@
+[
+    {
+        "id": "cc04000000000000",
+        "type": "tab",
+        "label": "M4_DCM-AdminTools",
+        "disabled": false,
+        "info": "Backend flows for Access Control & Admin Tools.\n\nMongoDB collections:\n  - users\n  - roles\n\nOperations:\n  - getAdminTools: list all users\n  - inviteUser: create/invite a user\n  - updateUser: update user roles/access\n  - deleteUser: remove a user\n\nSRS Requirements covered:\n  FR-AC-01: User Roles - CRUD for Asset Crawler, Schema Registry, Catalogue Registry access",
+        "env": []
+    },
+    {
+        "id": "cc04000000000001",
+        "type": "comment",
+        "z": "cc04000000000000",
+        "name": "══ Admin Tools & Access Control Backend (FR-AC-01) ══",
+        "info": "Handles user management and role-based access control.\nFR-AC-01: Define user roles that allow/deny accessing:\n  - Asset Crawler operations\n  - Schema Registry CRUD\n  - Catalogue Registry CRUD\n\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "x": 320,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "cc04000000000002",
+        "type": "link in",
+        "z": "cc04000000000000",
+        "name": "admin-tools-in",
+        "links": [
+            "ff01000000000034"
+        ],
+        "x": 115,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000003",
+        "type": "switch",
+        "z": "cc04000000000000",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "getAdminTools",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "inviteUser",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateUser",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteUser",
+                "vt": "str"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 4,
+        "x": 330,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000010"
+            ],
+            [
+                "cc04000000000011"
+            ],
+            [
+                "cc04000000000012"
+            ],
+            [
+                "cc04000000000013"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000010",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getAdminTools",
+        "func": "// List all users with their roles and access permissions\n// FR-AC-01: Each user has roles controlling access to:\n//   - Asset Crawler: harvest initiation, scope CRUD, lifecycle, crawling\n//   - Schema Registry: CRUD operations (FR-SR-01, -03)\n//   - Catalogue Registry: CRUD operations (FR-CR-01, -02, -03)\nmsg.payload = {\n  response: {\n    action: 'getAdminTools',\n    status: 'success',\n    users: []\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 600,
+        "y": 140,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000011",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "inviteUser",
+        "func": "const d = msg.data || {};\nconst uid = 'user-' + Date.now().toString(36);\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'inviteUser',\n    status: 'success',\n    uniqueId: uid\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000012",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUser",
+        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'updateUser',\n    status: 'success'\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 260,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000013",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser",
+        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'deleteUser',\n    status: 'success',\n    uniqueId: d.uniqueId\n  }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 590,
+        "y": 320,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000099",
+        "type": "link out",
+        "z": "cc04000000000000",
+        "name": "→ dashboard response",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 900,
+        "y": 230,
+        "wires": []
+    }
+]

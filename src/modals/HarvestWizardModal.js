@@ -13,6 +13,7 @@ export default {
     harvestScope: { type: Object, required: true },
     lifecycleMapping: { type: Object, required: true },
     wizardSelectedCount: { type: Number, default: 0 },
+    wizardSelectedCatalogRows: { type: Array, default: () => [] },
     overviewScopeLines: { type: Array, default: () => [] },
     overviewLifecycleLines: { type: Array, default: () => [] },
     overviewMappingCounts: { type: Object, default: () => ({}) },
