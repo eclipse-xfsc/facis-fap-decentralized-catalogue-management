@@ -29,16 +29,9 @@ This README is the single source of truth for installing, configuring, deploying
 
 ---
 
-## 1. System Overview module tabs / flow overview → under ### 2.1 Modules
+## 1. System Overview
 
-
-§4 Deployment with Docker
-
-3-Node-RED import screen
-4-Imported flows visible in sidebar
-0-Mongo client config scree
-
-DCM is composed of six backend modules that run as Node-RED flows and a single-page Vue 3 dashboard that is served by the uibuilder node inside Node-RED. All state is stored in MongoDB. The platform is multi-tenant-ready through role-based permissions and is designed for federated deployments where many remote catalogues are periodically harvested into a single local index.
+DCM is composed of six backend modules that run as ORCE flows and a single-page Vue 3 dashboard that is served by the uibuilder node inside ORCE. All state is stored in MongoDB. The platform is multi-tenant-ready through role-based permissions and is designed for federated deployments where many remote catalogues are periodically harvested into a single local index.
 
 At a high level, DCM does four things:
 
@@ -51,14 +44,9 @@ At a high level, DCM does four things:
 
 ## 2. Architecture
 
-![Architecture overview diagram](docimg/1-architecture%20diagram.png)
-
-
 ### 2.1 Modules
 
-![Node-RED module tabs / flow overview](docimg/2-module%20tabs.png)
-
-The backend is split into six Node-RED flow files in `backend/src/`. Each module has its own flow tab and communicates with the others through link-in / link-out nodes on the dashboard router.
+The backend is split into six ORCE flow files in `backend/src/`. Each module has its own flow tab and communicates with the others through link-in / link-out nodes on the dashboard router.
 
 | # | Module | File | Route tag | SRS IDs |
 |---|---|---|---|---|
@@ -71,18 +59,20 @@ The backend is split into six Node-RED flow files in `backend/src/`. Each module
 
 `base_flow.json` contains the uibuilder node, the message router switch, the token extractor, and the MongoDB client configuration. `full_assembled_out_flow.json` is a convenience file that concatenates all modules into one importable flow.
 
+![ORCE module tabs / flow overview](docimg/2-module%20tabs.png)
+
 ### 2.2 Runtime stack
 
-- **Node-RED 4.x** — the flow runtime.
-- **node-red-contrib-uibuilder 7.5.0** — the bridge between Node-RED and the Vue 3 dashboard.
+- **ORCE 4.x** — the flow runtime.
+- **ORCE-contrib-uibuilder 7.5.0** — the bridge between ORCE and the Vue 3 dashboard.
 - **MongoDB 6.x** — the only persistence layer.
-- **node-red-contrib-mongodb4** — the Mongo client used by every DB node in the flows.
+- **ORCE-contrib-mongodb4** — the Mongo client used by every DB node in the flows.
 - **Vue 3.5 + esbuild + vite** — the frontend build chain.
 - **CodeMirror 6** — the embedded code editor used in Prompts, Mappings, and RDF editors.
 
 ### 2.3 Message flow
 
-Every client action is sent as a typed Node-RED message with the shape:
+Every client action is sent as a typed ORCE message with the shape:
 
 ```json
 {
@@ -94,6 +84,8 @@ Every client action is sent as a typed Node-RED message with the shape:
 
 The message enters the backend at the uibuilder node, is normalized by the token extractor (`ff01000000000099`), routed by module (`ff01000000000020`), routed again by action (`aa01000000000005` inside the target module), authenticated (`auth000000000001`), permission-checked (`ee02000000000090`), and finally processed. Responses return via the shared `bb010000000000f0` link-out back to the dashboard.
 
+![Architecture overview diagram](docimg/1-architecture%20diagram.png)
+
 ---
 
 ## 3. Prerequisites
@@ -102,7 +94,7 @@ The message enters the backend at the uibuilder node, is normalized by the token
 
 | Component | Version | Notes |
 |---|---|---|
-| Node.js | 20 LTS or newer | Node-RED 4 requires 18+, 20 is recommended. |
+| Node.js | 20 LTS or newer | ORCE 4 requires 18+, 20 is recommended. |
 | MongoDB | 6.0 or newer | Replica set not required; single node is fine for dev. |
 | Docker | 24.x or newer | Only if using the Docker deployment in §4. |
 | Docker Compose | v2 plugin | Ships with modern Docker Desktop / Docker Engine. |
@@ -119,8 +111,8 @@ The message enters the backend at the uibuilder node, is normalized by the token
 
 | Secret | Purpose | Where used |
 |---|---|---|
-| `DCM_KMS_KEY` | 32-byte hex key for AES-256-GCM encryption of provider API keys. | Node-RED env. Auto-provisioned to `dcm-kms.key` on first run if not set. |
-| `MONGO_URI` | MongoDB connection string. | Node-RED env. Referenced by `b991ffcd8f6c360a` client config. |
+| `DCM_KMS_KEY` | 32-byte hex key for AES-256-GCM encryption of provider API keys. | ORCE env. Auto-provisioned to `dcm-kms.key` on first run if not set. |
+| `MONGO_URI` | MongoDB connection string. | ORCE env. Referenced by `b991ffcd8f6c360a` client config. |
 | LLM provider keys | OpenAI / Anthropic / Ollama / Gemini keys. | Stored encrypted inside DCM via Schema Registry → Providers. **Not** env vars. |
 
 Generate a fresh KMS key with:
@@ -133,20 +125,14 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## 4. Deployment with Docker
 
-![Mongo client config screen](docimg/0-database%20config.png)
-
-![Node-RED import screen](docimg/3-import%20flows.png)
-
-![Imported flows visible in sidebar](docimg/4-import%20flows.png)
-
-
-This is the recommended path for any new installation. The stack consists Node-RED (backend + UI).
+This is the recommended path for any new installation. The stack consists ORCE (backend + UI).
 
 For easy setup you have to run this command to bring up a docker container:
 
-`bash
+```bash
 docker run -d -p 1880:1880 -p 8080:8080 ecofacis/dcm:v1
-`
+```
+
 Then your instance is ready at: 
 
 ```text
@@ -159,14 +145,9 @@ The default username/password for the BackEnd management is `admin`/`xfsc-orce`.
 
 ---
 
-## 5. Setting up
+## 5. First-time Setup Walkthrough
 
 ### 5.1 Create an LLM Provider
-
-![Add Provider form](docimg/8-provider%20add.png)
-
-![Add Provider form details](docimg/9-provider%20add.png)
-
 
 Navigate to **Schema Registry → Providers → + Add Provider**. Fill:
 
@@ -181,16 +162,21 @@ Navigate to **Schema Registry → Providers → + Add Provider**. Fill:
 
 Click **Save**. The provider appears in the table with a "Key set" badge.
 
+![Add Provider form](docimg/8-provider%20add.png)
+
+![Add Provider form details](docimg/9-provider%20add.png)
+
 ### 5.5 Register your first Remote Catalogue
+
+Navigate to **Catalogue Registry → + Register Remote Catalogue**. Fill the form (§9.1) and click **Save**.
 
 ![Register Remote Catalogue form](docimg/10-remote%20cat%20reg.png)
 
 ![Register Remote Catalogue form details](docimg/11-remote%20cat%20reg.png)
 
-
-Navigate to **Catalogue Registry → + Register Remote Catalogue**. Fill the form (§9.1) and click **Save**.
-
 ### 5.6 Upload a Local Schema and a Remote Schema
+
+Navigate to **Schema Registry → Local Schemas / Remote Schemas** (§7) and upload your canonical target schema plus the remote shape you want to harvest from.
 
 ![Remote schema upload screen](docimg/12-schema.png)
 
@@ -198,10 +184,9 @@ Navigate to **Catalogue Registry → + Register Remote Catalogue**. Fill the for
 
 ![Remote schema upload screen alternate view](docimg/14-remote%20schema.png)
 
-
-Navigate to **Schema Registry → Local Schemas / Remote Schemas** (§8) and upload your canonical target schema plus the remote shape you want to harvest from.
-
 ### 5.7 Create a Mapping and a Prompt
+
+Link the remote schema to the local schema via **Schema Registry → Mappings** and optionally attach a **Prompt** from **Schema Registry → Prompts** for the LLM-assisted transformation.
 
 ![Create Mapping screen](docimg/15-mapping.png)
 
@@ -211,17 +196,13 @@ Navigate to **Schema Registry → Local Schemas / Remote Schemas** (§8) and upl
 
 ![Create Prompt screen alternate view](docimg/18-prompt.png)
 
-
-Link the remote schema to the local schema via **Schema Registry → Mappings** and optionally attach a **Prompt** from **Schema Registry → Prompts** for the LLM-assisted transformation.
-
 ### 5.8 Start your first Harvest
 
-![Start Harvest screen](docimg/19-harvest.png)
+Navigate to **Harvester → Start Harvest** (§9.1), pick the catalogue, and run.
 
 ![Start Harvest screen alternate view](docimg/20-harvest.png)
 
-
-Navigate to **Harvester → Start Harvest** (§8.1), pick the catalogue, and run.
+![Start Harvest screen](docimg/19-harvest.png)
 
 You are now fully operational.
 
@@ -231,10 +212,9 @@ You are now fully operational.
 
 ### 6.1 Login
 
-![Login screen](docimg/21-login.png)
-
-
 URL: `http://<host>:1880/ui/login/`. The Vue login page submits `{ type: "login", data: { username, password } }` to the `auth` route. The backend verifies the bcrypt hash in `dcm_users`, resolves the role's permissions from `dcm_roles`, creates a session document in `auth_sessions` with a 24-hour `expiresAt`, and returns `{ userToken, username, roles, permissions, accessAreas }`. The frontend stores `userToken` in both `localStorage.authToken` and the `userToken` cookie; the uibuilder client ID is in the `uibuilder-client-id` cookie.
+
+![Login screen](docimg/21-login.png)
 
 ### 6.2 Session lifecycle
 
@@ -244,13 +224,6 @@ URL: `http://<host>:1880/ui/login/`. The Vue login page submits `{ type: "login"
 - All other messages carry the token in `msg._token` (top-level), `msg.data.token`, `msg.payload.token`, and as a suffix on `msg.topic` (belt-and-suspenders against uibuilder transport quirks). The auth resolver (`auth000000000001`) searches every location.
 
 ### 6.3 Roles and permissions
-
-![Permission denied example](docimg/22-access.png)
-
-![Permission denied example details](docimg/23-access.png)
-
-![Permission denied example alternate view](docimg/24-access.png)
-
 
 Permissions are flat strings. Recognized permissions:
 
@@ -270,27 +243,31 @@ Permissions are flat strings. Recognized permissions:
 
 Every action is gated by the **Centralized Permission Gate** (`ee02000000000090` in M1 and equivalents in other modules). A denied action returns `{ ok: false, code: "permission_denied", error: "Insufficient permissions. Required: ..." }` and writes an `access.denied` row to `dcm_audit_log`.
 
+![Permission denied example alternate view](docimg/24-access.png)
+
+![Permission denied example details](docimg/23-access.png)
+
+![Permission denied example](docimg/22-access.png)
+
 ### 6.4 Changing a password
-
-![Change password screen](docimg/6-change%20password.png)
-
-![Change password screen alternate view](docimg/7-change%20password.png)
-
 
 Top-right profile menu → **Change password** → enter current + new. The backend reverifies the current password before updating the bcrypt hash.
 
+![Change password screen alternate view](docimg/7-change%20password.png)
+
+![Change password screen](docimg/6-change%20password.png)
+
 ---
 
-## 6. Schema Registry
+## 7. Schema Registry
 
 URL: **Dashboard → Schema Registry**. Schema Registry is the most feature-rich module. It governs every schema, prompt, mapping, and LLM configuration that DCM uses during transformation.
 
-### 6.1 Local Schemas
-
-![Local Schemas list](docimg/25-local%20schema%20list.png)
-
+### 7.1 Local Schemas
 
 The canonical schemas used to store harvested data locally. Each version is immutable; activating a version replaces the default for new harvests.
+
+![Local Schemas list](docimg/25-local%20schema%20list.png)
 
 | UI path | Action |
 |---|---|
@@ -300,12 +277,11 @@ The canonical schemas used to store harvested data locally. Each version is immu
 | Row → **Edit** | Edit the current version. Editing creates a new version automatically. |
 | Row → **Delete** | Delete a schema. Blocked if the schema is referenced by any Prompt or Mapping; the blocker lists the referring rows so you can remove those first. |
 
-### 8.2 Remote Schemas
-
-![Remote Schemas list](docimg/26-remote%20schema%20list.png)
-
+### 7.2 Remote Schemas
 
 Descriptions of the shapes that remote catalogues publish. Used as the **source** in mappings and prompts.
+
+![Remote Schemas list](docimg/26-remote%20schema%20list.png)
 
 | UI path | Action |
 |---|---|
@@ -313,12 +289,11 @@ Descriptions of the shapes that remote catalogues publish. Used as the **source*
 | **+ Add Remote Schema** | Fields: `name`, `format` (json-schema / xsd / SHACL / custom), `body`, `namespaces`, `version`, `status`, `trustLevel`, `catalogueIds` (which remote catalogues use this schema), `description`, `author`. |
 | Row → **Edit / Delete** | Same semantics as Local Schemas. |
 
-### 6.3 Mappings
-
-![Mappings list / Add Mapping / RDF Config / Mapping Test result](docimg/27-mapping.png)
-
+### 7.3 Mappings
 
 Declarative links between a remote schema and a local schema. Each mapping declares a `transformationStrategy`:
+
+![Mappings list / Add Mapping / RDF Config / Mapping Test result](docimg/27-mapping.png)
 
 - **Deterministic RDF** — applies the attached RDF mapping config (§8.4) against the source record.
 - **LLM Prompt** — runs the attached Prompt (§8.5) through the selected LLM Provider.
@@ -332,10 +307,7 @@ Declarative links between a remote schema and a local schema. Each mapping decla
 | Row → **Test** | Provide a sample source record, run the mapping, and see the produced RDF / JSON plus SHACL validation output, retained vs. discarded triples. |
 | Row → **Delete** | Deletes the mapping row. |
 
-### 6.4 Prompts
-
-![Prompts list / New Prompt / Enhance / Dry-run / Versions](docimg/28-prompts.png)
-
+### 7.4 Prompts
 
 Template-driven LLM instructions used when a mapping's strategy is `LLM Prompt` or `Hybrid`. Templates support the variables `{SOURCE_SCHEMA}`, `{TARGET_SCHEMA}`, `{EXAMPLES}`, `{CONSTRAINTS}` which are expanded at runtime with the mapping's context.
 
@@ -350,10 +322,9 @@ Template-driven LLM instructions used when a mapping's strategy is `LLM Prompt` 
 
 **LLM Provider precedence** (FR-SR-12): `prompt.providerId > mapping.catalogue.providerId > systemSettings.default`. If no Provider has a usable key, every LLM-dependent action returns `LLM not configured`.
 
-### 6.5 Providers
+![Prompts list / New Prompt / Enhance / Dry-run / Versions](docimg/28-prompts.png)
 
-![Providers list / Add Provider / Edit Provider / Key set badge / Reorder](docimg/31-providers.png)
-
+### 7.5 Providers
 
 Encrypted credentials for the LLM services DCM calls.
 
@@ -367,12 +338,13 @@ Encrypted credentials for the LLM services DCM calls.
 
 API keys are encrypted with **AES-256-GCM** using the `DCM_KMS_KEY`. The `listProviders` response never contains the ciphertext — only a boolean `hasKey`.
 
-### 6.6 LLM Configs
+![Providers list / Add Provider / Edit Provider / Key set badge / Reorder](docimg/31-providers.png)
 
-![LLM Configs list and form](docimg/29-llm.png)
-
+### 7.6 LLM Configs
 
 Per-use-case tuning for a given Provider: temperature, max tokens, response format.
+
+![LLM Configs list and form](docimg/29-llm.png)
 
 | UI path | Action |
 |---|---|
@@ -380,12 +352,11 @@ Per-use-case tuning for a given Provider: temperature, max tokens, response form
 | **+ Add Config** | Fields: `name`, `provider`, `model`, `temperature`, `maxTokens`, `timeout`, `status`. |
 | Row → **Edit / Delete** | Standard. |
 
-### 6.7 Test Cases
-
-![Test Cases list, form, and run view](docimg/30-testcase.png)
-
+### 7.7 Test Cases
 
 Reusable (sample input, expected output) pairs attached to Prompts / LLM Configs for regression testing.
+
+![Test Cases list, form, and run view](docimg/30-testcase.png)
 
 | UI path | Action |
 |---|---|
@@ -394,12 +365,11 @@ Reusable (sample input, expected output) pairs attached to Prompts / LLM Configs
 | Row → **Run** | Executes and stores `lastResult` + `lastRunAt`. |
 | Row → **Edit / Delete** | Standard. |
 
-### 6.8 Transformation Audit
-
-![Transformation Audit table / detail / export](docimg/33-audit%20trails.png)
-
+### 7.8 Transformation Audit
 
 Append-only audit of every transformation event.
+
+![Transformation Audit table / detail / export](docimg/33-audit%20trails.png)
 
 | UI path | Action |
 |---|---|
@@ -408,12 +378,11 @@ Append-only audit of every transformation event.
 | **Export** | CSV / JSON export of the filtered set. |
 | Row → **Delete / Update** | Only for administrators. |
 
-### 6.9 Batch Retransform
-
-![Batch Retransform progress screen](docimg/32-batch%20retrasform.png)
-
+### 7.9 Batch Retransform
 
 Re-runs a mapping across every affected local asset (useful after editing a prompt or activating a new schema version).
+
+![Batch Retransform progress screen](docimg/32-batch%20retrasform.png)
 
 | UI path | Action |
 |---|---|
@@ -421,7 +390,7 @@ Re-runs a mapping across every affected local asset (useful after editing a prom
 | **Start** | Launches progress stream; see `batchRetransformProgress` events with `processedAssets`, `successCount`, `errorCount`. |
 | **Cancel** | Stops the run mid-flight. |
 
-### 6.10 System Settings
+### 7.10 System Settings
 
 Global key/value pairs used by other modules. Typical keys: `default.providerId`, `default.llmConfigId`, `harvest.schedule.default`, `audit.retentionDays`.
 
@@ -429,16 +398,15 @@ UI: **Schema Registry → System Settings**. Editable only by `admin.users.manag
 
 ---
 
-## 7. Catalogue Registry
+## 8. Catalogue Registry
 
 URL: **Dashboard → Catalogue Registry**. Defines the outward-facing catalogues DCM talks to.
 
-### 7.1 Remote Catalogues
-
-![Remote Catalogues list / Register form / Test Connection / Upload Catalog JSON](docimg/34-remote%20cat%20crud.png)
-
+### 8.1 Remote Catalogues
 
 A Remote Catalogue is an external data portal (CKAN, DCAT-AP, a custom REST service, etc.) whose inventory DCM harvests.
+
+![Remote Catalogues list / Register form / Test Connection / Upload Catalog JSON](docimg/34-remote%20cat%20crud.png)
 
 | UI path | Action |
 |---|---|
@@ -448,12 +416,11 @@ A Remote Catalogue is an external data portal (CKAN, DCAT-AP, a custom REST serv
 | Row → **Edit / Delete** | Standard. |
 | **Upload Catalog JSON** | Bulk-register via a JSON file. |
 
-### 7.2 Asset Types
-
-![Asset Types list / Add Asset Type](docimg/35-asset%20type%20crud.png)
-
+### 8.2 Asset Types
 
 The record types a remote catalogue exposes (`dataset`, `service`, `organization`, etc.). Each is linked to a remote schema so downstream mappings know what to expect.
+
+![Asset Types list / Add Asset Type](docimg/35-asset%20type%20crud.png)
 
 | UI path | Action |
 |---|---|
@@ -461,7 +428,7 @@ The record types a remote catalogue exposes (`dataset`, `service`, `organization
 | **+ Add Asset Type** | Fields: `name`, `description`, `remoteSchemaId`. |
 | Row → **Edit / Delete** | Standard. |
 
-### 7.3 API Mappings
+### 8.3 API Mappings
 
 A per-(catalogue, asset type) definition of **how to fetch records** from the remote API: method, path template, query params, headers, body template.
 
@@ -474,14 +441,11 @@ A per-(catalogue, asset type) definition of **how to fetch records** from the re
 
 ---
 
-## 8. Harvester
+## 9. Harvester
 
 URL: **Dashboard → Harvester**. Runs the actual data ingestion.
 
-### 8.1 Start a Harvest
-
-![Harvest running with progress bar and live logs](docimg/36-harvest%20result.png)
-
+### 9.1 Start a Harvest
 
 1. **Harvester → Start Harvest**.
 2. Pick a catalogue. The form lists every Asset Type the catalogue has an API Mapping for.
@@ -490,13 +454,15 @@ URL: **Dashboard → Harvester**. Runs the actual data ingestion.
 
 Under the hood DCM:
 
+![Harvest running with progress bar and live logs](docimg/36-harvest%20result.png)
+
 - Resolves the API Mapping for each asset type.
 - Issues paginated requests against the remote endpoint.
 - Validates each response record against the Remote Schema (SHACL where applicable).
 - Runs the configured Mapping (deterministic / LLM / hybrid).
-- Writes the transformed record to the local catalogue (§11) and a row to the Transformation Audit (§8.8).
+- Writes the transformed record to the local catalogue (§10) and a row to the Transformation Audit (§7.8).
 
-### 8.2 List and Monitor Runs
+### 9.2 List and Monitor Runs
 
 | UI path | Action |
 |---|---|
@@ -506,18 +472,13 @@ Under the hood DCM:
 | Row → **Provenance** | For each harvested record: source URL, fetch timestamp, applied mapping version, prompt version, SHACL outcome, generated triples. |
 | Row → **Pause / Resume / Cancel** | Lifecycle controls. |
 
-### 8.3 Scheduling
+### 9.3 Scheduling
 
 Set a catalogue's cron schedule from **Catalogue Registry → Remote Catalogues → Edit → Schedule**. The harvester reads active schedules on boot and via `startHarvest({ scheduled: true })`.
 
 ---
 
-## 9. Local Catalogue
-
-![Browse screen with filters and facets](docimg/37-local%20cat.png)
-
-![Asset Detail showing original, transformed, SHACL, and provenance](docimg/38-asset%20details.png)
-
+## 10. Local Catalogue
 
 URL: **Dashboard → Local Catalogue**. The unified, transformed view of every harvested record.
 
@@ -530,16 +491,17 @@ URL: **Dashboard → Local Catalogue**. The unified, transformed view of every h
 | **Stats** | Totals per catalogue, per asset type, per trust level; freshness histogram; error rates. |
 | **Provenance Explorer** | Query provenance by asset ID, mapping version, prompt version, or time window. |
 
+![Browse screen with filters and facets](docimg/37-local%20cat.png)
+
+![Asset Detail showing original, transformed, SHACL, and provenance](docimg/38-asset%20details.png)
+
 ---
 
-## 10. Admin Tools
+## 11. Admin Tools
 
 URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.manage` / `admin.audit.read`.
 
-### 10.1 Users
-
-![Users list / Create User / Edit User / User Detail](docimg/39-user%20creation.png)
-
+### 11.1 Users
 
 | UI path | Action |
 |---|---|
@@ -549,10 +511,9 @@ URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.man
 | Row → **Detail** | Activity summary: logins, audit entries, owned resources. |
 | Row → **Delete** | Soft-delete (status → `disabled`). |
 
-### 10.2 Roles
+![Users list / Create User / Edit User / User Detail](docimg/39-user%20creation.png)
 
-![Roles list / Create Role / Edit Role](docimg/40-role%20list.png)
-
+### 11.2 Roles
 
 | UI path | Action |
 |---|---|
@@ -560,7 +521,9 @@ URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.man
 | **+ Create Role** | Fields: `name`, `permissions` (multi-select). |
 | Row → **Edit / Delete** | Delete is blocked if any user is assigned the role. |
 
-### 10.3 Audit Log
+![Roles list / Create Role / Edit Role](docimg/40-role%20list.png)
+
+### 11.3 Audit Log
 
 | UI path | Action |
 |---|---|
@@ -568,20 +531,19 @@ URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.man
 | **Filter** | By actor, area, action, date range, result. |
 | **Export** | CSV / JSON. |
 
-### 10.4 Monitoring Overview
-
-![Monitoring Overview](docimg/41-monitoring.png)
-
+### 11.4 Monitoring Overview
 
 | UI path | Action |
 |---|---|
 | **Admin Tools → Monitoring** | Real-time overview: active sessions, harvest runs in flight, MongoDB operation rate, queue depth, recent errors, LLM usage (`getLlmUsage`). |
 
+![Monitoring Overview](docimg/41-monitoring.png)
+
 ---
 
-## 11. End-to-end Workflows
+## 12. End-to-end Workflows
 
-### 11.1 Onboard a new data portal
+### 12.1 Onboard a new data portal
 
 1. **Catalogue Registry → + Register Remote Catalogue** → fill metadata + auth, Save.
 2. **Catalogue Registry → (row) → Test Connection** — must return HTTP 200.
@@ -594,27 +556,27 @@ URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.man
 9. **Harvester → Start Harvest** — pick the catalogue, Start.
 8. **Local Catalogue → Browse** — the first records appear within seconds.
 
-### 11.2 Rotate an LLM provider key
+### 12.2 Rotate an LLM provider key
 
 1. **Schema Registry → Providers → (row) → Edit**.
 2. Type the new `sk-...` in API Key.
 3. Save. Toast reads "Provider updated." and badge stays "Key set".
 4. Back in the Providers table, Key column still shows "Key set" — the encrypted blob is refreshed.
 
-### 11.3 Retransform everything after editing a prompt
+### 12.3 Retransform everything after editing a prompt
 
 1. **Schema Registry → Prompts → (row) → Edit** — adjust template, Save.
 2. **Schema Registry → Prompts → (row) → Versions → Activate** the new version.
 3. **Schema Registry → Batch Retransform** — scope = `mapping:<id>` (the mapping that uses this prompt), **Start**.
 4. Watch the progress widget; when it hits 100%, the Local Catalogue is caught up.
 
-### 11.4 Investigate a failing harvest
+### 12.4 Investigate a failing harvest
 
 1. **Harvester → Runs → (run) → Logs** — filter by `error`.
 2. Copy the offending `assetId`, then **Schema Registry → Transformation Audit → filter by assetId**.
 3. The audit row shows the exact prompt, response, SHACL report. Edit the prompt or mapping and re-harvest.
 
-### 11.5 Add a new user and restrict access
+### 12.5 Add a new user and restrict access
 
 1. **Admin Tools → Roles → + Create Role** — name `harvest-operator`, permissions `harvest.run`, `harvest.read`, `catalogue.registry.read`, `local.catalogue.read`.
 2. **Admin Tools → Users → + Create User** — assign role `harvest-operator`.
@@ -622,11 +584,11 @@ URL: **Dashboard → Admin Tools**. Restricted to users holding `admin.users.man
 
 ---
 
-## 12. API / Message Protocol
+## 13. API / Message Protocol
 
 All messages are JSON sent through the uibuilder WebSocket. Every message must include a `type` and an `auth` block.
 
-### 12.1 Complete action list
+### 13.1 Complete action list
 
 **Auth** (M6): `login`, `logOut`, `checkAuth`, `hydrateSession`, `changePassword`.
 
@@ -640,7 +602,7 @@ All messages are JSON sent through the uibuilder WebSocket. Every message must i
 
 **Admin Tools** (M4): `listUsers`, `getAdminTools`, `getUserDetail`, `createUser`, `updateUser`, `deleteUser`, `listRoles`, `createRole`, `updateRole`, `deleteRole`, `listAudit`, `getMonitoringOverview`.
 
-### 12.2 Request envelope
+### 13.2 Request envelope
 
 ```json
 {
@@ -650,7 +612,7 @@ All messages are JSON sent through the uibuilder WebSocket. Every message must i
 }
 ```
 
-### 12.3 Response envelope
+### 13.3 Response envelope
 
 Success:
 ```json
@@ -662,7 +624,7 @@ Error:
 { "action": "<action>", "ok": false, "status": "error", "code": "<machine-code>", "error": "<human-readable>" }
 ```
 
-### 12.4 Known error codes
+### 13.4 Known error codes
 
 | Code | Meaning |
 |---|---|
@@ -677,7 +639,7 @@ Error:
 
 ---
 
-## 13. Database Schema
+## 14. Database Schema
 
 Primary MongoDB collections. All store timestamps as ISO strings.
 
@@ -723,11 +685,17 @@ db.sr_transformation_audit.createIndex({ timestamp: -1 });
 db.dcm_audit_log.createIndex({ timestamp: -1 });
 ```
 
+![Mongo client config screen](docimg/0-database%20config.png)
+
+![ORCE import screen](docimg/3-import%20flows.png)
+
+![Imported flows visible in sidebar](docimg/4-import%20flows.png)
+
 ---
 
-## 14. Security
+## 15. Security
 
-### 14.1 Threat model summary
+### 15.1 Threat model summary
 
 | Risk | Mitigation |
 |---|---|
@@ -739,20 +707,20 @@ db.dcm_audit_log.createIndex({ timestamp: -1 });
 | XSS | Vue 3 auto-escapes by default. No `v-html` is used on user-provided strings. |
 | CSRF | uibuilder uses WebSockets with a server-issued `clientId` cookie; cross-origin browsers cannot forge. |
 
-### 14.2 KMS key handling
+### 15.2 KMS key handling
 
 The 32-byte AES key lives at `$NR_USER_DIR/dcm-kms.key` (file mode 0600). Back it up. If you lose it, **every encrypted provider key becomes unrecoverable** — you must re-enter each key via **Schema Registry → Providers → Edit**.
 
 Rotation: generate a new key, decrypt all providers with the old, re-encrypt with the new, then swap the file. A dedicated rotation script is tracked as a future task.
 
-### 14.3 Secrets hygiene
+### 15.3 Secrets hygiene
 
 - **Never** log API keys. The flows only emit `apiKey.hasCt=true/false`.
 - Strip `DCM_KMS_KEY`, `MONGO_INITDB_ROOT_PASSWORD`, and any LLM keys from exported flows before sharing `flows.json`.
 
-### 14.4 Reverse proxy / TLS
+### 15.4 Reverse proxy / TLS
 
-Node-RED does not provide TLS termination. In production, put nginx / Caddy / Traefik in front of Node-RED and terminate TLS there. Example nginx snippet:
+ORCE does not provide TLS termination. In production, put nginx / Caddy / Traefik in front of ORCE and terminate TLS there. Example nginx snippet:
 
 ```nginx
 server {
@@ -770,7 +738,7 @@ server {
   }
 
   location /red/ {
-    # Protect the Node-RED editor
+    # Protect the ORCE editor
     auth_basic "DCM Editor";
     auth_basic_user_file /etc/nginx/htpasswd;
     proxy_pass http://127.0.0.1:1880/red/;
@@ -778,13 +746,13 @@ server {
 }
 ```
 
-Also lock the Node-RED editor itself by adding an `adminAuth` block to `settings.js`.
+Also lock the ORCE editor itself by adding an `adminAuth` block to `settings.js`.
 
 ---
 
-## 15. Development and Build
+## 16. Development and Build
 
-### 15.1 Frontend dev loop
+### 16.1 Frontend dev loop
 
 ```bash
 cd dcm-source
@@ -794,15 +762,15 @@ npm run dev        # esbuild --watch + `npx serve public`
 
 Open `http://localhost:5173/`. This runs with the mock adapter so the UI works without a backend. Toggle the mock explicitly by opening the browser console and running `window.__VITE_USE_MOCK = 'true'` before first render.
 
-### 15.2 Production build
+### 16.2 Production build
 
 ```bash
 npm run build      # node build.js
 ```
 
-`public/index.html`, `public/index.js`, `public/index.css` are regenerated. Copy them to `$NR_USER_DIR/uibuilder/ui/src/` and restart Node-RED.
+`public/index.html`, `public/index.js`, `public/index.css` are regenerated. Copy them to `$NR_USER_DIR/uibuilder/ui/src/` and restart ORCE.
 
-### 15.3 Verifying a build
+### 16.3 Verifying a build
 
 ```bash
 grep -c "providerForm.apiKey" public/index.js       # >= 1
@@ -810,7 +778,7 @@ grep -c "hasKey" public/index.js                    # >= 3
 grep -c "LLM Provider Override" public/index.html   # 1
 ```
 
-### 15.4 Running the smoke tests
+### 16.4 Running the smoke tests
 
 A shell-based smoke test lives at `test_runner.sh`:
 
@@ -822,27 +790,27 @@ It logs in, creates a throwaway provider, saves a prompt, triggers enhance, and 
 
 ---
 
-## 16. Troubleshooting
+## 17. Troubleshooting
 
-### 16.1 "Provider created" but API Key is not saved
+### 17.1 "Provider created" but API Key is not saved
 
 - Check **Schema Registry → Providers** Key column — red "No key" means the row never had a key. If you are sure you typed one, re-import the M1 flow (Hamburger → Import → Replace → Full Deploy) and rebuild the frontend. Pre-v29 builds had a silent-insert bug.
 - Verify in Mongo: `db.sr_providers.findOne({ name: "<your provider>" })` should show `apiKey: { ct, iv, tag }`.
 
-### 16.2 "LLM not configured"
+### 17.2 "LLM not configured"
 
 - The selected Provider has no key (badge "No key") — edit it, type the key, Save.
-- Or the KMS key changed and decryption fails. Check Node-RED Debug sidebar for `genApiMap: provider decrypt failed`. Fix by restoring the old `dcm-kms.key` file or re-entering keys.
+- Or the KMS key changed and decryption fails. Check ORCE Debug sidebar for `genApiMap: provider decrypt failed`. Fix by restoring the old `dcm-kms.key` file or re-entering keys.
 
-### 16.3 "LLM returned non-JSON response"
+### 17.3 "LLM returned non-JSON response"
 
 - Happens on `generateApiMappingWithAi` if the model ignored the `response_format: json_object` directive. Open **Schema Registry → LLM Configs** and set `temperature` <= 0.3. Re-run.
 
-### 16.4 Harvest hangs on "queued"
+### 17.4 Harvest hangs on "queued"
 
-- No worker is running. Check `harvest_runs` row: if `status: queued` for > 1 min, inspect Node-RED Debug for the M3 tab. Full Deploy and retry.
+- No worker is running. Check `harvest_runs` row: if `status: queued` for > 1 min, inspect ORCE Debug for the M3 tab. Full Deploy and retry.
 
-### 16.5 Permission denied for admin
+### 17.5 Permission denied for admin
 
 - The `admin` role row is missing in `dcm_roles` or has an empty `permissions[]`. Insert:
   ```js
@@ -850,19 +818,19 @@ It logs in, creates a throwaway provider, saves a prompt, triggers enhance, and 
   ```
 - Log out and back in.
 
-### 16.6 Bundle not refreshed in browser
+### 17.6 Bundle not refreshed in browser
 
 - Hard-refresh: `Ctrl+Shift+R`.
 - DevTools → Network → Disable cache while DevTools open.
 - If still stale, check the `public/` copy into `$NR_USER_DIR/uibuilder/ui/src/` actually happened.
 
-### 16.7 Mongo connection refused
+### 17.7 Mongo connection refused
 
 - `docker compose logs mongo` — look for `ERROR: Authentication failed`. Credentials drift between `.env` and a pre-existing `mongo-data/` volume. Either reset the volume (`docker compose down -v`) or fix the env vars to match what was originally seeded.
 
 ---
 
-## 17. FAQ
+## 18. FAQ
 
 **Q: Can I use a different LLM besides OpenAI?**
 Yes. The Provider `type` field accepts `anthropic`, `ollama`, `google`, and `custom`. The generic LLM caller (M1 `cr03llm000000022`) routes to the correct auth header (`x-api-key` + `anthropic-version` for Anthropic, `Bearer` elsewhere) and payload shape.
@@ -889,10 +857,10 @@ The remote catalogue's rate limit, the Mongo write rate, and (for LLM-assisted m
 Yes. Attach a `shaclShapeSchemaId` to a Mapping's `rdfMappingConfig`. The pipeline runs SHACL after RDF generation and records the report in the Transformation Audit.
 
 **Q: Where are my logs?**
-`docker compose logs -f node-red` for the backend. `harvest_logs` collection for per-run detail. `dcm_audit_log` for every authenticated action. Browser console for frontend.
+`docker compose logs -f ORCE` for the backend. `harvest_logs` collection for per-run detail. `dcm_audit_log` for every authenticated action. Browser console for frontend.
 
 ---
 
 ## License and Credits
 
-Code in this repository is governed by the license in the `LICENSE` file at the repository root (add one if missing). DCM is built on top of Node-RED (Apache-2.0), uibuilder (Apache-2.0), Vue (MIT), CodeMirror (MIT), and MongoDB (SSPL).
+Code in this repository is governed by the license in the `LICENSE` file at the repository root (add one if missing). DCM is built on top of ORCE (Apache-2.0), uibuilder (Apache-2.0), Vue (MIT), CodeMirror (MIT), and MongoDB (SSPL).
