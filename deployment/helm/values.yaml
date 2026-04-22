@@ -6,7 +6,7 @@ namespace:
   name: dcm
 
 image:
-  repository: manifaridi/dcm
+  repository: ecofacis/dcm
   tag: v1
   pullPolicy: IfNotPresent
 
