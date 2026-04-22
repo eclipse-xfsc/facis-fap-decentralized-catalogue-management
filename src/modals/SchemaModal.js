@@ -1,5 +1,3 @@
-import { namespaceClass } from "../utils/formatters.js";
-
 export default {
   name: "SchemaModal",
   template: "#tpl-schema-modal",
@@ -7,21 +5,15 @@ export default {
     visible: { type: Boolean, default: false },
     modalTitle: { type: String, default: "Register Remote Schema" },
     registerSchemaForm: { type: Object, required: true },
-    schemaSummaries: { type: Object, default: () => ({}) },
+    availableCatalogues: { type: Array, default: () => [] },
   },
-  emits: ["close", "save", "remove-catalog", "add-catalog"],
+  emits: ["close", "save"],
   computed: {
-    currentSummaryText() {
-      const t = this.registerSchemaForm.summaryTab;
-      return this.schemaSummaries[t] || "";
+    showCatalogueError() {
+      // Show error only after user has interacted (form has been touched)
+      // We consider it "touched" if name is filled but catalogueIds is empty
+      return this.registerSchemaForm.name &&
+        (!this.registerSchemaForm.catalogueIds || this.registerSchemaForm.catalogueIds.length === 0);
     },
-    filteredRemoteCatalogs() {
-      const q = (this.registerSchemaForm.catalogSearch || "").toLowerCase().trim();
-      if (!q) return this.registerSchemaForm.remoteCatalogs;
-      return this.registerSchemaForm.remoteCatalogs.filter(c => c.toLowerCase().includes(q));
-    }
   },
-  methods: {
-    namespaceClass
-  }
 };

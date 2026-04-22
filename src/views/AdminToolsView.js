@@ -10,7 +10,7 @@ export default {
     pageWindowFn: { type: Function, required: true },
   },
   emits: [
-    "update:currentAdminTab", "open-invite-modal", "open-manage-menu",
+    "update:currentAdminTab", "open-create-user-modal", "open-manage-menu",
     "open-access-info", "page-change"
   ],
   methods: {

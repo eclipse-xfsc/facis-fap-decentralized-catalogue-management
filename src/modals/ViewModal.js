@@ -15,16 +15,20 @@ export default {
     auditFilters: { type: Object, default: () => ({}) },
     originalJsonLines: { type: Array, default: () => [] },
     localJsonLines: { type: Array, default: () => [] },
+    viewingForm: { type: String, default: 'both' },
+    linkedAssets: { type: Object, default: null },
   },
   emits: [
     "close", "update:currentViewTab", "update:auditSearch",
-    "update:auditFilters", "export-audit", "clear-audit-filters"
+    "update:auditFilters", "export-audit", "clear-audit-filters",
+    "set-viewing-form"
   ],
   computed: {
     filteredAuditMini() {
-      const q = this.auditSearch.trim().toLowerCase();
-      if (!q) return this.auditMini;
-      return this.auditMini.filter(r =>
+      const q = (this.auditSearch || "").trim().toLowerCase();
+      const rows = Array.isArray(this.auditMini) ? this.auditMini : [];
+      if (!q) return rows;
+      return rows.filter(r =>
         (r.level || "").toLowerCase().includes(q) ||
         (r.step || "").toLowerCase().includes(q) ||
         (r.timestamp || "").toLowerCase().includes(q)
@@ -32,7 +36,8 @@ export default {
     },
     filteredAuditRows() {
       const f = this.auditFilters || {};
-      return this.auditRows.filter(row => {
+      const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+      return rows.filter(row => {
         if (f.assetId && !(row.assetId || "").toLowerCase().includes(f.assetId.toLowerCase())) return false;
         if (f.catalogueId && (row.catalogueId || "") !== f.catalogueId) return false;
         if (f.promptVersion && (row.promptVersion || "") !== f.promptVersion) return false;
@@ -50,17 +55,20 @@ export default {
     },
     auditCatalogueOptions() {
       const set = new Set();
-      this.auditRows.forEach(r => { if (r.catalogueId) set.add(r.catalogueId); });
+      const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+      rows.forEach(r => { if (r && r.catalogueId) set.add(r.catalogueId); });
       return Array.from(set).sort();
     },
     auditPromptVersionOptions() {
       const set = new Set();
-      this.auditRows.forEach(r => { if (r.promptVersion) set.add(r.promptVersion); });
+      const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+      rows.forEach(r => { if (r && r.promptVersion) set.add(r.promptVersion); });
       return Array.from(set).sort();
     },
     auditStatusOptions() {
       const set = new Set();
-      this.auditRows.forEach(r => { if (r.status) set.add(r.status); });
+      const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+      rows.forEach(r => { if (r && r.status) set.add(r.status); });
       return Array.from(set).sort();
     },
     hasActiveFilters() {

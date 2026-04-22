@@ -1,8 +1,14 @@
 /**
  * FACIS service adapter
- * - Uses real window.uibuilder when available (Node-RED)
+ * - Uses real window.uibuilder when available (ORCE)
  * - Falls back to a mock that prevents errors and feeds sample data (FACIS Preview)
  */
+
+function getCookie(name) {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : '';
+}
 
 const mockUsers = [
   {
@@ -129,16 +135,32 @@ function _saveCatalogs() {
 let mockCatalogs = _loadCatalogs();
 
 // ── Route resolution map ────────────────────────────────────────
-// Maps each msg.type to a route key used by the Node-RED router switch.
+// Maps each msg.type to a route key used by the ORCE router switch.
 // Add new entries here when introducing new message types.
 const ROUTE_MAP = {
   // Dashboard / Auth
   getDashboard:           'dashboard',
-  logOut:                 'dashboard',
+  login:                  'auth',
+  checkAuth:              'auth',
+  logOut:                 'auth',
 
   // Admin Tools
-  inviteUser:             'admin-tools',
+  createUser:             'admin-tools',
   getAdminTools:          'admin-tools',
+  listUsers:              'admin-tools',
+  getUserDetail:          'admin-tools',
+  updateUser:             'admin-tools',
+  deleteUser:             'admin-tools',
+  listRoles:              'admin-tools',
+  createRole:             'admin-tools',
+  updateRole:             'admin-tools',
+  deleteRole:             'admin-tools',
+  listAudit:              'admin-tools',
+  getMonitoringOverview:  'admin-tools',
+
+  // Auth (new endpoints)
+  hydrateSession:         'auth',
+  changePassword:         'auth',
 
   // Catalogue Registry
   getCatalogRegistry:     'catalogue-registry',
@@ -146,6 +168,16 @@ const ROUTE_MAP = {
   updateRemoteCatalog:    'catalogue-registry',
   deleteRemoteCatalog:    'catalogue-registry',
   uploadCatalogJson:      'catalogue-registry',
+  listAssetTypes:         'catalogue-registry',
+  saveAssetType:          'catalogue-registry',
+  updateAssetType:        'catalogue-registry',
+  deleteAssetType:        'catalogue-registry',
+  testRemoteCatalogConnection:  'catalogue-registry',
+  // FR-CR-03 API Mappings
+  listApiMappings:              'catalogue-registry',
+  saveApiMapping:               'catalogue-registry',
+  deleteApiMapping:             'catalogue-registry',
+  generateApiMappingWithAi:     'catalogue-registry',
 
   // Local Catalogue
   getLocalCatalogue:      'local-catalogue',
@@ -196,6 +228,20 @@ const ROUTE_MAP = {
   listMappings:           'schema-registry',
   deleteMapping:          'schema-registry',
   saveRemoteSchema:       'schema-registry',
+  listRemoteSchemas:      'schema-registry',
+  deleteRemoteSchema:     'schema-registry',
+  listLocalSchemaVersions:   'schema-registry',
+  activateLocalSchemaVersion: 'schema-registry',
+  validateSampleAsset:       'schema-registry',
+  listTransformationAudit:  'schema-registry',
+  exportTransformationAudit: 'schema-registry',
+  listPromptVersions:        'schema-registry',
+  getLlmUsage:               'schema-registry',
+  getSystemSettings:         'schema-registry',
+  setSystemSetting:          'schema-registry',
+  saveRdfMappingConfig:      'schema-registry',
+  testRdfMapping:            'schema-registry',
+  executeHybridTransform:    'schema-registry',
 };
 
 function resolveRoute(type) {
@@ -256,17 +302,214 @@ function createMockResponder(msg) {
     });
   }
 
-  if (msg.type === "inviteUser") {
+  if (msg.type === "getMonitoringOverview") {
+    dispatchMsg({ payload: { response: {
+      action: "getMonitoringOverview",
+      ok: true,
+      status: "success",
+      data: {
+        generatedAt: new Date().toISOString(),
+        users: { total: 5, active: 3, disabled: 1, expired: 1 },
+        sessions: { active: 2 },
+        activity24h: { logins: 8, loginsFailed: 2, loginsBlockedDisabled: 1, userUpdates: 3, userDeletions: 0 },
+        audit7dCount: 42,
+        modules: [
+          { module: "SchemaRegistry", status: "up", lastSeen: new Date().toISOString() },
+          { module: "CatalogueRegistry", status: "up", lastSeen: new Date().toISOString() },
+          { module: "Harvester", status: "up", lastSeen: new Date().toISOString() },
+          { module: "AdminTools", status: "up", lastSeen: new Date().toISOString() },
+          { module: "Auth", status: "up", lastSeen: new Date().toISOString() },
+          { module: "LocalCatalogue", status: "up", lastSeen: new Date().toISOString() }
+        ],
+        recentAudit: [
+          { at: new Date().toISOString(), action: "login.success", actor: "admin", target: "admin", meta: null },
+          { at: new Date(Date.now() - 60000).toISOString(), action: "updateUser", actor: "admin", target: "editor1", meta: '{"status":"active"}' },
+          { at: new Date(Date.now() - 120000).toISOString(), action: "createUser", actor: "admin", target: "viewer1", meta: null },
+          { at: new Date(Date.now() - 300000).toISOString(), action: "login.failed", actor: "unknown", target: "unknown", meta: null },
+          { at: new Date(Date.now() - 600000).toISOString(), action: "login.blocked.disabled", actor: "disabledUser", target: "disabledUser", meta: null }
+        ]
+      }
+    } } });
+  }
+
+  if (msg.type === "listUsers") {
+    var listUserRows = mockUsers.map(function(u, i) {
+      var areas = u.access || [];
+      var allFive = ['local_catalogue','catalogue_registry','schema_registry','admin_tools','harvester'];
+      var accessLabel = 'No Access';
+      if (allFive.every(function(a){return areas.indexOf(a) >= 0;})) { accessLabel = 'Full Access'; }
+      else { accessLabel = areas.map(function(a){return a.replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}).join(' + ') || 'No Access'; }
+      return {
+        uniqueId: u.uniqueId,
+        _id: u.uniqueId,
+        username: u.email.split("@")[0],
+        email: u.email,
+        name: (u.profile ? u.profile.firstName + " " + u.profile.lastName : u.email),
+        status: u.status || "Active",
+        roles: ["viewer"],
+        access: areas,
+        accessAreas: areas,
+        accessLabel: accessLabel,
+        expiresAt: null,
+        createdAt: "2026-01-01",
+      };
+    });
     dispatchMsg({
       payload: {
-        data: msg.data,
         response: {
-          action: "inviteUser",
+          action: "listUsers",
+          ok: true,
           status: "success",
-          uniqueId: "mock-" + Date.now()
+          users: listUserRows
         }
       }
     });
+  }
+
+  if (msg.type === "listRoles") {
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "listRoles",
+          ok: true,
+          status: "success",
+          roles: [
+            { id: "r1", key: "admin", name: "Administrator", description: "Full system access", permissions: ["*"], system: true },
+            { id: "r2", key: "editor", name: "Editor", description: "Can create and update", permissions: ["catalogue.registry.read", "catalogue.registry.create"], system: true },
+            { id: "r3", key: "viewer", name: "Viewer", description: "Read-only access", permissions: ["catalogue.registry.read"], system: true }
+          ]
+        }
+      }
+    });
+  }
+
+  if (msg.type === "createUser") {
+    const id = msg.data || {};
+    const now = new Date().toISOString();
+    const areas = id.accessAreas || [];
+    const allFive = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'];
+    let accessLabel = 'No Access';
+    if (allFive.every(a => areas.includes(a))) { accessLabel = 'Full Access'; }
+    else {
+      const lm = { localCatalogue:'Local Catalogue', catalogueRegistry:'Catalogue Registry', schemaRegistry:'Schema Registry', adminTools:'Admin Tools', harvest:'Harvest' };
+      accessLabel = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'].filter(a => areas.includes(a)).map(a => lm[a]).join(' + ') || 'No Access';
+    }
+    let expiresAt = null;
+    if (id.expiresInDays && Number(id.expiresInDays) > 0) expiresAt = new Date(Date.now() + Number(id.expiresInDays) * 86400000).toISOString();
+    const uid = 'mock-u-' + Date.now().toString(36);
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "createUser",
+          ok: true,
+          status: "success",
+          user: {
+            _id: uid,
+            uniqueId: uid,
+            email: id.email || null,
+            username: id.username || "",
+            status: "active",
+            accessAreas: areas,
+            accessLabel: accessLabel,
+            expiresAt: expiresAt,
+            roles: ["custom:mock"],
+            createdAt: now,
+            updatedAt: now
+          }
+        }
+      }
+    });
+  }
+
+  if (msg.type === "updateUser") {
+    const id = msg.data || {};
+    const areas = id.accessAreas || [];
+    const allFive = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'];
+    let accessLabel = 'No Access';
+    if (allFive.every(a => areas.includes(a))) { accessLabel = 'Full Access'; }
+    else {
+      const lm = { localCatalogue:'Local Catalogue', catalogueRegistry:'Catalogue Registry', schemaRegistry:'Schema Registry', adminTools:'Admin Tools', harvest:'Harvest' };
+      accessLabel = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'].filter(a => areas.includes(a)).map(a => lm[a]).join(' + ') || 'No Access';
+    }
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "updateUser",
+          ok: true,
+          status: "success",
+          user: {
+            _id: id.userId || 'mock',
+            uniqueId: id.userId || 'mock',
+            username: id.username || '',
+            email: id.email || null,
+            status: id.status || 'active',
+            accessAreas: areas,
+            accessLabel: accessLabel,
+            expiresAt: id.expiresAt || null,
+            roles: ['custom:mock'],
+            updatedAt: new Date().toISOString()
+          }
+        }
+      }
+    });
+  }
+
+  if (msg.type === "deleteUser") {
+    const id = msg.data || {};
+    const delId = id.userId || id.uniqueId || id._id;
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "deleteUser",
+          ok: true,
+          status: "success",
+          uniqueId: delId
+        }
+      }
+    });
+  }
+
+  if (msg.type === "listAssetTypes") {
+    const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+    dispatchMsg({ payload: { response: { action: "listAssetTypes", status: "success", items } } });
+  }
+
+  if (msg.type === "saveAssetType") {
+    const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+    const d = msg.data || {};
+    const uid = "at_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const item = {
+      uniqueId: uid,
+      name: d.name || "",
+      description: d.description || "",
+      icon: d.icon || "dataset",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    items.push(item);
+    localStorage.setItem("mock_asset_types", JSON.stringify(items));
+    dispatchMsg({ payload: { response: { action: "saveAssetType", status: "success", uniqueId: uid, item } } });
+  }
+
+  if (msg.type === "updateAssetType") {
+    const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+    const d = msg.data || {};
+    const idx = items.findIndex(it => it.uniqueId === d.uniqueId);
+    if (idx !== -1) {
+      items[idx] = { ...items[idx], ...(d.patch || {}), updatedAt: new Date().toISOString() };
+      localStorage.setItem("mock_asset_types", JSON.stringify(items));
+      dispatchMsg({ payload: { response: { action: "updateAssetType", status: "success", uniqueId: d.uniqueId, patch: d.patch || {} } } });
+    } else {
+      dispatchMsg({ payload: { response: { action: "updateAssetType", status: "error", message: "Not found" } } });
+    }
+  }
+
+  if (msg.type === "deleteAssetType") {
+    const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+    const d = msg.data || {};
+    const filtered = items.filter(it => it.uniqueId !== d.uniqueId);
+    localStorage.setItem("mock_asset_types", JSON.stringify(filtered));
+    dispatchMsg({ payload: { response: { action: "deleteAssetType", status: "success", uniqueId: d.uniqueId } } });
   }
 
   if (msg.type === "registerRemoteCatalog") {
@@ -385,8 +628,63 @@ function createMockResponder(msg) {
     });
   }
 
+  if (msg.type === "login") {
+    const d = msg.data || {};
+    if (d.username === "admin" && d.password === "1234") {
+      const token = "mock-token-" + Date.now().toString(36);
+      dispatchMsg({ payload: { response: {
+        action: "login",
+        status: "success",
+        token: token,
+        user: {
+          username: "admin",
+          role: "Administrator",
+          email: "admin@facis.eu",
+          access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
+          accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
+          roles: ["admin"],
+          permissions: ["*"]
+        }
+      } } });
+    } else {
+      dispatchMsg({ payload: { response: {
+        action: "login",
+        status: "error",
+        message: "Invalid username or password."
+      } } });
+    }
+  }
+
+  if (msg.type === "checkAuth") {
+    const token = msg.data?.token || "";
+    if (token && token.startsWith("mock-token-")) {
+      dispatchMsg({ payload: { response: {
+        action: "checkAuth",
+        status: "success",
+        user: {
+          username: "admin",
+          role: "Administrator",
+          email: "admin@facis.eu",
+          access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
+          accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
+          roles: ["admin"],
+          permissions: ["*"]
+        }
+      } } });
+    } else {
+      dispatchMsg({ payload: { response: {
+        action: "checkAuth",
+        status: "error",
+        message: "Session expired or invalid."
+      } } });
+    }
+  }
+
   if (msg.type === "logOut") {
-    console.log("[facis-service] Logout requested (no redirect in preview)");
+    dispatchMsg({ payload: { response: {
+      action: "logOut",
+      status: "success"
+    } } });
   }
 
   // ── Persistent harvest data stores (backed by localStorage) ──
@@ -752,7 +1050,7 @@ function createMockResponder(msg) {
   // ── Schema Registry Stub Responses ──────────────────────────
   // These are thin stubs only — no business logic, no code execution,
   // no ID generation, no simulation. All real processing happens in the
-  // Node-RED backend flow (DCM-SchemaRegistry.json).
+  // ORCE backend flow (DCM-SchemaRegistry.json).
   // In preview mode these stubs return acknowledgements so the UI doesn't hang.
 
   // Helper: generate a unique short ID for mock/preview mode
@@ -762,7 +1060,7 @@ function createMockResponder(msg) {
   function now() { return new Date().toISOString().slice(0, 10); }
 
   const schemaStubs = {
-    enhancePrompt:          (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode — connect Node-RED backend for real AI enhancement]" }),
+    enhancePrompt:          (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode — connect ORCE backend for real AI enhancement]" }),
     createPrompt:           (d) => {
       const id = mockId("prompt-");
       const ts = now();
@@ -837,15 +1135,29 @@ function createMockResponder(msg) {
     saveMapping:            (d) => {
       const id = d.id || mockId("map-");
       const ts = now();
-      return { action: "saveMapping", status: "success", mappingId: id, isNew: !d.id, mapping: { id, remoteCatalogue: d.remoteCatalogue || "", remoteSchema: d.remoteSchema || "", remoteSchemaMeta: d.remoteSchemaMeta || "", transformationStrategy: d.transformationStrategy || "Deterministic RDF", promptsCount: d.promptsCount || 0, shaclCount: d.shaclCount || 0, createdAt: ts, updatedAt: ts } };
+      return { action: "saveMapping", status: "success", mappingId: id, isNew: !d.id, mapping: { id, remoteCatalogueId: d.remoteCatalogueId || "", remoteSchemaId: d.remoteSchemaId || "", remoteCatalogue: d.remoteCatalogue || "", remoteSchema: d.remoteSchema || "", remoteSchemaMeta: d.remoteSchemaMeta || "", transformationStrategy: d.transformationStrategy || "Deterministic RDF", promptsCount: d.promptsCount || 0, shaclCount: d.shaclCount || 0, createdAt: ts, updatedAt: ts } };
     },
     listMappings:           () => ({ action: "listMappings", status: "success", mappings: [] }),
     deleteMapping:          (d) => ({ action: "deleteMapping", status: "success", mappingId: d.mappingId }),
     saveRemoteSchema:       (d) => {
       const id = d.id || mockId("rschema-");
       const ts = now();
-      return { action: "saveRemoteSchema", status: "success", schemaId: id, schema: { id, schema: d.schema || "", format: d.format || "SHACL", catalogs: d.catalogs || 0, remoteCatalogs: d.remoteCatalogs || [], versioning: d.version || "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: d.trustLevel || "Federated", createdAt: ts, updatedAt: ts } };
+      return { action: "saveRemoteSchema", ok: true, status: "success", schemaId: id, isNew: !d.id, schema: { id, name: d.name || d.schema || "", format: d.format || "json-schema", body: d.body || "", namespaces: d.namespaces || [], version: d.version || "1.0.0", status: d.status || "draft", trustLevel: d.trustLevel || "Federated", catalogueIds: d.catalogueIds || [], description: d.description || "", author: d.author || "", createdAt: ts, updatedAt: ts } };
     },
+    listRemoteSchemas:      () => ({ action: "listRemoteSchemas", ok: true, status: "success", schemas: [], catalogueIdToName: {} }),
+    deleteRemoteSchema:     (d) => ({ action: "deleteRemoteSchema", ok: true, status: "success", schemaId: d.schemaId || d.id }),
+    listLocalSchemaVersions: (d) => ({ action: "listLocalSchemaVersions", ok: true, status: "success", schemaName: d.schemaName, versions: [] }),
+    activateLocalSchemaVersion: (d) => ({ action: "activateLocalSchemaVersion", ok: true, status: "success", schemaName: d.schemaName, version: d.version }),
+    validateSampleAsset: () => ({ action: "validateSampleAsset", ok: true, valid: true, errors: [] }),
+    listPromptVersions: (d) => ({ action: "listPromptVersions", ok: true, status: "success", versions: [] }),
+    getLlmUsage: () => ({ action: "getLlmUsage", ok: true, status: "success", usage: [], total: 0 }),
+    getSystemSettings: () => ({ action: "getSystemSettings", ok: true, status: "success", settings: {} }),
+    setSystemSetting: (d) => ({ action: "setSystemSetting", ok: true, status: "success", key: d.key, value: d.value }),
+    saveRdfMappingConfig: (d) => ({ action: "saveRdfMappingConfig", success: true, mappingId: d.mappingId, namespacesToPreserve: d.namespacesToPreserve || [], shaclShapeSchemaId: d.shaclShapeSchemaId || "" }),
+    testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode — RDF execution runs in ORCE backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
+    executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode — Hybrid execution runs in ORCE backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: new Date().toISOString(), completedAt: new Date().toISOString() } }),
+    listTransformationAudit: () => ({ action: "listTransformationAudit", ok: true, status: "success", rows: [], total: 0 }),
+    exportTransformationAudit: (d) => ({ action: "exportTransformationAudit", ok: true, status: "success", format: d.format || "csv", base64Payload: "", filename: "audit_export." + (d.format || "csv") }),
     listLlmConfigs:         () => ({ action: "listLlmConfigs", status: "success", configs: [
       { id: "llm-001", name: "GPT-4o Production", provider: "OpenAI", model: "gpt-4o", temperature: 0.2, maxTokens: 4096, timeout: 30, status: "active", createdAt: "2026-01-10", updatedAt: "2026-02-15" },
       { id: "llm-002", name: "Claude Staging", provider: "Anthropic", model: "claude-3.5-sonnet", temperature: 0.3, maxTokens: 8192, timeout: 60, status: "active", createdAt: "2026-02-01", updatedAt: "2026-02-20" },
@@ -888,13 +1200,15 @@ const mockAdapter = {
 
 const uibuilderService = {
   init() {
-    if (window.uibuilder) {
+    var forceMock = false;
+    try { forceMock = window.__VITE_USE_MOCK === 'true'; } catch(e) {}
+    if (window.uibuilder && !forceMock) {
       _isMock = false;
       console.log("[facis-service] Using real uibuilder");
-    } else {
+    } else if (forceMock || !window.uibuilder) {
       _isMock = true;
       window.uibuilder = mockAdapter;
-      console.log("[facis-service] Mock uibuilder activated");
+      console.log("[facis-service] Mock uibuilder activated" + (forceMock ? ' (VITE_USE_MOCK)' : ' (no uibuilder)'));
     }
   },
 
@@ -907,11 +1221,39 @@ const uibuilderService = {
   },
 
   send(msg) {
-    // Auto-attach route from the type→route map if not already set
     if (msg && msg.type && !msg.route) {
       const route = resolveRoute(msg.type);
       if (route) msg.route = route;
     }
+
+    // CRITICAL: uibuilder v7.5.0 strips msg.auth and may not reliably
+    // transport msg.data. Put the token in MULTIPLE locations to ensure
+    // the backend Auth Resolver can find it.
+    const token = (typeof localStorage !== 'undefined' && localStorage.getItem('authToken'))
+               || (typeof document !== 'undefined' && getCookie('userToken'))
+               || '';
+    if (token && msg.type !== 'login') {
+      // 1. Top-level _token property (simple string, should survive transport)
+      msg._token = token;
+
+      // 2. Inside data object (may or may not survive)
+      if (!msg.data) msg.data = {};
+      if (!msg.data.token) msg.data.token = token;
+
+      // 3. Inside payload object (standard uibuilder property)
+      if (!msg.payload) msg.payload = {};
+      if (typeof msg.payload === 'object' && !Array.isArray(msg.payload)) {
+        msg.payload.token = token;
+      }
+
+      // 4. As topic suffix (topic is ALWAYS transported by uibuilder)
+      // Format: "original-topic|TOKEN"  — backend will parse this
+      if (!msg.topic) msg.topic = '';
+      if (msg.topic.indexOf('|') === -1) {
+        msg.topic = (msg.topic || msg.route || '') + '|' + token;
+      }
+    }
+
     window.uibuilder.send(msg);
   },
 

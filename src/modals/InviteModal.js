@@ -1,15 +1,20 @@
 export default {
-  name: "InviteModal",
-  template: "#tpl-invite-modal",
+  name: "CreateUserModal",
+  template: "#tpl-create-user-modal",
   props: {
     visible: { type: Boolean, default: false },
-    inviteForm: { type: Object, required: true },
+    createUserForm: { type: Object, required: true },
+    loading: { type: Boolean, default: false },
   },
-  emits: ["close", "send-invite", "update:inviteForm"],
+  emits: ["close", "create-user", "update:createUserForm"],
   computed: {
-    canSendInvite() {
-      const f = this.inviteForm;
-      return f.firstName.trim() && f.lastName.trim() && f.email.trim() && f.role && f.expiresIn;
+    canCreateUser() {
+      const f = this.createUserForm;
+      const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+      return (f.username || "").trim()
+        && (f.password || "").length >= 8
+        && emailOk
+        && (f.accessAreas || []).length > 0;
     }
   }
 };

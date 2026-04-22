@@ -1,9 +1,9 @@
 /**
  * OpenAI Configuration
  *
- * IMPORTANT: OpenAI API calls are now handled by the Node-RED backend.
+ * IMPORTANT: OpenAI API calls are now handled by the ORCE backend.
  * The API key is stored in the DCM-SchemaRegistry flow as an environment
- * variable (OPENAI_API_KEY). Set it in the Node-RED flow editor.
+ * variable (OPENAI_API_KEY). Set it in the ORCE flow editor.
  *
  * This file is kept for reference and mock/fallback detection only.
  * The frontend no longer makes direct OpenAI API calls.

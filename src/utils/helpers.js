@@ -120,6 +120,18 @@ export function getChangedFields(oldObj, newObj) {
   return patch;
 }
 
+/**
+ * Check if the current user has a specific permission.
+ * Usage: hasPermission(store, 'users', 'create')
+ * The store must have currentUser.permissions array.
+ */
+export function hasPermission(store, area, action) {
+  if (!store?.currentUser?.isAuthenticated) return false;
+  const perms = store.currentUser.permissions || [];
+  if (perms.includes('*')) return true;
+  return perms.includes(area + '.' + action);
+}
+
 export function parseJsonLine(text) {
   const match = text.match(/^(\s*)"([^"]+)"\s*:\s*"([^"]*)"(.*)$/);
   if (!match) return null;

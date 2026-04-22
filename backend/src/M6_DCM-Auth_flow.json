@@ -1,0 +1,878 @@
+[
+    {
+        "id": "ee06000000000000",
+        "type": "tab",
+        "label": "M6_DCM-Auth",
+        "disabled": false,
+        "info": "Backend flows for Authentication, Invitation, and Session Management.\n\nMongoDB collections:\n  - auth_users\n  - auth_sessions\n  - dcm_users\n  - dcm_roles\n  - dcm_audit_log\n\nOperations:\n  - login: validate credentials (bcrypt + legacy plaintext fallback)\n  - checkAuth: verify session token\n  - logOut: invalidate session\n  - hydrateSession: return user with roles + flattened permissions\n  - changePassword: update password (gated)\n\nDefault admin seeded on deploy:\n  - username: admin / password: 1234\n  - Also seeds dcm_users row and 3 system roles (admin, editor, viewer)",
+        "env": []
+    },
+    {
+        "id": "b991ffcd8f6c360a",
+        "type": "mongodb4-client",
+        "name": "",
+        "protocol": "mongodb+srv",
+        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "port": "",
+        "dbName": "PartnerOnboarding",
+        "appName": "",
+        "authSource": "",
+        "authMechanism": "DEFAULT",
+        "tls": true,
+        "tlsCAFile": "",
+        "tlsCertificateKeyFile": "",
+        "tlsInsecure": false,
+        "connectTimeoutMS": "30000",
+        "socketTimeoutMS": "0",
+        "minPoolSize": "0",
+        "maxPoolSize": "100",
+        "maxIdleTimeMS": "0",
+        "uri": "",
+        "advanced": "{}",
+        "uriTabActive": "tab-uri-simple"
+    },
+    {
+        "id": "ee06000000000001",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "══ Authentication Backend ══",
+        "info": "Handles user authentication, session management, and credential validation.\n\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "x": 280,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000002",
+        "type": "link in",
+        "z": "ee06000000000000",
+        "name": "auth-in",
+        "links": [
+            "ff01000000000037"
+        ],
+        "x": 115,
+        "y": 200,
+        "wires": [
+            [
+                "ee06000000000003"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000003",
+        "type": "switch",
+        "z": "ee06000000000000",
+        "name": "route by msg.type",
+        "property": "type",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "login",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "checkAuth",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "logOut",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "hydrateSession",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "changePassword",
+                "vt": "str"
+            }
+        ],
+        "checkall": "false",
+        "repair": false,
+        "outputs": 5,
+        "x": 310,
+        "y": 200,
+        "wires": [
+            [
+                "ee06000000000010"
+            ],
+            [
+                "ee06000000000020"
+            ],
+            [
+                "ee06000000000030"
+            ],
+            [
+                "ee06000000000050"
+            ],
+            [
+                "ee06000000000080"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000004",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── LOGIN ──",
+        "info": "1. Receives login request with username/password\n2. Looks up user in auth_users collection\n3. Verifies password (bcrypt compare with plaintext fallback for seeded admin)\n4. Returns success with session token, user info, roles, and flattened permissions",
+        "x": 530,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000010",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "prepare login lookup",
+        "func": "const username = msg.payload?.data?.username || msg.data?.username || \"\";\nconst password = msg.payload?.data?.password || msg.data?.password || \"\";\n\nif (!username || !password) {\n    msg.payload = {\n        response: {\n            action: \"login\",\n            status: \"error\",\n            message: \"Username and password are required.\"\n        }\n    };\n    return [null, msg];\n}\n\nmsg._loginUsername = username;\nmsg._loginPassword = password;\nmsg.collection = \"auth_users\";\nmsg.operation = \"findOne\";\nmsg.payload = { username: username };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 570,
+        "y": 200,
+        "wires": [
+            [
+                "ee06000000000011"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000011",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "auth_users",
+        "operation": "findOne",
+        "output": "toArray",
+        "name": "find user",
+        "x": 770,
+        "y": 200,
+        "wires": [
+            [
+                "ee06000000000012"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000012",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "verify password & build session",
+        "func": "const user = msg.payload;\nconst password = msg._loginPassword;\nconst username = msg._loginUsername;\n\nif (!user) {\n    msg.payload = {\n        response: {\n            action: \"login\",\n            status: \"error\",\n            message: \"Invalid username or password.\"\n        }\n    };\n    return [null, msg];\n}\n\n// Compare password: bcrypt hash or legacy plaintext\nlet valid = false;\nif (user.passwordHash) {\n    // bcrypt comparison\n        valid = bcrypt.compareSync(password, user.passwordHash);\n} else if (user.password) {\n    // Legacy plaintext fallback (seeded admin only)\n    valid = (password === user.password);\n}\n\nif (!valid) {\n    msg.payload = {\n        response: {\n            action: \"login\",\n            status: \"error\",\n            message: \"Invalid username or password.\"\n        }\n    };\n    return [null, msg];\n}\n\n// Generate session token\nconst token = crypto.randomBytes(32).toString('hex');\nconst expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();\n\nmsg._storeSession = true;\nmsg._sessionToken = token;\nmsg._sessionUserId = String(user._id);\nmsg._sessionExpiresAt = expiresAt;\nmsg._sessionUsername = user.username;\n\n// Now look up dcm_users to get roles\nmsg.collection = \"dcm_users\";\nmsg.operation = \"findOne\";\nmsg.payload = { username: user.username };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1000,
+        "y": 200,
+        "wires": [
+            [
+                "ee06000000000016"
+            ],
+            [
+                "ee06000000000063"
+            ]
+        ],
+        "libs": [
+            {
+                "var": "bcrypt",
+                "module": "bcryptjs"
+            },
+            {
+                "var": "crypto",
+                "module": "crypto"
+            }
+        ]
+    },
+    {
+        "id": "ee06000000000016",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find dcm_user",
+        "x": 570,
+        "y": 300,
+        "wires": [
+            [
+                "ee06000000000017"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000017",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "resolve roles → permissions",
+        "func": "const dcmUser = msg.payload;\nconst username = msg._sessionUsername;\n\n// If no dcm_users row, auto-provision with pending status\nif (!dcmUser) {\n    msg._dcmUserMissing = true;\n    msg._dcmRoles = [];\n    msg._dcmPermissions = [];\n    msg._dcmUserStatus = 'pending';\n    msg._dcmUserEmail = '';\n} else {\n    // Block disabled accounts\n    if (dcmUser.status === \"disabled\") {\n        // Audit the blocked login attempt\n        msg._auditBlockedLogin = {\n            action: \"login.blocked.disabled\",\n            targetUserId: String(dcmUser._id),\n            targetUsername: dcmUser.username || username,\n            at: new Date().toISOString()\n        };\n        msg.payload = {\n            response: {\n                action: \"login\",\n                ok: false,\n                status: \"error\",\n                error: \"account_disabled\",\n                message: \"Your account is disabled. Please ask an administrator to activate it.\"\n            }\n        };\n        // Write audit log then return error\n        msg._disabledBlock = true;\n        msg.collection = \"dcm_audit_log\";\n        msg.operation = \"insertOne\";\n        msg.payload = msg._auditBlockedLogin;\n        return [msg, null];\n    }\n\n    // Check if account is expired\n    if (dcmUser.status === 'expired' || (dcmUser.expiresAt && new Date(dcmUser.expiresAt) <= new Date())) {\n        msg.payload = {\n            response: {\n                action: \"login\",\n                ok: false,\n                status: \"error\",\n                error: \"account_expired\",\n                message: \"Your account has expired. Contact an administrator.\"\n            }\n        };\n        return [null, msg];\n    }\n    msg._dcmRoles = dcmUser.roles || [];\n    msg._dcmUserStatus = dcmUser.status || 'active';\n    msg._dcmUserEmail = dcmUser.email || '';\n    msg._dcmUserId = String(dcmUser._id);\n    msg._dcmAccessAreas = dcmUser.accessAreas || [];\n    msg._dcmExpiresAt = dcmUser.expiresAt || null;\n}\n\n// Now look up role permissions from dcm_roles\nmsg.collection = \"dcm_roles\";\nmsg.operation = \"find\";\nmsg.payload = [{ key: { $in: msg._dcmRoles } }];\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 820,
+        "y": 300,
+        "wires": [
+            [
+                "ee06000000000018"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000018",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find roles",
+        "x": 1060,
+        "y": 300,
+        "wires": [
+            [
+                "ee06000000000019"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000019",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "flatten permissions & build login response",
+        "func": "// If this is a disabled-account block, audit was already written, just return error\nif (msg._disabledBlock) {\n    msg.payload = {\n        response: {\n            action: \"login\",\n            ok: false,\n            status: \"error\",\n            error: \"account_disabled\",\n            message: \"Your account is disabled. Please ask an administrator to activate it.\"\n        }\n    };\n    // Skip session creation - return directly\n    return [null, msg];\n}\n\nvar PERM_MAP = {\n    localCatalogue: [\"local.catalogue.read\"],\n    catalogueRegistry: [\"catalogue.registry.create\", \"catalogue.registry.read\", \"catalogue.registry.update\", \"catalogue.registry.delete\"],\n    schemaRegistry: [\"schema.registry.create\", \"schema.registry.read\", \"schema.registry.update\", \"schema.registry.delete\"],\n    adminTools: [\"users.create\", \"users.read\", \"users.update\", \"users.delete\", \"roles.read\", \"audit.read\"],\n    harvest: [\"harvest.run.execute\", \"harvest.scope.create\", \"harvest.scope.read\", \"harvest.scope.update\", \"harvest.scope.delete\", \"harvest.lifecycle.configure\", \"harvest.crawling.configure\"]\n};\nfunction buildPermissions(accessAreas) {\n    var permSet = {};\n    for (var i = 0; i < accessAreas.length; i++) {\n        var perms = PERM_MAP[accessAreas[i]];\n        if (perms) { for (var j = 0; j < perms.length; j++) permSet[perms[j]] = true; }\n    }\n    return Object.keys(permSet);\n}\nfunction accessAreasToAccess(accessAreas) {\n    var map = { localCatalogue: \"local_catalogue\", catalogueRegistry: \"catalogue_registry\", schemaRegistry: \"schema_registry\", adminTools: \"admin_tools\", harvest: \"harvester\" };\n    var result = [];\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    for (var i = 0; i < order.length; i++) {\n        if (accessAreas.indexOf(order[i]) >= 0) result.push(map[order[i]]);\n    }\n    if (result.indexOf(\"local_catalogue\") < 0) result.unshift(\"local_catalogue\");\n    return result;\n}\nvar roleDocs = Array.isArray(msg.payload) ? msg.payload : [];\nvar permSet = {};\nfor (var ri = 0; ri < roleDocs.length; ri++) {\n    if (Array.isArray(roleDocs[ri].permissions)) {\n        for (var pi = 0; pi < roleDocs[ri].permissions.length; pi++) permSet[roleDocs[ri].permissions[pi]] = true;\n    }\n}\nvar permissions = Object.keys(permSet);\nvar hasWildcard = !!permSet[\"*\"];\n\nvar rawAreas = msg._dcmAccessAreas || [];\nvar accessAreas;\nif (hasWildcard) {\n    accessAreas = accessAreasToAccess([\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"]);\n} else {\n    accessAreas = accessAreasToAccess(rawAreas);\n}\n\nvar allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\nvar accessLabel = \"No Access\";\nif (allFive.every(function(a) { return rawAreas.indexOf(a) >= 0; })) {\n    accessLabel = \"Full Access\";\n} else {\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var li = 0; li < order.length; li++) { if (rawAreas.indexOf(order[li]) >= 0) labels.push(labelMap[order[li]]); }\n    accessLabel = labels.join(\" + \") || \"No Access\";\n}\n\nvar sessionUser = {\n    username: msg._sessionUsername,\n    email: msg._dcmUserEmail || \"\",\n    role: msg._dcmRoles[0] || \"viewer\",\n    roles: msg._dcmRoles,\n    permissions: permissions,\n    access: accessAreas,\n    accessAreas: rawAreas,\n    accessLabel: accessLabel,\n    expiresAt: msg._dcmExpiresAt || null,\n    status: msg._dcmUserStatus\n};\n\nmsg._sessionUser = sessionUser;\n\nmsg.payload = {\n    token: msg._sessionToken,\n    username: msg._sessionUsername,\n    userId: msg._sessionUserId,\n    user: sessionUser,\n    expiresAt: msg._sessionExpiresAt\n};\n\nmsg._savedResponse = {\n    response: {\n        action: \"login\",\n        status: \"success\",\n        token: msg._sessionToken,\n        user: sessionUser\n    }\n};\n\nmsg.collection = \"auth_sessions\";\nmsg.operation = \"insertOne\";\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 630,
+        "y": 400,
+        "wires": [
+            [
+                "ee06000000000014"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000014",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "auth_sessions",
+        "operation": "insertOne",
+        "output": "toArray",
+        "name": "save session",
+        "x": 900,
+        "y": 400,
+        "wires": [
+            [
+                "ee06000000000015"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000015",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "restore login response",
+        "func": "msg.payload = msg._savedResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 1110,
+        "y": 400,
+        "wires": [
+            [
+                "ee06000000000060"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000005",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── CHECK AUTH ──",
+        "info": "Validates an existing session token against auth_sessions collection.",
+        "x": 550,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000020",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "prepare session lookup",
+        "func": "const token = msg.payload?.data?.token || msg.data?.token || \"\";\n\nif (!token) {\n    msg.payload = {\n        response: {\n            action: \"checkAuth\",\n            status: \"error\",\n            message: \"No session token provided.\"\n        }\n    };\n    return [null, msg];\n}\n\nmsg._checkToken = token;\nmsg.collection = \"auth_sessions\";\nmsg.operation = \"findOne\";\nmsg.payload = { token: token };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 570,
+        "y": 520,
+        "wires": [
+            [
+                "ee06000000000021"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000021",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "auth_sessions",
+        "operation": "findOne",
+        "output": "toArray",
+        "name": "find session",
+        "x": 770,
+        "y": 520,
+        "wires": [
+            [
+                "ee06000000000022"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000022",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "validate session",
+        "func": "const session = msg.payload;\n\nif (!session) {\n    msg.payload = {\n        response: {\n            action: \"checkAuth\",\n            status: \"error\",\n            message: \"Session expired or invalid.\"\n        }\n    };\n    return msg;\n}\n\nif (session.expiresAt && new Date(session.expiresAt) < new Date()) {\n    msg.payload = {\n        response: {\n            action: \"checkAuth\",\n            status: \"error\",\n            message: \"Session expired.\"\n        }\n    };\n    return msg;\n}\n\nmsg.payload = {\n    response: {\n        action: \"checkAuth\",\n        status: \"success\",\n        user: session.user || {}\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 970,
+        "y": 520,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000006",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── LOGOUT ──",
+        "info": "Removes session from database.",
+        "x": 540,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000030",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "prepare session delete",
+        "func": "const token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || \"\";\n\nif (token) {\n    msg.collection = \"auth_sessions\";\n    msg.operation = \"deleteOne\";\n    msg.payload = { token: token };\n    return [msg, null];\n}\n\nmsg.payload = {\n    response: {\n        action: \"logOut\",\n        status: \"success\"\n    }\n};\nreturn [null, msg];",
+        "outputs": 2,
+        "x": 570,
+        "y": 640,
+        "wires": [
+            [
+                "ee06000000000031"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000031",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "auth_sessions",
+        "operation": "deleteOne",
+        "output": "toArray",
+        "name": "delete session",
+        "x": 780,
+        "y": 640,
+        "wires": [
+            [
+                "ee06000000000032"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000032",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "logout response",
+        "func": "msg.payload = {\n    response: {\n        action: \"logOut\",\n        status: \"success\"\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 970,
+        "y": 640,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000007",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── HYDRATE SESSION ──",
+        "info": "Returns user with roles and flattened permissions for the current session.\nCalled after login to populate the frontend store.",
+        "x": 560,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000050",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "hydrate: find session",
+        "func": "const token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || \"\";\nif (!token) {\n    msg.payload = { response: { action: \"hydrateSession\", status: \"error\", error: \"not_authenticated\" } };\n    return [null, msg];\n}\nmsg._hydrateToken = token;\nmsg.collection = \"auth_sessions\";\nmsg.operation = \"findOne\";\nmsg.payload = { token: token };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 570,
+        "y": 760,
+        "wires": [
+            [
+                "ee06000000000051"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000051",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find session",
+        "x": 770,
+        "y": 760,
+        "wires": [
+            [
+                "ee06000000000052"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000052",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "hydrate: lookup dcm_user",
+        "func": "const session = msg.payload;\nif (!session || (session.expiresAt && new Date(session.expiresAt) < new Date())) {\n    msg.payload = { response: { action: \"hydrateSession\", status: \"error\", error: \"not_authenticated\" } };\n    return [null, msg];\n}\nmsg._hydrateSession = session;\nmsg.collection = \"dcm_users\";\nmsg.operation = \"findOne\";\nmsg.payload = { username: session.username || session.user?.username };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 980,
+        "y": 760,
+        "wires": [
+            [
+                "ee06000000000053"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000053",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find dcm_user",
+        "x": 570,
+        "y": 840,
+        "wires": [
+            [
+                "ee06000000000054"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000054",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "hydrate: find roles",
+        "func": "const dcmUser = msg.payload;\nconst session = msg._hydrateSession;\n\nif (!dcmUser) {\n    // Auto-provision stub\n    msg._hydrateRoles = [];\n    msg._hydrateUser = { username: session.username || session.user?.username, email: '', status: 'pending', roles: [] };\n} else {\n    // Block disabled accounts - force logout\n    if (dcmUser.status === \"disabled\") {\n        msg.payload = {\n            response: {\n                action: \"hydrateSession\",\n                ok: false,\n                status: \"error\",\n                error: \"account_disabled\",\n                message: \"Your account was disabled. Please ask an administrator to activate it.\"\n            }\n        };\n        return [null, msg];\n    }\n    msg._hydrateRoles = dcmUser.roles || [];\n    msg._hydrateUser = dcmUser;\n}\n\nmsg.collection = \"dcm_roles\";\nmsg.operation = \"find\";\nmsg.payload = [{ key: { $in: msg._hydrateRoles } }];\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 780,
+        "y": 840,
+        "wires": [
+            [
+                "ee06000000000055"
+            ],
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000055",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find roles",
+        "x": 980,
+        "y": 840,
+        "wires": [
+            [
+                "ee06000000000056"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000056",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "hydrate: build response",
+        "func": "function accessAreasToAccess(accessAreas) {\n    var map = { localCatalogue: \"local_catalogue\", catalogueRegistry: \"catalogue_registry\", schemaRegistry: \"schema_registry\", adminTools: \"admin_tools\", harvest: \"harvester\" };\n    var result = [];\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    for (var i = 0; i < order.length; i++) {\n        if (accessAreas.indexOf(order[i]) >= 0) result.push(map[order[i]]);\n    }\n    if (result.indexOf(\"local_catalogue\") < 0) result.unshift(\"local_catalogue\");\n    return result;\n}\nvar roleDocs = Array.isArray(msg.payload) ? msg.payload : [];\nvar dcmUser = msg._hydrateUser;\nvar permSet = {};\nfor (var ri = 0; ri < roleDocs.length; ri++) {\n    if (Array.isArray(roleDocs[ri].permissions)) {\n        for (var pi = 0; pi < roleDocs[ri].permissions.length; pi++) permSet[roleDocs[ri].permissions[pi]] = true;\n    }\n}\nvar permissions = Object.keys(permSet);\nvar hasWildcard = !!permSet[\"*\"];\n\nvar rawAreas = dcmUser.accessAreas || [];\nvar accessAreas;\nif (hasWildcard) {\n    accessAreas = accessAreasToAccess([\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"]);\n} else {\n    accessAreas = accessAreasToAccess(rawAreas);\n}\n\nvar allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\nvar accessLabel = \"No Access\";\nif (allFive.every(function(a) { return rawAreas.indexOf(a) >= 0; })) {\n    accessLabel = \"Full Access\";\n} else {\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var li = 0; li < order.length; li++) { if (rawAreas.indexOf(order[li]) >= 0) labels.push(labelMap[order[li]]); }\n    accessLabel = labels.join(\" + \") || \"No Access\";\n}\n\nmsg.payload = {\n    response: {\n        action: \"hydrateSession\",\n        status: \"success\",\n        user: {\n            id: String(dcmUser._id || \"\"),\n            username: dcmUser.username,\n            email: dcmUser.email || \"\",\n            status: dcmUser.status || \"active\",\n            roles: dcmUser.roles || [],\n            permissions: permissions,\n            access: accessAreas,\n            accessAreas: rawAreas,\n            accessLabel: accessLabel,\n            expiresAt: dcmUser.expiresAt || null\n        }\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 570,
+        "y": 920,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000008",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── VERIFY INVITATION (pre-auth) ──",
+        "info": "Validates an invitation token. No auth required.",
+        "x": 590,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000080",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "changePassword (stub)",
+        "func": "// TODO: implement password change with permission gate\nmsg.payload = {\n    response: {\n        action: \"changePassword\",\n        ok: false,\n        error: \"not_implemented\"\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 580,
+        "y": 1480,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000090",
+        "type": "comment",
+        "z": "ee06000000000000",
+        "name": "── SEED DEFAULT USER + SYSTEM ROLES ──",
+        "info": "On deploy, ensures:\n1. Default admin in auth_users\n2. Default admin in dcm_users\n3. System roles (admin, editor, viewer) in dcm_roles",
+        "x": 620,
+        "y": 1560,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000040",
+        "type": "inject",
+        "z": "ee06000000000000",
+        "name": "on deploy: seed admin + roles",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "2",
+        "topic": "",
+        "x": 320,
+        "y": 1600,
+        "wires": [
+            [
+                "ee06000000000041"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000041",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "prepare admin upsert (auth_users)",
+        "func": "msg.collection = \"auth_users\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n    { username: \"admin\" },\n    {\n        $setOnInsert: {\n            username: \"admin\",\n            password: \"1234\",\n            role: \"Administrator\",\n            email: \"admin@local\",\n            access: [\"local_catalogue\", \"catalogue_registry\", \"schema_registry\", \"admin_tools\", \"harvester\"],\n            createdAt: new Date().toISOString()\n        }\n    },\n    { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 620,
+        "y": 1600,
+        "wires": [
+            [
+                "ee06000000000042"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000042",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "auth_users",
+        "operation": "updateOne",
+        "output": "toArray",
+        "name": "upsert admin (auth_users)",
+        "x": 910,
+        "y": 1600,
+        "wires": [
+            [
+                "ee06000000000044"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000044",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "prepare admin upsert (dcm_users)",
+        "func": "msg.collection = \"dcm_users\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n    { username: \"admin\" },\n    {\n        $setOnInsert: {\n            email: \"admin@local\",\n            username: \"admin\",\n            firstName: \"Admin\",\n            lastName: \"User\",\n            status: \"active\",\n            roles: [\"admin\"],\n            createdAt: new Date().toISOString(),\n            invitedBy: null\n        },\n        $set: {\n            updatedAt: new Date().toISOString(),\n            accessAreas: [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"]\n        }\n    },\n    { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 620,
+        "y": 1680,
+        "wires": [
+            [
+                "ee06000000000045"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000045",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert admin (dcm_users)",
+        "x": 910,
+        "y": 1680,
+        "wires": [
+            [
+                "ee06000000000046"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000046",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "seed system roles",
+        "func": "const now = new Date().toISOString();\n\n// All permission areas and actions\nconst allAreas = [\n    'harvest.run', 'harvest.scope', 'harvest.lifecycle', 'harvest.crawling',\n    'schema.registry', 'catalogue.registry',\n    'users', 'roles', 'audit'\n];\nconst readActions = ['read'];\nconst crudActions = ['create', 'read', 'update', 'delete'];\nconst specialActions = { 'harvest.run': ['execute'], 'harvest.lifecycle': ['configure'], 'harvest.crawling': ['configure'] };\n\n// Build editor permissions: every area's read, create, update; no delete; no users/roles write\nconst editorPerms = [];\nfor (const area of allAreas) {\n    if (area === 'users' || area === 'roles') {\n        editorPerms.push(area + '.read');\n        continue;\n    }\n    if (specialActions[area]) {\n        for (const a of specialActions[area]) editorPerms.push(area + '.' + a);\n    } else {\n        editorPerms.push(area + '.read', area + '.create', area + '.update');\n    }\n}\neditorPerms.push('audit.read');\n\n// Build viewer permissions: every area's read only\nconst viewerPerms = [];\nfor (const area of allAreas) {\n    if (specialActions[area]) {\n        // viewers can only read, not execute/configure\n        viewerPerms.push(area + '.read');\n    } else {\n        viewerPerms.push(area + '.read');\n    }\n}\n\nconst roles = [\n    { key: 'admin', name: 'Administrator', description: 'Full system access (wildcard)', permissions: ['*'], system: true },\n    { key: 'editor', name: 'Editor', description: 'Can create and update in all areas, no delete, no user/role management', permissions: editorPerms, system: true },\n    { key: 'viewer', name: 'Viewer', description: 'Read-only access to all areas', permissions: viewerPerms, system: true }\n];\n\nmsg._rolesToSeed = roles;\nmsg._roleIdx = 0;\n\n// Start with first role\nconst r = roles[0];\nmsg.collection = \"dcm_roles\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n    { key: r.key },\n    {\n        $setOnInsert: {\n            key: r.key,\n            name: r.name,\n            description: r.description,\n            permissions: r.permissions,\n            system: true,\n            createdAt: now\n        },\n        $set: { updatedAt: now }\n    },\n    { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 580,
+        "y": 1760,
+        "wires": [
+            [
+                "ee06000000000047"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000047",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert role",
+        "x": 780,
+        "y": 1760,
+        "wires": [
+            [
+                "ee06000000000048"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000048",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "loop: next role",
+        "func": "const roles = msg._rolesToSeed || [];\nlet idx = (msg._roleIdx || 0) + 1;\nmsg._roleIdx = idx;\n\nif (idx >= roles.length) {\n    node.status({ fill: 'green', shape: 'dot', text: 'Seeded admin + ' + roles.length + ' roles' });\n    return null; // done\n}\n\nconst r = roles[idx];\nconst now = new Date().toISOString();\nmsg.collection = \"dcm_roles\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n    { key: r.key },\n    {\n        $setOnInsert: {\n            key: r.key,\n            name: r.name,\n            description: r.description,\n            permissions: r.permissions,\n            system: true,\n            createdAt: now\n        },\n        $set: { updatedAt: now }\n    },\n    { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 980,
+        "y": 1760,
+        "wires": [
+            [
+                "ee06000000000047"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000099",
+        "type": "link out",
+        "z": "ee06000000000000",
+        "name": "auth-out → dashboard",
+        "mode": "link",
+        "links": [
+            "c48570326bcd6b3d"
+        ],
+        "x": 1835,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "ee06000000000060",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "audit: login.success",
+        "func": "// Write login.success audit entry\nvar resp = msg.payload && msg.payload.response ? msg.payload.response : msg.payload;\nmsg._savedLoginResponse = msg.payload;\nmsg.collection = \"dcm_audit_log\";\nmsg.operation = \"insertOne\";\nmsg.payload = {\n  timestamp: new Date().toISOString(),\n  action: \"login.success\",\n  actor: resp.user ? resp.user.username : (msg._sessionUsername || \"unknown\"),\n  target: resp.user ? resp.user.username : (msg._sessionUsername || \"unknown\"),\n  area: \"auth\",\n  result: \"ok\"\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 570,
+        "y": 460,
+        "wires": [
+            [
+                "ee06000000000061"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000061",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert login audit",
+        "x": 780,
+        "y": 460,
+        "wires": [
+            [
+                "ee06000000000062"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000062",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "restore login response",
+        "func": "msg.payload = msg._savedLoginResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 980,
+        "y": 460,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000063",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "audit: login.failed",
+        "func": "msg._savedLoginResponse = msg.payload;\nmsg.collection = \"dcm_audit_log\";\nmsg.operation = \"insertOne\";\nmsg.payload = {\n  timestamp: new Date().toISOString(),\n  action: \"login.failed\",\n  actor: msg._loginUsername || \"unknown\",\n  target: msg._loginUsername || \"unknown\",\n  area: \"auth\",\n  result: \"failed\"\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 570,
+        "y": 250,
+        "wires": [
+            [
+                "ee06000000000064"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000064",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert failed audit",
+        "x": 780,
+        "y": 250,
+        "wires": [
+            [
+                "ee06000000000065"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000065",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "restore failed response",
+        "func": "msg.payload = msg._savedLoginResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 980,
+        "y": 250,
+        "wires": [
+            [
+                "ee06000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000h01",
+        "type": "inject",
+        "z": "ee06000000000000",
+        "name": "heartbeat: Auth",
+        "props": [],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 200,
+        "y": 1900,
+        "wires": [
+            [
+                "ee06000000000h02"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000h02",
+        "type": "function",
+        "z": "ee06000000000000",
+        "name": "write heartbeat",
+        "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"Auth\" },\n  { $set: { module: \"Auth\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 420,
+        "y": 1900,
+        "wires": [
+            [
+                "ee06000000000h03"
+            ]
+        ]
+    },
+    {
+        "id": "ee06000000000h03",
+        "type": "mongodb4",
+        "z": "ee06000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert heartbeat",
+        "x": 640,
+        "y": 1900,
+        "wires": [
+            []
+        ]
+    }
+]

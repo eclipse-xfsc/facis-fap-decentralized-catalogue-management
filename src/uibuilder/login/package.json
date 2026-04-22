@@ -16,7 +16,7 @@
     "eslint-plugin-jsdoc": "^54.1.1",
     "globals": "^16.1.0"
   },
-  "keywords": ["facis", "node-red", "dcm"],
+  "keywords": ["facis", "ORCE", "dcm"],
   "author": "Julian Knight (Totally Information)",
   "license": "Apache-2.0",
   "homepage": "",
