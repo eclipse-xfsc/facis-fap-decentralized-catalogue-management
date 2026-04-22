@@ -1,0 +1,140 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: true
+  name: dcm
+
+image:
+  repository: manifaridi/dcm
+  tag: v1
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  ports:
+    app:
+      port: 1880
+      targetPort: 1880
+      protocol: TCP
+    http:
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: host.com
+      paths:
+        - path: /
+          pathType: Prefix
+          servicePort: app
+  tls:
+    - secretName: dcm-tls
+      hosts:
+        - host.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: null
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: false
+  ingress:
+    allowSameNamespace: true
+    additionalFrom: []
+
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 4Gi
+    pods: "10"
+    services: "10"
+    persistentvolumeclaims: "5"
+
+limitRange:
+  enabled: true
+  default:
+    cpu: 500m
+    memory: 512Mi
+  defaultRequest:
+    cpu: 100m
+    memory: 128Mi
+  max:
+    cpu: "2"
+    memory: 2Gi
+  min:
+    cpu: 50m
+    memory: 64Mi
+
+probes:
+  liveness:
+    enabled: true
+    tcpSocket:
+      port: app
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 6
+  readiness:
+    enabled: true
+    tcpSocket:
+      port: app
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: dcm
+description: Helm chart for deploying manifaridi/dcm:v1
+type: application
+version: 0.1.0
+appVersion: "v1"

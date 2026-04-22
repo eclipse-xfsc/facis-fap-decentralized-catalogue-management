@@ -302,7 +302,7 @@
       dispatchMsg({ payload: { response: { action: "updateLocalAsset", status: "success" } } });
     }
     const schemaStubs = {
-      enhancePrompt: () => ({ action: "enhancePrompt", status: "success", enhancedPrompt: "[Connect to Node-RED backend for real AI-enhanced prompt]" }),
+      enhancePrompt: () => ({ action: "enhancePrompt", status: "success", enhancedPrompt: "[Connect to ORCE backend for real AI-enhanced prompt]" }),
       createPrompt: (d) => ({ action: "createPrompt", status: "success", prompt: { id: "preview-placeholder", version: d.version || "1.0", status: "draft", sourceSchema: d.sourceSchema || "", targetSchema: d.targetSchema || "", template: d.template || "", examples: d.examples || "", constraints: d.constraints || "", generatedCode: "", codeGenerationStatus: "pending", createdAt: "", updatedAt: "" } }),
       listPrompts: () => ({ action: "listPrompts", status: "success", prompts: [
         { id: "prompt-001", version: "1.0", status: "active", sourceSchema: "OGC SensorML", targetSchema: "DCAT-AP.de", template: "Transform the following {SOURCE_SCHEMA} asset into a valid {TARGET_SCHEMA} record.\n\nSource asset:\n{SOURCE_ASSET}\n\nExamples:\n{EXAMPLES}\n\nConstraints:\n{CONSTRAINTS}", examples: "Input: SensorML observation \u2192 Output: DCAT Dataset with dct:title, dcat:distribution", constraints: "All output must validate against the target SHACL shape. Preserve original identifiers.", createdAt: "2026-01-15", updatedAt: "2026-02-01", generatedCode: 'function transform(input) {\n  const output = {};\n  output["@type"] = "dcat:Dataset";\n  output["dct:identifier"] = input.identifier || input.id || "";\n  output["dct:title"] = input.name || input.title || "";\n  output["dct:description"] = input.description || "";\n  return output;\n}', originalPrompt: "", enhancedPrompt: "", codeGenerationStatus: "completed", lastGeneratedAt: "2026-02-01" },
@@ -310,7 +310,7 @@
       ] }),
       updatePromptCode: (d) => ({ action: "updatePromptCode", status: "success", promptId: d.promptId, code: d.code, updatedAt: "" }),
       deletePrompt: (d) => ({ action: "deletePrompt", status: "success", promptId: d.promptId }),
-      dryRunPrompt: (d) => ({ action: "dryRunPrompt", status: "success", promptId: d.promptId, result: "[Connect to Node-RED backend for real dry run execution]" }),
+      dryRunPrompt: (d) => ({ action: "dryRunPrompt", status: "success", promptId: d.promptId, result: "[Connect to ORCE backend for real dry run execution]" }),
       saveTestCase: (d) => ({ action: "saveTestCase", status: "success", testCaseId: d.id || "preview-tc", isNew: !d.id, testCase: { id: d.id || "preview-tc", name: d.name || "", promptId: d.promptId || "", llmConfigId: d.llmConfigId || "", sampleInput: d.sampleInput || "", expectedOutput: d.expectedOutput || "", lastResult: "", lastRunAt: "", createdAt: "", updatedAt: "" } }),
       listTestCases: () => ({ action: "listTestCases", status: "success", testCases: [
         { id: "tc-001", name: "SensorML to DCAT basic", promptId: "prompt-001", llmConfigId: "llm-001", sampleInput: '{\n  "@type": "SensorML",\n  "identifier": "sensor-abc-123",\n  "name": "Temperature Sensor Berlin",\n  "description": "Outdoor temperature monitoring station"\n}', expectedOutput: "", lastResult: "", lastRunAt: "2026-02-20", createdAt: "2026-02-20", updatedAt: "2026-02-20" }
@@ -25787,6 +25787,8 @@ ex:publisher a ex:Property .`,
       promptTestResult: "",
       promptTestError: "",
       promptTestShowResolved: false,
+      promptTestResolvedFromBackend: "",
+      showBackendResolved: false,
       // Test cases are loaded from MongoDB on mount
       promptTestCases: [],
       showTestCaseModal: false,
@@ -26520,6 +26522,33 @@ ex:publisher a ex:Property .`,
       harvestPagination() {
         return paginate(this.harvestRecords, this.pagination.harvest.page, this.pagination.harvest.perPage);
       },
+      harvesterOverviewStats() {
+        const remoteCataloguesCount = Array.isArray(this.catalogsTable)
+          ? this.catalogsTable.length
+          : 0;
+
+        const toInt = (v) => {
+          if (v == null) return 0;
+          if (typeof v === 'number') return isFinite(v) ? v : 0;
+          const n = parseInt(String(v).replace(/^\+/, '').trim(), 10);
+          return isNaN(n) ? 0 : n;
+        };
+
+        let newAssetsCount = 0;
+        let errorsCount    = 0;
+
+        const runs = Array.isArray(this.harvestRecords) ? this.harvestRecords : [];
+        for (const row of runs) {
+          const raw = (row && row._run) ? row._run : (row || {});
+          const added = toInt(raw.assetsAdded);
+          const succ  = toInt(raw.successCount);
+          const errs  = toInt(raw.errorCount);
+          newAssetsCount += (added > 0 ? added : succ);
+          errorsCount    += errs;
+        }
+
+        return { remoteCataloguesCount, newAssetsCount, errorsCount };
+      },
       harvestWizardPagination() {
         return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
       },
@@ -26724,6 +26753,10 @@ ex:publisher a ex:Property .`,
         }
         if (newPage === "harvester") {
           this.loadHarvestData();
+          uibuilderService.send({
+            type: "getCatalogRegistry",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          });
         }
       }
     },
@@ -28376,7 +28409,7 @@ ex:publisher a ex:Property .`,
           });
         }
         if (resp?.action === "logOut" && resp?.status === "success") {
-          window.location.href = "/facis-facis/login";
+          window.location.href = "/-/login";
           document.cookie = "userToken=; path=/; max-age=0";
         }
         if (resp?.action === "enhancePrompt") {
@@ -28467,6 +28500,7 @@ ex:publisher a ex:Property .`,
           } else {
             this.promptTestError = resp.message || "Dry run failed.";
           }
+          this.promptTestResolvedFromBackend = resp.resolvedPrompt || "";
           this.promptTestRunning = false;
         }
         if (resp?.action === "saveTestCase" && resp?.status === "success") {

@@ -7,7 +7,30 @@
         "info": "Backend flow for Local Catalogue.\n\nMongoDB collection:\n  lc_assets – normalized local catalogue asset records\n             populated by Harvest (M3), managed here.\n\nOperations:\n  getLocalCatalogue  – list all lc_assets\n  getLocalAssetDetail – get single asset detail\n  deleteLocalAsset   – delete by uniqueId\n  updateLocalAsset   – update fields by uniqueId\n  getLocalProvenance – list provenance (extracted from hv_runs)\n  getLocalStats      – summary stats\n\nAll responses are sent back to the Dashboard via link-out → dashboard-linkin (c48570326bcd6b3d).",
         "env": []
     },
-
+    {
+        "id": "b991ffcd8f6c360a",
+        "type": "mongodb4-client",
+        "name": "",
+        "protocol": "mongodb+srv",
+        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "port": "",
+        "dbName": "PartnerOnboarding",
+        "appName": "",
+        "authSource": "",
+        "authMechanism": "DEFAULT",
+        "tls": true,
+        "tlsCAFile": "",
+        "tlsCertificateKeyFile": "",
+        "tlsInsecure": false,
+        "connectTimeoutMS": "30000",
+        "socketTimeoutMS": "0",
+        "minPoolSize": "0",
+        "maxPoolSize": "100",
+        "maxIdleTimeMS": "0",
+        "uri": "",
+        "advanced": "{}",
+        "uriTabActive": "tab-uri-simple"
+    },
     {
         "id": "dd05000000000001",
         "type": "comment",
@@ -18,7 +41,6 @@
         "y": 40,
         "wires": []
     },
-
     {
         "id": "dd05000000000002",
         "type": "link in",
@@ -29,9 +51,12 @@
         ],
         "x": 115,
         "y": 200,
-        "wires": [["dd05000000000003"]]
+        "wires": [
+            [
+                "dd05000000000003"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000003",
         "type": "switch",
@@ -40,12 +65,36 @@
         "property": "type",
         "propertyType": "msg",
         "rules": [
-            { "t": "eq", "v": "getLocalCatalogue", "vt": "str" },
-            { "t": "eq", "v": "getLocalAssetDetail", "vt": "str" },
-            { "t": "eq", "v": "deleteLocalAsset", "vt": "str" },
-            { "t": "eq", "v": "updateLocalAsset", "vt": "str" },
-            { "t": "eq", "v": "getLocalProvenance", "vt": "str" },
-            { "t": "eq", "v": "getLocalStats", "vt": "str" }
+            {
+                "t": "eq",
+                "v": "getLocalCatalogue",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalAssetDetail",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteLocalAsset",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateLocalAsset",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalProvenance",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getLocalStats",
+                "vt": "str"
+            }
         ],
         "checkall": "true",
         "repair": false,
@@ -53,15 +102,26 @@
         "x": 330,
         "y": 200,
         "wires": [
-            ["dd05000000000010"],
-            ["dd05000000000020"],
-            ["dd05000000000030"],
-            ["dd05000000000040"],
-            ["dd05000000000050"],
-            ["dd05000000000060"]
+            [
+                "dd05000000000010"
+            ],
+            [
+                "dd05000000000020"
+            ],
+            [
+                "dd05000000000030"
+            ],
+            [
+                "dd05000000000040"
+            ],
+            [
+                "dd05000000000050"
+            ],
+            [
+                "dd05000000000060"
+            ]
         ]
     },
-
     {
         "id": "dd05000000000010",
         "type": "function",
@@ -76,7 +136,11 @@
         "libs": [],
         "x": 660,
         "y": 100,
-        "wires": [["dd05000000000011"]]
+        "wires": [
+            [
+                "dd05000000000011"
+            ]
+        ]
     },
     {
         "id": "dd05000000000011",
@@ -92,14 +156,18 @@
         "name": "find lc_assets",
         "x": 960,
         "y": 100,
-        "wires": [["dd05000000000012"]]
+        "wires": [
+            [
+                "dd05000000000012"
+            ]
+        ]
     },
     {
         "id": "dd05000000000012",
         "type": "function",
         "z": "dd05000000000000",
         "name": "response — getLocalCatalogue",
-        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Build table-ready asset list\nconst assets = docs.map(d => ({\n    id: d.uniqueId,\n    assets: d.title || '-',\n    type: d.type || 'Dataset',\n    name: d.catalogue || '-',\n    domain: d.domain || d.catalogue || '-',\n    updated: (d.harvestedAt || d.createdAt || '-').replace('T', ' ').slice(0, 19),\n    integrationStatus: d.status || 'Active',\n    harvestRunId: d.harvestRunId || '',\n    sourceAssetId: d.sourceAssetId || '',\n    strategy: d.strategy || '',\n    catalogueId: d.catalogueId || '',\n    harvestScope: d.harvestScope || {},\n    uniqueId: d.uniqueId\n}));\n\nassets.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));\n\n// Compute stats\nconst runIds = new Set();\nfor (const d of docs) { if (d.harvestRunId) runIds.add(d.harvestRunId); }\n\nmsg.response = {\n    action: 'getLocalCatalogue',\n    status: 'success',\n    assets: assets,\n    totalAssets: assets.length,\n    totalRuns: runIds.size\n};\ndelete msg.payload;\nreturn msg;",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Build table-ready asset list (FR-ACM-04: include linkedAssets flags only, not bodies)\nconst assets = docs.map(d => {\n    const hasOriginal = d.originalForm !== undefined && d.originalForm !== null;\n    const hasTransformed = d.transformedForm !== undefined && d.transformedForm !== null;\n    return {\n        id: d.uniqueId,\n        assets: d.title || '-',\n        type: d.type || 'Dataset',\n        name: d.catalogue || '-',\n        domain: d.domain || d.catalogue || '-',\n        updated: (d.harvestedAt || d.createdAt || '-').replace('T', ' ').slice(0, 19),\n        integrationStatus: d.status || 'Active',\n        harvestRunId: d.harvestRunId || '',\n        sourceAssetId: d.sourceAssetId || '',\n        strategy: d.strategy || '',\n        catalogueId: d.catalogueId || '',\n        harvestScope: d.harvestScope || {},\n        uniqueId: d.uniqueId,\n        linkedAssets: { hasOriginal: hasOriginal, hasTransformed: hasTransformed },\n        crawledFrom: d.crawledFrom || '',\n        crawlDepth: (typeof d.crawlDepth === 'number') ? d.crawlDepth : null,\n        crawlReferenceUri: d.crawlReferenceUri || '',\n        crawlReferenceField: d.crawlReferenceField || '',\n        sourceCatalogueId: d.sourceCatalogueId || ''\n    };\n});\n\nassets.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));\n\n// Compute stats\nconst runIds = new Set();\nfor (const d of docs) { if (d.harvestRunId) runIds.add(d.harvestRunId); }\n\nmsg.response = {\n    action: 'getLocalCatalogue',\n    status: 'success',\n    assets: assets,\n    totalAssets: assets.length,\n    totalRuns: runIds.size\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -108,9 +176,12 @@
         "libs": [],
         "x": 1280,
         "y": 100,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000020",
         "type": "function",
@@ -125,7 +196,11 @@
         "libs": [],
         "x": 680,
         "y": 180,
-        "wires": [["dd05000000000021"]]
+        "wires": [
+            [
+                "dd05000000000021"
+            ]
+        ]
     },
     {
         "id": "dd05000000000021",
@@ -141,14 +216,18 @@
         "name": "find asset",
         "x": 960,
         "y": 180,
-        "wires": [["dd05000000000022"]]
+        "wires": [
+            [
+                "dd05000000000022"
+            ]
+        ]
     },
     {
         "id": "dd05000000000022",
         "type": "function",
         "z": "dd05000000000000",
         "name": "response — getLocalAssetDetail",
-        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst asset = docs[0] || null;\nmsg.response = {\n    action: 'getLocalAssetDetail',\n    status: 'success',\n    asset: asset\n};\ndelete msg.payload;\ndelete msg._assetId;\nreturn msg;",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst raw = docs[0] || null;\nconst form = (msg.data && typeof msg.data.form === 'string') ? msg.data.form : 'transformed';\n\nlet asset = null;\nif (raw) {\n    const hasOriginal = raw.originalForm !== undefined && raw.originalForm !== null;\n    const hasTransformed = raw.transformedForm !== undefined && raw.transformedForm !== null;\n    const linkedAssets = { hasOriginal: hasOriginal, hasTransformed: hasTransformed };\n\n    // Shallow clone without the heavy form bodies\n    const base = {};\n    for (const k in raw) {\n        if (k !== 'originalForm' && k !== 'transformedForm') base[k] = raw[k];\n    }\n    base.linkedAssets = linkedAssets;\n\n    if (form === 'original') {\n        asset = Object.assign({}, base, {\n            viewingForm: 'original',\n            originalForm: raw.originalForm || null\n        });\n    } else if (form === 'both') {\n        asset = Object.assign({}, base, {\n            viewingForm: 'both',\n            originalForm: raw.originalForm || null,\n            transformedForm: raw.transformedForm || null\n        });\n    } else {\n        // default: transformed\n        asset = Object.assign({}, base, {\n            viewingForm: 'transformed',\n            transformedForm: raw.transformedForm || null\n        });\n    }\n}\n\nmsg.response = {\n    action: 'getLocalAssetDetail',\n    status: 'success',\n    form: form,\n    asset: asset\n};\ndelete msg.payload;\ndelete msg._assetId;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -157,9 +236,12 @@
         "libs": [],
         "x": 1280,
         "y": 180,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000030",
         "type": "function",
@@ -174,7 +256,14 @@
         "libs": [],
         "x": 660,
         "y": 260,
-        "wires": [["dd05000000000031"], ["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000031"
+            ],
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
     {
         "id": "dd05000000000031",
@@ -190,7 +279,11 @@
         "name": "delete from lc_assets",
         "x": 980,
         "y": 240,
-        "wires": [["dd05000000000032"]]
+        "wires": [
+            [
+                "dd05000000000032"
+            ]
+        ]
     },
     {
         "id": "dd05000000000032",
@@ -206,9 +299,12 @@
         "libs": [],
         "x": 1280,
         "y": 240,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000040",
         "type": "function",
@@ -223,7 +319,14 @@
         "libs": [],
         "x": 660,
         "y": 340,
-        "wires": [["dd05000000000041"], ["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000041"
+            ],
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
     {
         "id": "dd05000000000041",
@@ -239,7 +342,11 @@
         "name": "update lc_assets",
         "x": 980,
         "y": 320,
-        "wires": [["dd05000000000042"]]
+        "wires": [
+            [
+                "dd05000000000042"
+            ]
+        ]
     },
     {
         "id": "dd05000000000042",
@@ -255,9 +362,12 @@
         "libs": [],
         "x": 1280,
         "y": 320,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000050",
         "type": "function",
@@ -272,7 +382,11 @@
         "libs": [],
         "x": 670,
         "y": 420,
-        "wires": [["dd05000000000051"]]
+        "wires": [
+            [
+                "dd05000000000051"
+            ]
+        ]
     },
     {
         "id": "dd05000000000051",
@@ -288,7 +402,11 @@
         "name": "find hv_runs",
         "x": 960,
         "y": 420,
-        "wires": [["dd05000000000052"]]
+        "wires": [
+            [
+                "dd05000000000052"
+            ]
+        ]
     },
     {
         "id": "dd05000000000052",
@@ -304,9 +422,12 @@
         "libs": [],
         "x": 1280,
         "y": 420,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000060",
         "type": "function",
@@ -321,7 +442,11 @@
         "libs": [],
         "x": 660,
         "y": 500,
-        "wires": [["dd05000000000061"]]
+        "wires": [
+            [
+                "dd05000000000061"
+            ]
+        ]
     },
     {
         "id": "dd05000000000061",
@@ -337,7 +462,11 @@
         "name": "find lc_assets",
         "x": 960,
         "y": 500,
-        "wires": [["dd05000000000062"]]
+        "wires": [
+            [
+                "dd05000000000062"
+            ]
+        ]
     },
     {
         "id": "dd05000000000062",
@@ -353,9 +482,12 @@
         "libs": [],
         "x": 1280,
         "y": 500,
-        "wires": [["dd05000000000099"]]
+        "wires": [
+            [
+                "dd05000000000099"
+            ]
+        ]
     },
-
     {
         "id": "dd05000000000099",
         "type": "link out",
@@ -368,5 +500,55 @@
         "x": 1475,
         "y": 300,
         "wires": []
+    },
+    {
+        "id": "dd05000000000h01",
+        "type": "inject",
+        "z": "dd05000000000000",
+        "name": "heartbeat: LocalCatalogue",
+        "props": [],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 200,
+        "y": 1900,
+        "wires": [
+            [
+                "dd05000000000h02"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000h02",
+        "type": "function",
+        "z": "dd05000000000000",
+        "name": "write heartbeat",
+        "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"LocalCatalogue\" },\n  { $set: { module: \"LocalCatalogue\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 420,
+        "y": 1900,
+        "wires": [
+            [
+                "dd05000000000h03"
+            ]
+        ]
+    },
+    {
+        "id": "dd05000000000h03",
+        "type": "mongodb4",
+        "z": "dd05000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert heartbeat",
+        "x": 640,
+        "y": 1900,
+        "wires": [
+            []
+        ]
     }
 ]

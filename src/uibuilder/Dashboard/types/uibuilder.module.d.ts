@@ -88,7 +88,7 @@ export class Uib {
     lastNavType: string
     /** Max msg size that can be sent over Socket.IO - updated by "client connect" msg receipt */
     maxHttpBufferSize: number
-    /** Last std msg received from Node-RED */
+    /** Last std msg received from ORCE */
     msg: object
     /** Number of messages sent to server since page load */
     msgsSent: number
@@ -128,7 +128,7 @@ export class Uib {
     uibrouter_CurrentRoute?: any
     /** Internal: auto-send ready flag */
     autoSendReady: boolean
-    /** Node-RED setting (via cookie) */
+    /** ORCE setting (via cookie) */
     httpNodeRoot: string
     /** Socket.IO namespace - unique to each uibuilder node instance */
     ioNamespace: string
@@ -263,7 +263,7 @@ export class Uib {
     /**
      * Does the chosen CSS Selector currently exist?
      * @param cssSelector Required. CSS Selector to examine for visibility
-     * @param msg Optional, default=true. If true also sends a message back to Node-RED
+     * @param msg Optional, default=true. If true also sends a message back to ORCE
      * @returns True if the element exists
      */
     elementExists(cssSelector: string, msg?: boolean): boolean
@@ -346,7 +346,7 @@ export class Uib {
 
     /**
      * Set the default originator. Set to '' to ignore. Used with uib-sender.
-     * @param originator A Node-RED node ID to return the message to
+     * @param originator A ORCE node ID to return the message to
      */
     setOriginator(originator?: string): void
 
@@ -380,9 +380,9 @@ export class Uib {
     urlJoin(...paths: string[]): string
 
     /**
-     * Turn on/off/toggle sending URL hash changes back to Node-RED
+     * Turn on/off/toggle sending URL hash changes back to ORCE
      * @param toggle Optional on/off/etc
-     * @returns True if we will send a msg to Node-RED on a hash change
+     * @returns True if we will send a msg to ORCE on a hash change
      */
     watchUrlHash(toggle?: any): boolean
 
@@ -575,15 +575,15 @@ export class Uib {
 
     // --- Message Handling ---
     /**
-     * Send a standard message to Node-RED via Socket.IO.
+     * Send a standard message to ORCE via Socket.IO.
      * @param msg The message object to send
-     * @param originator Optional Node-RED node ID to return the message to
+     * @param originator Optional ORCE node ID to return the message to
      */
     send(msg: object, originator?: string): void
     /**
-     * Easily send a msg back to Node-RED on a DOM event
+     * Easily send a msg back to ORCE on a DOM event
      * @param domevent DOM Event object
-     * @param originator A Node-RED node ID to return the message to
+     * @param originator A ORCE node ID to return the message to
      */
     eventSend(domevent: Event, originator?: string): void
     /**
@@ -603,7 +603,7 @@ export class Uib {
      */
     leaveRoom(room: string): void
     /**
-     * Send a control message to Node-RED via Socket.IO.
+     * Send a control message to ORCE via Socket.IO.
      * @param msg The control message object to send
      */
     sendCtrl(msg: object): void
@@ -655,10 +655,10 @@ export class Uib {
 
     // --- Watchers ---
     /**
-     * Watch a DOM element for changes and optionally send updates to Node-RED.
+     * Watch a DOM element for changes and optionally send updates to ORCE.
      * @param cssSelector The CSS selector to watch
      * @param startStop Start, stop, or toggle the watcher
-     * @param send If true, send updates to Node-RED
+     * @param send If true, send updates to ORCE
      * @param showLog If true, log watcher activity
      * @returns True if watching, false otherwise
      */
@@ -703,15 +703,15 @@ export class Uib {
     getPageMeta(): void
 
     /**
-     * Easily send the entire DOM/HTML msg back to Node-RED
-     * @param originator A Node-RED node ID to return the message to
-     * @param send If true (default) directly send response to Node-RED
+     * Easily send the entire DOM/HTML msg back to ORCE
+     * @param originator A ORCE node ID to return the message to
+     * @param send If true (default) directly send response to ORCE
      * @returns The HTML as a string
      */
     htmlSend(originator?: string, send?: boolean): string
 
     /**
-     * Send log info back to Node-RED over uibuilder's websocket control output (Port #2)
+     * Send log info back to ORCE over uibuilder's websocket control output (Port #2)
      * @param args All arguments passed to the function are added to the msg.payload
      */
     logToServer(...args: any[]): void

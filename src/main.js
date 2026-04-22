@@ -6,7 +6,7 @@
  */
 
 import { uibuilderService } from "./services/uibuilder.service.js";
-// OpenAI operations are now handled by the Node-RED backend via uibuilder messages.
+// OpenAI operations are now handled by the ORCE backend via uibuilder messages.
 // The openai.service.js is kept for reference but no longer imported here.
 import { EditorView, basicSetup } from "codemirror";
 import { javascript } from "@codemirror/lang-javascript";
@@ -20,7 +20,7 @@ import {
 import {
   getCookie, normalizeText, normalizeFilter, paginate, deepIncludes,
   matchValue, getCatalogAssets, getAssetTitle, assetMatchesQuery,
-  getChangedFields, parseJsonLine
+  getChangedFields, parseJsonLine, hasPermission
 } from "./utils/helpers.js";
 
 // Components
@@ -39,7 +39,7 @@ import HarvesterView from "./views/HarvesterView.js";
 
 // Modals
 import ViewModal from "./modals/ViewModal.js";
-import InviteModal from "./modals/InviteModal.js";
+import CreateUserModal from "./modals/InviteModal.js";
 import ManageUserModal from "./modals/ManageUserModal.js";
 import RegisterCatalogModal from "./modals/RegisterCatalogModal.js";
 import SchemaModal from "./modals/SchemaModal.js";
@@ -76,10 +76,10 @@ const app = createApp({
     },
     filteredRemoteSchema() {
       const q = (this.remoteSchemaSearch || "").trim().toLowerCase();
-      if (!q) return this.remoteSchema;
-      return this.remoteSchema.filter(s =>
-        (s.schema || "").toLowerCase().includes(q) ||
-        (s.localMapping || "").toLowerCase().includes(q) ||
+      if (!q) return this.remoteSchemas;
+      return this.remoteSchemas.filter(s =>
+        (s.name || "").toLowerCase().includes(q) ||
+        (s.format || "").toLowerCase().includes(q) ||
         (s.trustLevel || "").toLowerCase().includes(q)
       );
     },
@@ -88,12 +88,25 @@ const app = createApp({
     },
     filteredMappingRows() {
       const q = (this.mappingSearch || "").trim().toLowerCase();
-      if (!q) return this.mappingRows;
-      return this.mappingRows.filter(r =>
-        (r.remoteCatalogue || "").toLowerCase().includes(q) ||
-        (r.remoteSchema || "").toLowerCase().includes(q) ||
-        (r.transformationStrategy || "").toLowerCase().includes(q)
-      );
+      let rows = this.mappingRows;
+      if (this.mappingFilterCatalogue) {
+        rows = rows.filter(r => r.remoteCatalogue === this.mappingFilterCatalogue);
+      }
+      if (this.mappingFilterRemoteSchema) {
+        rows = rows.filter(r => r.remoteSchema === this.mappingFilterRemoteSchema);
+      }
+      if (this.mappingFilterLocalSchema) {
+        rows = rows.filter(r => r.localSchema === this.mappingFilterLocalSchema);
+      }
+      if (q) {
+        rows = rows.filter(r =>
+          (r.remoteCatalogue || "").toLowerCase().includes(q) ||
+          (r.remoteSchema || "").toLowerCase().includes(q) ||
+          (r.localSchema || "").toLowerCase().includes(q) ||
+          (r.transformationStrategy || "").toLowerCase().includes(q)
+        );
+      }
+      return rows;
     },
     mappingPagination() {
       return paginate(this.filteredMappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
@@ -124,6 +137,34 @@ const app = createApp({
     },
     harvestPagination() {
       return paginate(this.harvestRecords, this.pagination.harvest.page, this.pagination.harvest.perPage);
+    },
+    harvesterOverviewStats() {
+      const remoteCataloguesCount = Array.isArray(this.catalogsTable)
+        ? this.catalogsTable.length
+        : 0;
+
+      const toInt = (v) => {
+        if (v == null) return 0;
+        if (typeof v === 'number') return isFinite(v) ? v : 0;
+        // strip a leading "+" (our UI mapping decorates assetsAdded as "+N")
+        const n = parseInt(String(v).replace(/^\+/, '').trim(), 10);
+        return isNaN(n) ? 0 : n;
+      };
+
+      let newAssetsCount = 0;
+      let errorsCount    = 0;
+
+      const runs = Array.isArray(this.harvestRecords) ? this.harvestRecords : [];
+      for (const row of runs) {
+        const raw = (row && row._run) ? row._run : (row || {});
+        const added = toInt(raw.assetsAdded);
+        const succ  = toInt(raw.successCount);
+        const errs  = toInt(raw.errorCount);
+        newAssetsCount += (added > 0 ? added : succ);
+        errorsCount    += errs;
+      }
+
+      return { remoteCataloguesCount, newAssetsCount, errorsCount };
     },
     harvestWizardPagination() {
       return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
@@ -159,13 +200,28 @@ const app = createApp({
       if (!ids.length) return false;
       return ids.every(id => this.harvestWizardSelectedRows.includes(id));
     },
-    canSendInvite() {
-      const f = this.inviteForm;
-      return f.firstName.trim() && f.lastName.trim() && f.email.trim() && f.role && f.expiresIn;
+    canCreateUser() {
+      const f = this.createUserForm;
+      const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+      return (f.username || "").trim()
+        && (f.password || "").length >= 8
+        && emailOk
+        && (f.accessAreas || []).length > 0;
     },
-    canSendManageUser() {
-      const m = this.manageForm;
-      return m.firstName.trim() && m.lastName.trim() && m.email.trim() && m.selectedRoles.length > 0 && m.expiresIn;
+    canSaveEditUser() {
+      const f = this.editUserForm;
+      const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+      if (!emailOk || (f.accessAreas || []).length === 0) return false;
+      if (this.isSavingUser) return false;
+      if (!this.editUserBaseline) return false;
+      // Deep-compare current form vs baseline to detect changes
+      const current = JSON.stringify({
+        email: ((f.email || "").trim().toLowerCase()) || "",
+        status: f.status || "active",
+        accessAreas: (f.accessAreas || []).slice().sort(),
+        expiresAt: f.expiresAt ? String(f.expiresAt) : null
+      });
+      return current !== this.editUserBaseline;
     },
     currentSummaryText() {
       return this.schemaSummaries[this.registerSchemaForm.summaryTab] || "";
@@ -244,14 +300,24 @@ const app = createApp({
       return rows;
     },
     filteredMonitoringEvents() {
+      const m = this.monitoring;
+      if (!m || !m.recentAudit) return [];
       const f = this.monitoringEventFilter;
       const q = (this.monitoringAuditSearch || "").trim().toLowerCase();
-      let events = this.monitoringEvents;
-      if (f !== "all") events = events.filter(e => e.type === f);
+      let events = m.recentAudit;
+      if (f !== "all") {
+        events = events.filter(e => {
+          const a = (e.action || "").toLowerCase();
+          if (f === "error") return a.includes("failed") || a.includes("blocked") || a.includes("delete");
+          if (f === "warning") return a.includes("update") || a.includes("degraded");
+          return !a.includes("failed") && !a.includes("blocked") && !a.includes("delete");
+        });
+      }
       if (q) events = events.filter(e =>
-        (e.source || "").toLowerCase().includes(q) ||
-        (e.message || "").toLowerCase().includes(q) ||
-        (e.timestamp || "").toLowerCase().includes(q)
+        (e.action || "").toLowerCase().includes(q) ||
+        (e.actor || "").toLowerCase().includes(q) ||
+        (e.target || "").toLowerCase().includes(q) ||
+        (e.at || "").toLowerCase().includes(q)
       );
       return events;
     },
@@ -359,14 +425,30 @@ const app = createApp({
       const s = this.harvestScope.selected;
       return s.includes("last_harvest") || s.includes("ever_imported");
     },
+    auditTrailTotalPages() {
+      return Math.max(1, Math.ceil(this.auditTrail.pagination.total / this.auditTrail.pagination.perPage));
+    },
+    auditTrailPage() {
+      const p = this.auditTrail.pagination;
+      const start = (p.page - 1) * p.perPage;
+      return this.auditTrail.rows.slice(start, start + p.perPage);
+    },
   },
 
   watch: {
     isViewModal(val) {
       document.body.style.overflow = val ? "hidden" : "";
     },
-    isInviteModal(v) {
+    isCreateUserModal(v) {
       document.body.style.overflow = v ? "hidden" : "";
+    },
+    isEditUserModal(v) {
+      document.body.style.overflow = v ? "hidden" : "";
+    },
+    currentSchemaTab(val) {
+      if (val === "auditTrail" && !this.auditTrail.loaded) {
+        this.fetchAuditTrail();
+      }
     },
     provenanceFilters: {
       handler() { this.filterProvenance(); },
@@ -388,17 +470,39 @@ const app = createApp({
         });
       }
       if (newPage === "adminTools") {
-        uibuilderService.send({
-          type: "getAdminTools",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-        });
+        // Only fetch admin data if user has adminTools access
+        const aa = this.currentUser.accessAreas || [];
+        if (aa.includes('adminTools') || this.userAccess.includes('admin_tools')) {
+          const auth = { userToken: localStorage.getItem("authToken") || getCookie("userToken"), clientId: getCookie("uibuilder-client-id") };
+          uibuilderService.send({ type: "listUsers", auth: auth });
+          uibuilderService.send({ type: "listRoles", auth: auth });
+          // Start monitoring polling if on monitoring tab
+          if (this.currentAdminTab === 'monitoring') {
+            this.startMonitoringPolling();
+          }
+        }
+      } else {
+        this.stopMonitoringPolling();
       }
       if (newPage === "harvester") {
         this.loadHarvestData();
+        // Also refresh the remote catalogue list so the overview KPI reflects
+        // the current Catalogue Registry without requiring a prior visit to that page.
+        uibuilderService.send({
+          type: "getCatalogRegistry",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        });
       }
       if (newPage === "localCatalogue") {
         this.loadLocalCatalogs();
         this.loadLocalProvenance();
+      }
+    },
+    currentAdminTab(newTab) {
+      if (newTab === "monitoring" && this.currentPage === "adminTools") {
+        this.startMonitoringPolling();
+      } else {
+        this.stopMonitoringPolling();
       }
     }
   },
@@ -411,11 +515,45 @@ const app = createApp({
 
     // ── Helpers ────────────────────────────────────────────────
     getCookie,
-    hasAccess(key) { return this.userAccess.includes(key); },
-    canRead(area)   { return !!(this.userPermissions[area] && this.userPermissions[area].read); },
-    canCreate(area) { return !!(this.userPermissions[area] && this.userPermissions[area].create); },
-    canUpdate(area) { return !!(this.userPermissions[area] && this.userPermissions[area].update); },
-    canDelete(area) { return !!(this.userPermissions[area] && this.userPermissions[area].delete); },
+    hasAccess(key) {
+      // Use accessAreas (camelCase) as the single source of truth for sidebar visibility
+      const aa = this.currentUser.accessAreas || [];
+      // Map snake_case sidebar keys to camelCase accessAreas
+      const keyMap = { local_catalogue: 'localCatalogue', catalogue_registry: 'catalogueRegistry', schema_registry: 'schemaRegistry', admin_tools: 'adminTools', harvester: 'harvest' };
+      const mapped = keyMap[key] || key;
+      return aa.includes(mapped) || this.userAccess.includes(key);
+    },
+    $can(area, action) { return hasPermission(this.$data, area, action); },
+    canRead(area)   {
+      // New RBAC: check flattened permissions
+      if (this.currentUser?.isAuthenticated) {
+        const areaMap = { admin_tools: 'users', catalogue_registry: 'catalogue.registry', schema_registry: 'schema.registry', harvester: 'harvest.run', local_catalogue: 'local.catalogue' };
+        const mapped = areaMap[area] || area;
+        return this.$can(mapped, 'read');
+      }
+      return !!(this.userPermissions[area] && this.userPermissions[area].read);
+    },
+    canCreate(area) {
+      if (this.currentUser?.isAuthenticated) {
+        const areaMap = { admin_tools: 'users', catalogue_registry: 'catalogue.registry', schema_registry: 'schema.registry', harvester: 'harvest.run', local_catalogue: 'catalogue.registry' };
+        return this.$can(areaMap[area] || area, 'create');
+      }
+      return !!(this.userPermissions[area] && this.userPermissions[area].create);
+    },
+    canUpdate(area) {
+      if (this.currentUser?.isAuthenticated) {
+        const areaMap = { admin_tools: 'users', catalogue_registry: 'catalogue.registry', schema_registry: 'schema.registry', harvester: 'harvest.run', local_catalogue: 'catalogue.registry' };
+        return this.$can(areaMap[area] || area, 'update');
+      }
+      return !!(this.userPermissions[area] && this.userPermissions[area].update);
+    },
+    canDelete(area) {
+      if (this.currentUser?.isAuthenticated) {
+        const areaMap = { admin_tools: 'users', catalogue_registry: 'catalogue.registry', schema_registry: 'schema.registry', harvester: 'harvest.run', local_catalogue: 'catalogue.registry' };
+        return this.$can(areaMap[area] || area, 'delete');
+      }
+      return !!(this.userPermissions[area] && this.userPermissions[area].delete);
+    },
 
     // ── Pagination ─────────────────────────────────────────────
     paginate,
@@ -525,15 +663,59 @@ const app = createApp({
       });
     },
 
-    // ── Asset Detail Panel (Milestone 1) ──────────────────────
+    // ── Asset Detail Panel / View Modal (FR-ACM-04) ──────────
     openViewDetail(row) {
-      // Build JSON diff lines from the actual asset data for the View modal
-      const original = row.originalForm || row;
-      const transformed = row.transformedForm || row;
-      this.originalJsonLines = this._jsonToLines(original);
-      this.localJsonLines = this._jsonToLines(transformed, original);
+      // Open modal immediately; contents populated from backend response below.
       this.assetDetailRow = { ...row };
       this.isViewModal = true;
+      this.viewingForm = 'both';
+      this.originalJsonLines = [{ text: 'Loading original form...', changeType: null }];
+      this.localJsonLines = [{ text: 'Loading transformed form...', changeType: null }];
+      const uid = row.uniqueId || row.id;
+      if (!uid) return;
+      uibuilderService.send({
+        type: 'getLocalAssetDetail',
+        auth: { userToken: getCookie('userToken'), clientId: getCookie('uibuilder-client-id') },
+        data: { uniqueId: uid, form: 'both' }
+      });
+    },
+    _applyLocalAssetDetailResponse(resp) {
+      // FR-ACM-04: resp = { action, status, form, asset: { ..., originalForm?, transformedForm?, linkedAssets, viewingForm } }
+      const a = resp && resp.asset;
+      if (!a) {
+        this.originalJsonLines = [{ text: 'No data.', changeType: null }];
+        this.localJsonLines = [{ text: 'No data.', changeType: null }];
+        return;
+      }
+      const original = a.originalForm || null;
+      const transformed = a.transformedForm || null;
+      this.viewingForm = a.viewingForm || resp.form || 'both';
+      if (original) {
+        this.originalJsonLines = this._jsonToLines(original);
+      } else {
+        this.originalJsonLines = [{ text: 'No original form stored for this asset.', changeType: null }];
+      }
+      if (transformed) {
+        this.localJsonLines = this._jsonToLines(transformed, original || undefined);
+      } else {
+        this.localJsonLines = [{ text: 'No transformed form yet (mapping pending or not configured).', changeType: null }];
+      }
+      // Keep a reference for the toggle
+      this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, {
+        linkedAssets: a.linkedAssets || { hasOriginal: !!original, hasTransformed: !!transformed }
+      });
+    },
+    setViewingForm(form) {
+      // FR-ACM-04 explicit-form toggle inside the View modal
+      if (form !== 'transformed' && form !== 'original' && form !== 'both') return;
+      this.viewingForm = form;
+      const uid = (this.assetDetailRow && (this.assetDetailRow.uniqueId || this.assetDetailRow.id)) || null;
+      if (!uid) return;
+      uibuilderService.send({
+        type: 'getLocalAssetDetail',
+        auth: { userToken: getCookie('userToken'), clientId: getCookie('uibuilder-client-id') },
+        data: { uniqueId: uid, form: form }
+      });
     },
     _jsonToLines(obj, compareObj) {
       try {
@@ -727,7 +909,7 @@ const app = createApp({
         queryEndpoint: "", queryLanguages: "",
         metadataPrefix: "oai_dc", setSpec: "", resumptionToken: false,
         dcatCatalogUri: "", linkedDataEndpoint: "", contentNegotiation: "application/ld+json",
-        strategy: "none", promptId: "", llmConfigId: "",
+        strategy: "none", promptId: "", llmConfigId: "", providerId: "",
         namespacesToPreserve: "", shaclShapeId: "",
         auth: "none",
         authLoginEndpoint: "", authUsername: "", authPassword: "",
@@ -764,14 +946,11 @@ const app = createApp({
     testRemoteCatalogConnection() {
       this.isTestingConnection = true;
       this.testConnectionResult = { status: "", message: "", latency: 0 };
-      const start = Date.now();
-      const auth = this.remoteCatalogForm.auth || "none";
-      const endpoint = this.remoteCatalogForm.baseEndpoint || this.remoteCatalogForm.queryEndpoint || "";
 
-      // Validate auth-specific fields
+      // Lightweight client-side validation — backend will re-validate
+      const auth = this.remoteCatalogForm.auth || "none";
       if (auth === "token-login") {
-        const loginUrl = this.remoteCatalogForm.authLoginEndpoint || "";
-        if (!loginUrl.trim()) {
+        if (!(this.remoteCatalogForm.authLoginEndpoint || "").trim()) {
           this.testConnectionResult = { status: "error", message: "Login endpoint URL is required for Token Login auth.", latency: 0 };
           this.isTestingConnection = false;
           return;
@@ -783,20 +962,21 @@ const app = createApp({
         }
       }
 
-      setTimeout(() => {
-        const latency = Date.now() - start;
-        if (!endpoint.trim()) {
-          this.testConnectionResult = { status: "error", message: "No endpoint URL provided.", latency: 0 };
-        } else {
-          const authLabel = auth === "token-login" ? " (Token Login authenticated)"
-            : auth === "bearer" ? " (Bearer Token)"
-            : auth === "apikey" ? " (API Key)"
-            : auth === "oauth" ? " (OAuth2)"
-            : "";
-          this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}${authLabel}`, latency };
+      // Send to backend — response arrives via the testRemoteCatalogConnection handler below
+      uibuilderService.send({
+        type: "testRemoteCatalogConnection",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: JSON.parse(JSON.stringify(this.remoteCatalogForm))
+      });
+
+      // Safety timeout — if backend never responds, surface a clear error
+      if (this._testConnTimeout) clearTimeout(this._testConnTimeout);
+      this._testConnTimeout = setTimeout(() => {
+        if (this.isTestingConnection) {
+          this.testConnectionResult = { status: "error", message: "No response from backend — request timed out after 15s.", latency: 0 };
+          this.isTestingConnection = false;
         }
-        this.isTestingConnection = false;
-      }, 800 + Math.random() * 700);
+      }, 15000);
     },
     registerRemoteCatalog() {
       const payload = JSON.parse(JSON.stringify(this.remoteCatalogForm));
@@ -922,100 +1102,146 @@ const app = createApp({
     },
     deleteUser(userId) {
       const user = this.users.find(u => String(u.uniqueId) === String(userId));
-      const name = user?.name || "this user";
+      const name = user?.username || user?.name || "this user";
+      // Prevent self-delete
+      if (this.currentUser && (String(this.currentUser.id) === String(userId) || this.currentUser.username === user?.username)) {
+        this.addToast("error", "You cannot delete your own account.");
+        this.closeManageMenu();
+        return;
+      }
       this.closeManageMenu();
       this.showConfirm("Delete User", `Are you sure you want to delete "${name}"? This action cannot be undone.`, "Delete", () => {
-        this.users = this.users.filter(u => String(u.uniqueId) !== String(userId));
-        this.addToast("success", "User deleted successfully.");
+        // Send delete to backend — do NOT remove locally until server confirms
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({
+          type: "deleteUser",
+          auth: auth,
+          data: { userId: userId, uniqueId: userId, username: user?.username }
+        });
       });
     },
     openManageUserModal() {
       const userId = this.manageMenu.userId;
       const user = this.users.find(u => String(u.uniqueId) === String(userId));
       if (!user) return;
-      const nameParts = (user.name || "").split(" ");
-      this.manageForm.firstName = nameParts[0] || "";
-      this.manageForm.lastName = nameParts.slice(1).join(" ") || "";
-      this.manageForm.email = user.email || "";
-      const accessKeys = Array.isArray(user.access) ? user.access : [];
-      const labels = accessKeys.map(k => this.inverseAccessMap?.[k]).filter(Boolean);
-      if (!labels.includes("Local Catalogue")) labels.unshift("Local Catalogue");
-      this.manageForm.selectedRoles = labels;
-      this.manageForm.expiresIn = user.expiresIn || "30 Days";
-      this.manageForm.altRole = "";
-      this.manageForm.message = "";
-      this.manageUserModal = true;
+      // Convert camelCase accessAreas from backend to form values
+      const accessAreas = Array.isArray(user.accessAreas) ? [...user.accessAreas] : [];
+      if (!accessAreas.includes('localCatalogue')) accessAreas.unshift('localCatalogue');
+      // Format expiresAt for datetime-local input
+      let expiresAtLocal = null;
+      if (user.expiresAt) {
+        try { expiresAtLocal = new Date(user.expiresAt).toISOString().slice(0, 16); } catch(e) {}
+      }
+      this.editUserForm = {
+        userId: user.uniqueId || user._id || '',
+        username: user.username || '',
+        email: user.email || '',
+        status: user.status || 'active',
+        accessAreas: accessAreas,
+        expiresAt: expiresAtLocal,
+        validationError: null,
+      };
+      // Capture baseline for dirty-tracking AFTER setting form
+      // Baseline for dirty-tracking (same shape as canSaveEditUser normalization)
+      this.editUserBaseline = JSON.stringify({
+        email: ((this.editUserForm.email || "").trim().toLowerCase()) || "",
+        status: this.editUserForm.status || "active",
+        accessAreas: (this.editUserForm.accessAreas || []).slice().sort(),
+        expiresAt: this.editUserForm.expiresAt ? String(this.editUserForm.expiresAt) : null
+      });
+      this.isEditUserModal = true;
       this.manageMenu.open = false;
     },
-    closeManageUserModal() {
-      this.manageUserModal = false;
-      this.manageForm.selectedRoles = ["Local Catalogue"];
+    closeEditUserModal() {
+      this.isEditUserModal = false;
+      this.isSavingUser = false;
     },
-    sendManageUser() {
-      const userId = this.manageMenu.userId;
-      const user = this.users.find(u => String(u.uniqueId) === String(userId));
-      if (user) {
-        user.name = `${this.manageForm.firstName} ${this.manageForm.lastName}`.trim();
-        user.email = this.manageForm.email;
-        const accessKeys = (this.manageForm.selectedRoles || []).map(label => this.accessMap[label] || label);
-        if (!accessKeys.includes("local_catalogue")) accessKeys.unshift("local_catalogue");
-        user.access = accessKeys;
-        user.expiresIn = this.manageForm.expiresIn || user.expiresIn;
-      }
-      this.manageUserModal = false;
-      this.manageForm.selectedRoles = ["Local Catalogue"];
-      this.addToast("success", "User updated successfully.");
+    submitEditUser() {
+      // Idempotent guard: prevent double-submit
+      if (this.isSavingUser) return;
+      this.editUserForm.validationError = null;
+      this.isSavingUser = true;
+      const raw = toRaw(this.editUserForm);
+      // Backend rebuilds permissions from accessAreas — frontend does NOT send permissions
+      const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+      uibuilderService.send({
+        type: "updateUser",
+        auth: auth,
+        data: {
+          userId: raw.userId,
+          username: raw.username,
+          email: raw.email || null,
+          status: raw.status,
+          accessAreas: raw.accessAreas || [],
+          expiresAt: raw.expiresAt ? new Date(raw.expiresAt).toISOString() : null,
+        },
+      });
     },
 
-    // ── Invite ─────────────────────────────────────────────────
-    closeInviteModal() {
-      this.isInviteModal = false;
-      this.resetInviteForm();
+    // ── Create User ──────────────────────────────────────────
+    closeCreateUserModal() {
+      this.isCreateUserModal = false;
+      this.resetCreateUserForm();
     },
-    sendInvite() {
-      const raw = toRaw(this.inviteForm);
-      const { role, altRole, firstName, lastName, selectedAccess, ...rest } = raw;
-      const mappedAccess = (selectedAccess || []).map(label => this.accessMap[label] || label);
-      const data = { profile: { firstName, lastName }, ...rest, access: mappedAccess };
+    submitCreateUser() {
+      this.createUserForm.validationError = null;
+      this.isCreatingUser = true;
+      const raw = toRaw(this.createUserForm);
+      // Backend rebuilds permissions from accessAreas — frontend does NOT send permissions
+      const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
       uibuilderService.send({
-        type: "inviteUser",
-        auth: { userToken: getCookie("userToken") },
-        data,
+        type: "createUser",
+        auth: auth,
+        data: {
+          email: raw.email || "",
+          username: raw.username,
+          password: raw.password,
+          accessAreas: raw.accessAreas || [],
+          expiresInDays: raw.expiresInDays,
+        },
       });
-      this.isInviteModal = false;
-      this.resetInviteForm();
-      this.addToast("success", "Invitation sent successfully.");
     },
-    resetInviteForm() {
-      this.inviteForm = {
-        firstName: "", lastName: "", email: "",
-        role: "Searcher", expiresIn: "30 Days", altRole: "",
-        message: "You have been invited to join the federated catalogue system.",
-        selectedAccess: ["Local Catalogue"],
+    resetCreateUserForm() {
+      this.createUserForm = {
+        username: "",
+        email: "",
+        password: "",
+        showPassword: false,
+        accessAreas: ["localCatalogue"],
+        expiresInDays: null,
+        validationError: null,
       };
+    },
+    openCreateUserModal() {
+      this.resetCreateUserForm();
+      this.isCreateUserModal = true;
     },
 
     // ── Schema Modals ──────────────────────────────────────────
     openRegisterSchemaEditModal() { this.isRegisterSchemaEditModal = true; },
     openEditRemoteSchema(row) {
       this.registerSchemaForm = {
-        name: row.schema || "",
-        format: row.format || "SHACL",
-        catalogSearch: "",
-        remoteCatalogs: row.remoteCatalogs || [],
+        name: row.name || "",
+        format: row.format || "json-schema",
+        body: row.body || "",
         namespaces: row.namespaces || [],
-        version: row.versioning || "",
-        sourceUrl: row.sourceUrl || "",
-        summaryTab: "SHACL",
+        namespacesStr: (row.namespaces || []).join(", "),
+        version: row.version || "",
+        status: row.status || "draft",
+        trustLevel: row.trustLevel || "Federated",
+        catalogueIds: row.catalogueIds || [],
+        description: row.description || "",
+        author: row.author || "",
         editId: row.id,
       };
       this.isRegisterSchemaEditModal = true;
     },
     openRegisterSchemaNewModal() {
       this.registerSchemaForm = {
-        name: "", format: "SHACL", catalogSearch: "",
-        remoteCatalogs: [], namespaces: [],
-        version: "", sourceUrl: "", summaryTab: "SHACL"
+        name: "", format: "json-schema", body: "",
+        namespaces: [], namespacesStr: "", version: "", status: "draft",
+        trustLevel: "Federated", catalogueIds: [],
+        description: "", author: "",
       };
       this.isRegisterSchemaNewModal = true;
     },
@@ -1032,77 +1258,207 @@ const app = createApp({
       this.registerSchemaForm.catalogSearch = "";
     },
     saveRegisterSchemaNew() {
-      if (!this.registerSchemaForm.name) return;
+      const f = this.registerSchemaForm;
+      if (!f.name || !f.format || !f.version) {
+        this.addToast("error", "Name, format, and version are required.");
+        return;
+      }
       const data = {
-        schema: this.registerSchemaForm.name,
-        format: this.registerSchemaForm.format,
-        remoteCatalogs: this.registerSchemaForm.remoteCatalogs,
-        namespaces: this.registerSchemaForm.namespaces,
-        version: this.registerSchemaForm.version,
-        sourceUrl: this.registerSchemaForm.sourceUrl,
-        catalogs: this.registerSchemaForm.remoteCatalogs.length,
-        trustLevel: "Federated",
+        name: f.name,
+        format: f.format,
+        body: f.body || "",
+        namespaces: f.namespaces || [],
+        version: f.version,
+        status: f.status || "draft",
+        trustLevel: f.trustLevel || "Federated",
+        catalogueIds: f.catalogueIds || [],
+        description: f.description || "",
+        author: f.author || "",
       };
+      if (f.editId) data.id = f.editId;
       uibuilderService.send({
         type: "saveRemoteSchema",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
         data
       });
-      // Optimistically add to list
-      const maxId = this.remoteSchema.reduce((m, s) => Math.max(m, s.id), 0);
-      this.remoteSchema.push({
-        id: maxId + 1,
-        schema: data.schema,
-        catalogs: data.catalogs || 0,
-        localMapping: null,
-        versioning: data.version || "v1.0",
-        versionOptions: ["v1.0", "v1.1", "v2.0"],
-        trustLevel: data.trustLevel,
-      });
       this.closeRegisterSchemaNewModal();
-      this.addToast("success", "Remote schema registered.");
+      this.closeRegisterSchemaEditModal();
     },
     saveRegisterSchemaEdit() {
-      this.closeRegisterSchemaEditModal();
-      this.addToast("success", "Schema details updated.");
+      this.saveRegisterSchemaNew();
     },
 
     // ── Asset Type Registry ──────────────────────────────────────
     openAssetTypeForm() {
       this.isEditingAssetType = false;
-      this.assetTypeForm = { id: null, name: "", description: "", icon: "dataset" };
+      this.assetTypeForm = { id: null, uniqueId: null, name: "", description: "", icon: "dataset" };
       this.showAssetTypeForm = true;
     },
     editAssetType(at) {
       this.isEditingAssetType = true;
-      this.assetTypeForm = { id: at.id, name: at.name, description: at.description, icon: at.icon };
+      this.assetTypeForm = {
+        id: at.id || at.uniqueId,
+        uniqueId: at.uniqueId || at.id,
+        name: at.name,
+        description: at.description,
+        icon: at.icon
+      };
       this.showAssetTypeForm = true;
     },
     cancelAssetTypeForm() {
       this.showAssetTypeForm = false;
-      this.assetTypeForm = { id: null, name: "", description: "", icon: "dataset" };
+      this.assetTypeForm = { id: null, uniqueId: null, name: "", description: "", icon: "dataset" };
       this.isEditingAssetType = false;
+      this.assetTypeError = "";
     },
     saveAssetType() {
-      if (!this.assetTypeForm.name) return;
-      if (this.isEditingAssetType && this.assetTypeForm.id != null) {
-        const idx = this.assetTypes.findIndex(t => t.id === this.assetTypeForm.id);
-        if (idx !== -1) {
-          this.assetTypes.splice(idx, 1, { ...this.assetTypeForm });
-        }
-      } else {
-        const maxId = this.assetTypes.reduce((m, t) => Math.max(m, t.id), 0);
-        this.assetTypes.push({ ...this.assetTypeForm, id: maxId + 1 });
+      if (!this.assetTypeForm.name || !this.assetTypeForm.name.trim()) {
+        this.assetTypeError = "Name is required";
+        return;
       }
-      this.cancelAssetTypeForm();
-      this.addToast("success", this.isEditingAssetType ? "Asset type updated." : "Asset type created.");
+      this.isSavingAssetType = true;
+      this.assetTypeError = "";
+      const payload = {
+        name: this.assetTypeForm.name.trim(),
+        description: this.assetTypeForm.description || "",
+        icon: this.assetTypeForm.icon || "dataset"
+      };
+      if (this.isEditingAssetType && this.assetTypeForm.uniqueId) {
+        uibuilderService.send({
+          type: "updateAssetType",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { uniqueId: this.assetTypeForm.uniqueId, patch: payload }
+        });
+      } else {
+        uibuilderService.send({
+          type: "saveAssetType",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: payload
+        });
+      }
     },
     deleteAssetType(id) {
-      const at = this.assetTypes.find(t => t.id === id);
-      this.showConfirm("Delete Asset Type", `Are you sure you want to delete "${at?.name || 'this type'}"?`, "Delete", () => {
-        this.assetTypes = this.assetTypes.filter(t => t.id !== id);
-        this.addToast("success", "Asset type deleted.");
+      const at = this.assetTypes.find(t => t.uniqueId === id || t.id === id);
+      if (!at) return;
+      this.showConfirm("Delete Asset Type", `Are you sure you want to delete "${at.name}"?`, "Delete", () => {
+        uibuilderService.send({
+          type: "deleteAssetType",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { uniqueId: at.uniqueId || at.id }
+        });
       });
+    },
+    loadAssetTypes() {
+      this.isLoadingAssetTypes = true;
+      uibuilderService.send({
+        type: "listAssetTypes",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {}
+      });
+    },
+    addTypeMappingRow() {
+      if (!this.remoteCatalogForm.typeMapping) this.remoteCatalogForm.typeMapping = [];
+      this.remoteCatalogForm.typeMapping.push({ remoteType: "", localTypeId: "" });
+    },
+
+    // ── FR-CR-03: Catalogue API Mappings ─────────────────────────
+    assetTypeIdToName(id) {
+      const at = (this.assetTypes || []).find(t => (t.uniqueId === id || t.id === id));
+      return at ? at.name : id;
+    },
+    loadApiMappings() {
+      const auth = { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") };
+      uibuilderService.send({ type: "listApiMappings", auth, data: {} });
+      uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" } });
+    },
+    openApiMappingForm(mapping) {
+      this.apiMappingError = "";
+      if (mapping) {
+        this.apiMappingForm = {
+          uniqueId: mapping.uniqueId,
+          catalogueId: mapping.catalogueId || "",
+          localTypeId: mapping.localTypeId || "",
+          remoteType: mapping.remoteType || "",
+          promptId: mapping.promptId || "",
+          apiRequest: Object.assign(
+            { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+            mapping.apiRequest || {}
+          ),
+          queryParamsRaw: JSON.stringify((mapping.apiRequest && mapping.apiRequest.queryParams) || {}, null, 2),
+          headersRaw: JSON.stringify((mapping.apiRequest && mapping.apiRequest.headers) || {}, null, 2),
+        };
+      } else {
+        this.apiMappingForm = {
+          uniqueId: null,
+          catalogueId: "",
+          localTypeId: "",
+          remoteType: "",
+          promptId: "",
+          apiRequest: { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+          queryParamsRaw: "{}",
+          headersRaw: "{}",
+        };
+      }
+      this.showApiMappingModal = true;
+    },
+    closeApiMappingForm() {
+      this.showApiMappingModal = false;
+      this.apiMappingError = "";
+      this.isGeneratingApiMapping = false;
+      this.isSavingApiMapping = false;
+    },
+    generateApiMappingWithAi() {
+      if (!this.apiMappingForm.catalogueId || !this.apiMappingForm.localTypeId || !this.apiMappingForm.promptId) return;
+      this.apiMappingError = "";
+      this.isGeneratingApiMapping = true;
+      uibuilderService.send({
+        type: "generateApiMappingWithAi",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          catalogueId: this.apiMappingForm.catalogueId,
+          localTypeId: this.apiMappingForm.localTypeId,
+          promptId: this.apiMappingForm.promptId,
+          remoteType: this.apiMappingForm.remoteType,
+        }
+      });
+    },
+    saveApiMapping() {
+      let queryParams = {}, headers = {};
+      try { queryParams = JSON.parse(this.apiMappingForm.queryParamsRaw || "{}"); }
+      catch (e) { this.apiMappingError = "Query Params is not valid JSON"; return; }
+      try { headers = JSON.parse(this.apiMappingForm.headersRaw || "{}"); }
+      catch (e) { this.apiMappingError = "Headers is not valid JSON"; return; }
+      const notes = this.apiMappingForm.apiRequest.notes || "";
+      const payload = {
+        uniqueId: this.apiMappingForm.uniqueId,
+        catalogueId: this.apiMappingForm.catalogueId,
+        localTypeId: this.apiMappingForm.localTypeId,
+        remoteType: this.apiMappingForm.remoteType,
+        promptId: this.apiMappingForm.promptId,
+        apiRequest: Object.assign({}, this.apiMappingForm.apiRequest, { queryParams, headers }),
+        generatedBy: notes.indexOf("AI-generated") === 0 ? "ai" : "manual",
+        status: "active",
+      };
+      this.isSavingApiMapping = true;
+      this.apiMappingError = "";
+      uibuilderService.send({
+        type: "saveApiMapping",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: payload
+      });
+    },
+    confirmDeleteApiMapping(mapping) {
+      this.showConfirm("Delete API Mapping", "Delete this API mapping?", "Delete", () => {
+        uibuilderService.send({
+          type: "deleteApiMapping",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { uniqueId: mapping.uniqueId }
+        });
+      });
+    },
+    removeTypeMappingRow(index) {
+      if (!this.remoteCatalogForm.typeMapping) return;
+      this.remoteCatalogForm.typeMapping.splice(index, 1);
     },
 
     // ── Prompt Management (FR-SR-03, FR-SR-04) ─────────────────
@@ -1115,6 +1471,7 @@ const app = createApp({
         sourceSchema: "", targetSchema: "",
         template: "", examples: "", constraints: "",
         author: "",
+        providerId: "",
       };
       this.showPromptModal = true;
     },
@@ -1122,7 +1479,7 @@ const app = createApp({
       this.isEditingPrompt = true;
       this.promptFormError = "";
       this.isEnhancingPrompt = false;
-      this.promptForm = { ...p, name: p.name || "", author: p.author || "" };
+      this.promptForm = { ...p, name: p.name || "", author: p.author || "", providerId: p.providerId || "" };
       this.showPromptModal = true;
     },
     closePromptModal() {
@@ -1144,7 +1501,8 @@ const app = createApp({
           rawPrompt: this.promptForm.template,
           sourceSchema: this.promptForm.sourceSchema,
           targetSchema: this.promptForm.targetSchema,
-          schemaContext: this.schemaSummaries?.SHACL || ""
+          schemaContext: this.schemaSummaries?.SHACL || "",
+          providerId: this.promptForm.providerId || ""
         }
       });
     },
@@ -1178,7 +1536,8 @@ const app = createApp({
             constraints: this.promptForm.constraints || "",
             status: this.promptForm.status || "active",
             code: this.promptForm.generatedCode || "",
-            author: this.promptForm.author || ""
+            author: this.promptForm.author || "",
+            providerId: this.promptForm.providerId || ""
           }
         });
         this.closePromptModal();
@@ -1195,6 +1554,7 @@ const app = createApp({
             examples: this.promptForm.examples || "",
             constraints: this.promptForm.constraints || "",
             author: this.promptForm.author || "",
+            providerId: this.promptForm.providerId || "",
           }
         });
         this.closePromptModal();
@@ -1470,17 +1830,56 @@ const app = createApp({
       return { prompt_change: "Prompt Change", strategy_change: "Strategy Change", llm_change: "LLM Config Change", manual: "Manual" }[t] || t;
     },
 
+    // ── Transformation Audit Trail (Section B) ────────────────
+    fetchAuditTrail() {
+      this.auditTrail.loading = true;
+      this.auditTrail.error = "";
+      if (this._auditTimeout) clearTimeout(this._auditTimeout);
+      this._auditTimeout = setTimeout(() => {
+        if (this.auditTrail.loading) {
+          this.auditTrail.loading = false;
+          this.auditTrail.error = "No response from backend — request timed out.";
+        }
+      }, 10000);
+      const filters = { ...this.auditTrail.filters };
+      uibuilderService.send({
+        type: "listTransformationAudit",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { filters, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
+      });
+    },
+    applyAuditFilters() {
+      this.auditTrail.pagination.page = 1;
+      this.fetchAuditTrail();
+    },
+    exportAudit(format) {
+      uibuilderService.send({
+        type: "exportTransformationAudit",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { format, filters: { ...this.auditTrail.filters } }
+      });
+    },
+
     // ── Multi-Model Provider (FR-SR-12) ──────────────────────
     openProviderModal() {
       this.isEditingProvider = false;
       this.providerFormError = "";
-      this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
+      this.showProviderApiKey = false;
+      this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", apiKey: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active", hasKey: false };
       this.showProviderModal = true;
     },
     openEditProvider(p) {
       this.isEditingProvider = true;
       this.providerFormError = "";
-      this.providerForm = { ...p, models: Array.isArray(p.models) ? p.models.join(", ") : p.models };
+      this.showProviderApiKey = false;
+      // Backend strips the real key from listProviders responses and only exposes `hasKey: boolean`.
+      // Start the API Key input empty; if left blank on save, the existing encrypted key is preserved.
+      this.providerForm = {
+        ...p,
+        models: Array.isArray(p.models) ? p.models.join(", ") : p.models,
+        apiKey: "",
+        hasKey: !!p.hasKey
+      };
       this.showProviderModal = true;
     },
     closeProviderModal() {
@@ -1488,17 +1887,41 @@ const app = createApp({
       this.providerFormError = "";
     },
     saveProvider() {
-      if (!this.providerForm.name || !this.providerForm.apiEndpoint) return;
+      if (!this.providerForm.name || !this.providerForm.apiEndpoint) {
+        this.providerFormError = "Name and API endpoint are required.";
+        return;
+      }
+      if (!this.isEditingProvider && !this.providerForm.apiKey) {
+        this.providerFormError = "API key is required when creating a new provider.";
+        return;
+      }
+      if (!this.providerForm.models || (Array.isArray(this.providerForm.models) && this.providerForm.models.length === 0) ||
+          (typeof this.providerForm.models === 'string' && this.providerForm.models.trim().length === 0)) {
+        this.providerFormError = "At least one model is required (e.g. gpt-4o, gpt-4, gpt-3.5-turbo).";
+        return;
+      }
       const models = typeof this.providerForm.models === "string"
         ? this.providerForm.models.split(",").map(m => m.trim()).filter(Boolean)
         : this.providerForm.models;
-      // Send to backend — backend handles ID generation, timestamps, default enforcement, DB persistence
+      // Strip UI-only fields before sending
+      const data = {
+        ...this.providerForm,
+        models,
+        precedence: this.providerForm.precedence || this.llmProviders.length + 1
+      };
+      delete data.hasKey;
+      // On edit, if the user left the API Key blank we must NOT overwrite the existing encrypted key.
+      if (this.isEditingProvider && (!data.apiKey || data.apiKey.length === 0)) {
+        delete data.apiKey;
+      }
+      this.providerFormError = "";
+      this.isSavingProvider  = true;
       uibuilderService.send({
         type: "saveProvider",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: { ...this.providerForm, models, precedence: this.providerForm.precedence || this.llmProviders.length + 1 }
+        data
       });
-      this.closeProviderModal();
+      // Do NOT close the modal here — wait for the response handler (success ⇒ close, error ⇒ show message).
     },
     deleteProvider(id) {
       const prov = this.llmProviders.find(p => p.id === id);
@@ -1584,27 +2007,51 @@ const app = createApp({
     openCreateLocalSchemaModal() {
       this.isEditingLocalSchema = false;
       this.editingLocalSchemaId = null;
-      this.localSchemaForm = { schema: "", format: "SHACL", catalogs: 1, localMapping: "", versioning: "v1.0", trustLevel: "Federated" };
+      this.localSchemaForm = { schema: "", format: "shacl", body: "", namespaces: "", status: "draft", catalogs: 1, localMapping: "", versioning: "1.0.0", trustLevel: "Federated", author: "", description: "" };
+      this.validateSampleForm = { assetBody: "", result: null, loading: false };
       this.showCreateLocalSchemaModal = true;
     },
     openEditLocalSchema(row) {
       this.isEditingLocalSchema = true;
       this.editingLocalSchemaId = row.id;
-      this.localSchemaForm = { schema: row.schema, format: "SHACL", catalogs: row.catalogs, localMapping: row.localMapping || "", versioning: row.versioning, trustLevel: row.trustLevel };
+      this.localSchemaForm = {
+        schema: row.schema, format: row.format || "shacl", body: row.body || "",
+        namespaces: Array.isArray(row.namespaces) ? row.namespaces.join(", ") : (row.namespaces || ""),
+        status: row.status || "draft", catalogs: row.catalogs, localMapping: row.localMapping || "",
+        versioning: row.versioning, trustLevel: row.trustLevel,
+        author: row.author || "", description: row.description || ""
+      };
+      this.validateSampleForm = { assetBody: "", result: null, loading: false };
       this.showCreateLocalSchemaModal = true;
     },
     closeCreateLocalSchemaModal() {
       this.showCreateLocalSchemaModal = false;
     },
+    confirmCloseLocalSchemaModal() {
+      if (this.localSchemaForm.schema || this.localSchemaForm.body) {
+        this.showConfirm("Discard changes?", "You have unsaved changes. Are you sure you want to close?", "Discard", () => {
+          this.closeCreateLocalSchemaModal();
+        });
+      } else {
+        this.closeCreateLocalSchemaModal();
+      }
+    },
     saveLocalSchema() {
       if (!this.localSchemaForm.schema) return;
+      const nsStr = this.localSchemaForm.namespaces || "";
+      const namespaces = nsStr.split(",").map(s => s.trim()).filter(Boolean);
       const data = {
         schema: this.localSchemaForm.schema,
-        format: this.localSchemaForm.format || "SHACL",
+        format: this.localSchemaForm.format || "shacl",
+        body: this.localSchemaForm.body || "",
+        namespaces,
+        status: this.localSchemaForm.status || "draft",
         catalogs: this.localSchemaForm.catalogs,
         localMapping: this.localSchemaForm.localMapping || null,
         versioning: this.localSchemaForm.versioning,
         trustLevel: this.localSchemaForm.trustLevel,
+        author: this.localSchemaForm.author || "",
+        description: this.localSchemaForm.description || "",
       };
       if (this.isEditingLocalSchema && this.editingLocalSchemaId != null) {
         data.id = this.editingLocalSchemaId;
@@ -1627,11 +2074,86 @@ const app = createApp({
       });
     },
 
+    // ── Local Schema Versions (Section C) ─────────────────────
+    fetchSchemaVersions(schemaName) {
+      uibuilderService.send({
+        type: "listLocalSchemaVersions",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { schemaName }
+      });
+    },
+    openSchemaVersionPanel(schemaName) {
+      this.schemaVersionPanelName = schemaName;
+      this.schemaVersionPanelLoading = true;
+      this.showSchemaVersionPanel = true;
+      this.fetchSchemaVersions(schemaName);
+    },
+    activateSchemaVersion(schemaName, version) {
+      uibuilderService.send({
+        type: "activateLocalSchemaVersion",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { schemaName, version }
+      });
+    },
+    validateSampleAsset() {
+      if (!this.validateSampleForm.assetBody) return;
+      this.validateSampleForm.loading = true;
+      this.validateSampleForm.result = null;
+      uibuilderService.send({
+        type: "validateSampleAsset",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          schemaBody: this.localSchemaForm.body,
+          assetBody: this.validateSampleForm.assetBody,
+          format: this.localSchemaForm.format
+        }
+      });
+    },
+
+    // ── Prompt Versions (D3) ──────────────────────────────
+    openPromptVersionPanel(p) {
+      this.promptVersionPanelName = p.sourceSchema + " → " + p.targetSchema;
+      this.promptVersionPanelLoading = true;
+      this.showPromptVersionPanel = true;
+      this.promptVersions = [];
+      uibuilderService.send({
+        type: "listPromptVersions",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { sourceSchemaId: p.sourceSchema, targetSchemaId: p.targetSchema }
+      });
+    },
+    activatePromptVersion(v) {
+      uibuilderService.send({
+        type: "updatePromptStatus",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { promptId: v.id, status: "active", sourceSchema: v.sourceSchema, targetSchema: v.targetSchema }
+      });
+    },
+
+    // ── System Settings (E4) ────────────────────────────────
+    fetchSystemSettings() {
+      uibuilderService.send({
+        type: "getSystemSettings",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {}
+      });
+    },
+    setDefaultProvider(providerId) {
+      uibuilderService.send({
+        type: "setSystemSetting",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { key: "defaultLlmProviderId", value: providerId }
+      });
+    },
+
     confirmDeleteRemoteSchema(id) {
-      const schema = this.remoteSchema.find(s => s.id === id);
-      this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.schema || 'this schema'}"?`, "Delete", () => {
-        this.remoteSchema = this.remoteSchema.filter(s => s.id !== id);
-        this.addToast("success", "Remote schema deleted.");
+      const schema = this.remoteSchemas.find(s => s.id === id);
+      this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.name || 'this schema'}"?`, "Delete", () => {
+        uibuilderService.send({
+          type: "deleteRemoteSchema",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          data: { schemaId: id }
+        });
       });
     },
 
@@ -1659,17 +2181,32 @@ const app = createApp({
 
     // ── Add Mapping Modal (Milestone 2) ───────────────────────
     openAddMappingModal() {
+      console.log("[facis] openAddMappingModal() fired");
       this.isEditingMapping = false;
       this.editingMappingId = null;
-      this.addMappingForm = { remoteCatalogue: "", remoteSchema: "", remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF", promptsCount: 0, shaclCount: 0 };
+      this.addMappingForm = {
+        remoteCatalogueId: "", remoteSchemaId: "",
+        remoteCatalogue: "", remoteSchema: "",
+        localSchemaId: "",
+        remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF",
+        promptsCount: 0, shaclCount: 0
+      };
       this.showAddMappingModal = true;
     },
     closeAddMappingModal() {
       this.showAddMappingModal = false;
     },
     saveAddMapping() {
-      if (!this.addMappingForm.remoteCatalogue || !this.addMappingForm.remoteSchema) return;
-      const data = { ...this.addMappingForm };
+      if (!this.addMappingForm.remoteCatalogueId || !this.addMappingForm.remoteSchemaId || !this.addMappingForm.localSchemaId) return;
+      // Resolve display names from IDs for table rendering
+      const cat = this.catalogsTable.find(c => c.id === this.addMappingForm.remoteCatalogueId);
+      const rs = this.remoteSchemas.find(s => s.id === this.addMappingForm.remoteSchemaId);
+      const data = {
+        ...this.addMappingForm,
+        remoteCatalogue: cat?.catalogName || this.addMappingForm.remoteCatalogueId,
+        remoteSchema: rs ? (rs.name + " " + rs.version) : this.addMappingForm.remoteSchemaId,
+        localSchema: this.addMappingForm.localSchemaId,
+      };
       if (this.isEditingMapping && this.editingMappingId != null) {
         data.id = this.editingMappingId;
       }
@@ -1697,6 +2234,7 @@ const app = createApp({
       this.mappingDetailEditForm = {
         remoteCatalogue: this.mappingDetailRow.remoteCatalogue,
         remoteSchema: this.mappingDetailRow.remoteSchema,
+        localSchema: this.mappingDetailRow.localSchema || "",
         remoteSchemaMeta: this.mappingDetailRow.remoteSchemaMeta,
         transformationStrategy: this.mappingDetailRow.transformationStrategy,
       };
@@ -1720,6 +2258,80 @@ const app = createApp({
     },
     openMappingShacl(row) {
       this.openMappingViewEdit(row);
+    },
+
+    // ── RDF Mapping Config (FR-SR-06 / FR-SR-07) ────────────
+    openRdfMappingConfig(row) {
+      this.rdfConfigMapping = row;
+      this.rdfConfigForm = {
+        namespacesToPreserve: Array.isArray(row.namespacesToPreserve) ? [...row.namespacesToPreserve] : [],
+        shaclShapeSchemaId: row.shaclShapeSchemaId || "",
+      };
+      this.rdfConfigNewNamespace = "";
+      this.rdfTestInput = "";
+      this.rdfTestResult = null;
+      this.showRdfConfigPanel = true;
+    },
+    addRdfNamespace() {
+      const ns = (this.rdfConfigNewNamespace || "").trim();
+      if (ns && !this.rdfConfigForm.namespacesToPreserve.includes(ns)) {
+        this.rdfConfigForm.namespacesToPreserve.push(ns);
+      }
+      this.rdfConfigNewNamespace = "";
+    },
+    addPresetNamespace(ns) {
+      if (!this.rdfConfigForm.namespacesToPreserve.includes(ns)) {
+        this.rdfConfigForm.namespacesToPreserve.push(ns);
+      }
+    },
+    getShaclShapeBody(schemaId) {
+      const s = this.schemaRegistry.find(x => x.id === schemaId);
+      return s ? (s.body || "(no body)") : "(schema not found)";
+    },
+    saveRdfConfig() {
+      if (!this.rdfConfigMapping) return;
+      this.rdfConfigSaving = true;
+      uibuilderService.send({
+        type: "saveRdfMappingConfig",
+        data: {
+          mappingId: this.rdfConfigMapping.id,
+          namespacesToPreserve: this.rdfConfigForm.namespacesToPreserve,
+          shaclShapeSchemaId: this.rdfConfigForm.shaclShapeSchemaId,
+        }
+      });
+    },
+    testRdfMapping() {
+      this.rdfTestRunning = true;
+      this.rdfTestResult = null;
+      uibuilderService.send({
+        type: "testRdfMapping",
+        data: {
+          rdfInput: this.rdfTestInput,
+          rdfFormat: this.rdfTestFormat,
+          namespacesToPreserve: this.rdfConfigForm.namespacesToPreserve,
+          shaclShapeSchemaId: this.rdfConfigForm.shaclShapeSchemaId,
+        }
+      });
+    },
+
+    // FR-SR-08: Hybrid Fallback transform execution
+    executeHybridTransform(mapping) {
+      if (!mapping || !mapping.id) return;
+      const inputData = this.rdfTestInput || '';
+      if (!inputData.trim()) {
+        this.addToast && this.addToast('warning', 'Please enter test input data in the RDF Test Input field first');
+        return;
+      }
+      this.hybridTransformLoading = true;
+      this.hybridTransformResult = null;
+      uibuilderService.send({
+        type: "executeHybridTransform",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {
+          mappingId: mapping.id,
+          inputData: inputData
+        }
+      });
     },
 
     // ── Mapping ────────────────────────────────────────────────
@@ -1839,6 +2451,31 @@ const app = createApp({
           };
         });
 
+      // FR-ACM-05: if resolveReferences is enabled, also attach sourceData for every OTHER
+      // registered catalogue (tagged _crawlOnly:true) so the backend can follow references
+      // into catalogues that weren't explicitly selected for this harvest.
+      if (this.harvestScope && this.harvestScope.resolveReferences) {
+        const selectedIds = new Set(selectedCatalogues.map(c => c.uniqueId || c.catalogId));
+        const allRegistered = Array.isArray(this.catalogsTable) ? this.catalogsTable : [];
+        for (const reg of allRegistered) {
+          const regId = reg.uniqueId || reg.id || reg.catalogId;
+          if (!regId || selectedIds.has(regId)) continue;
+          selectedCatalogues.push({
+            uniqueId: regId,
+            catalogName: reg.catalogName || reg.catalog || reg.name || regId,
+            strategy: reg.strategy || "none",
+            baseEndpoint: reg.baseEndpoint || reg.queryEndpoint || reg.endpoint || "",
+            sourceData: reg.sourceData || reg._cachedSourceData || null,
+            responseRootPath: reg.responseRootPath || "",
+            responseAssetIdField: reg.responseAssetIdField || "",
+            responseAssetNameField: reg.responseAssetNameField || "",
+            responseAssetTypeField: reg.responseAssetTypeField || "",
+            typeMapping: Array.isArray(reg.typeMapping) ? reg.typeMapping : [],
+            _crawlOnly: true
+          });
+        }
+      }
+
       this.isSubmittingHarvest = true;
       this.harvestSubmitError = "";
       // Set a timeout to detect silent backend failure
@@ -1846,7 +2483,7 @@ const app = createApp({
       this._harvestTimeout = setTimeout(() => {
         if (this.isSubmittingHarvest) {
           this.isSubmittingHarvest = false;
-          this.addToast("error", "Harvest request timed out — no response from backend. Check Node-RED logs.");
+          this.addToast("error", "Harvest request timed out — no response from backend. Check ORCE logs.");
         }
       }, 30000);
       uibuilderService.send({
@@ -1925,6 +2562,18 @@ const app = createApp({
       uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
     },
 
+    // ── Utility ─────────────────────────────────────────────────
+    formatRelativeDate(isoStr) {
+      if (!isoStr) return "never";
+      const d = new Date(isoStr);
+      const now = new Date();
+      const diffMs = d - now;
+      const absDays = Math.abs(Math.round(diffMs / 86400000));
+      if (diffMs < 0) return "Expired " + absDays + " day" + (absDays !== 1 ? "s" : "") + " ago";
+      if (absDays === 0) return "today";
+      return "in " + absDays + " day" + (absDays !== 1 ? "s" : "");
+    },
+
     // ── Toast Notifications (Milestone 5) ──────────────────────
     addToast(type, message, duration = 4000) {
       const id = ++this._toastCounter;
@@ -1949,6 +2598,19 @@ const app = createApp({
       this.cancelConfirm();
     },
 
+    // ── Delete Blocked Modal ────────────────────────────────
+    closeDeleteBlockedModal() {
+      this.deleteBlockedModal = { visible: false, title: "", message: "", mappings: [] };
+    },
+    goToMappingRow(mappingId) {
+      this.closeDeleteBlockedModal();
+      this.currentSchemaTab = "mapping";
+      this.$nextTick(() => {
+        const row = this.$refs.mappingTableBody?.querySelector(`tr[data-id="${mappingId}"]`);
+        if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    },
+
     // ── Delete Remote Catalogue (Milestone 5) ────────────────
     confirmDeleteRemoteCatalog(id) {
       const cat = this.catalogsTable.find(c => String(c.id) === String(id) || String(c.uniqueId) === String(id));
@@ -1971,13 +2633,31 @@ const app = createApp({
       this.addToast("success", "Remote catalogue deleted successfully.");
     },
 
-    // ── Monitoring Log Export (Milestone 4) ─────────────────────
+    // ── Monitoring ─────────────────────────────────────────────
+    fetchMonitoring() {
+      const auth = { userToken: localStorage.getItem("authToken") || getCookie("userToken"), clientId: getCookie("uibuilder-client-id") };
+      uibuilderService.send({ type: "getMonitoringOverview", auth: auth, _silent: true });
+    },
+    startMonitoringPolling() {
+      this.fetchMonitoring();
+      this._monitoringTimer = setInterval(() => this.fetchMonitoring(), 10000);
+    },
+    stopMonitoringPolling() {
+      if (this._monitoringTimer) { clearInterval(this._monitoringTimer); this._monitoringTimer = null; }
+    },
+    formatMonitoringTime(iso) {
+      if (!iso) return "—";
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      } catch (e) { return iso; }
+    },
     exportMonitoringLog(format) {
       const rows = this.filteredMonitoringEvents;
       let content, filename, mimeType;
       if (format === "csv") {
-        const headers = ["ID", "Level", "Source", "Message", "Timestamp"];
-        const csvRows = rows.map(r => [r.id, r.type, r.source, r.message, r.timestamp].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+        const headers = ["Timestamp", "Action", "Actor", "Target", "Meta"];
+        const csvRows = rows.map(r => [r.at, r.action, r.actor, r.target, r.meta].map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(","));
         content = [headers.join(","), ...csvRows].join("\n");
         filename = "monitoring-events.csv";
         mimeType = "text/csv";
@@ -2020,39 +2700,196 @@ const app = createApp({
     openAccessInformation() { this.showAccessInformation = true; },
     closeAccessInformation() { this.showAccessInformation = false; },
 
-    // ── Logout ──────────────────────────────────────────────────
-    logout() {
+    // ── Role Management ───────────────────────────────────────────
+    confirmDeleteRole(roleKey) {
+      this.confirmDialog = {
+        visible: true,
+        title: "Delete Role",
+        message: "Are you sure you want to delete the role '" + roleKey + "'? This cannot be undone.",
+        confirmLabel: "Delete",
+        onConfirm: () => {
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+          uibuilderService.send({ type: "deleteRole", data: { key: roleKey }, auth: auth });
+          this.confirmDialog.visible = false;
+        }
+      };
+    },
+
+    // ── Authentication ──────────────────────────────────────────
+    loginSubmit() {
+      this.loginError = "";
+      this.loginErrorCode = "";
+      if (!this.loginForm.username || !this.loginForm.password) {
+        this.loginError = "Username and password are required.";
+        return;
+      }
+      this.isLoggingIn = true;
+      uibuilderService.send({
+        type: "login",
+        data: { username: this.loginForm.username, password: this.loginForm.password }
+      });
+    },
+    handleSignOut() {
+      this.showUserProfile = false;
+      const token = localStorage.getItem("authToken") || "";
       uibuilderService.send({
         type: "logOut",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        data: { token: token },
+        auth: { userToken: token, clientId: getCookie("uibuilder-client-id") }
       });
+      localStorage.removeItem("authToken");
+      document.cookie = "userToken=; path=/; max-age=0";
+      this.isLoggedIn = false;
+      this.authToken = "";
+      this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+      this.loginForm = { username: "", password: "" };
+      this.loginError = "";
+      this.loginErrorCode = "";
+    },
+    logout() {
+      this.handleSignOut();
+    },
+    initDashboardData() {
+      const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+      // Hydrate session to get full permissions
+      uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth: auth });
+      // Load all data after successful login
+      uibuilderService.send({ type: "listPrompts", data: {} });
+      uibuilderService.send({ type: "listTestCases", data: {} });
+      uibuilderService.send({ type: "listLlmConfigs", data: {} });
+      uibuilderService.send({ type: "listProviders", data: {} });
+      uibuilderService.send({ type: "listLocalSchemas", data: {} });
+      uibuilderService.send({ type: "listMappings", data: {} });
+      uibuilderService.send({ type: "listRemoteSchemas", data: {} });
+      uibuilderService.send({ type: "getCatalogRegistry", auth: auth });
+      uibuilderService.send({ type: "listAssetTypes", auth: auth, data: {} });
+      // Only load admin data if user has adminTools access
+      const aa = this.currentUser.accessAreas || [];
+      if (aa.includes('adminTools') || this.userAccess.includes('admin_tools')) {
+        uibuilderService.send({ type: "listUsers", auth: auth });
+        uibuilderService.send({ type: "listRoles", auth: auth });
+      }
+      this.loadHarvestData();
     },
   },
 
   mounted() {
     uibuilderService.start();
 
-    // Load all Schema Registry data from MongoDB on mount
-    uibuilderService.send({ type: "listPrompts", data: {} });
-    uibuilderService.send({ type: "listTestCases", data: {} });
-    uibuilderService.send({ type: "listLlmConfigs", data: {} });
-    uibuilderService.send({ type: "listProviders", data: {} });
-    uibuilderService.send({ type: "listLocalSchemas", data: {} });
-    uibuilderService.send({ type: "listMappings", data: {} });
-
-    // Load Catalogue Registry data on mount
-    uibuilderService.send({
-      type: "getCatalogRegistry",
-      auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-    });
-
-    // Load Harvest data on mount
-    this.loadHarvestData();
+    // Check for existing session token
+    const storedToken = localStorage.getItem("authToken");
+    if (storedToken) {
+      this.isCheckingAuth = true;
+      uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
+    } else {
+      this.isCheckingAuth = false;
+      this.isLoggedIn = false;
+    }
 
     uibuilderService.onMessage((msg) => {
       console.log(msg);
       const payload = msg?.payload ?? msg;
       const resp = payload?.response ?? msg?.response;
+
+      // ── FR-CR-03: Catalogue API Mappings ────────────────────
+      if (resp?.action === "listApiMappings") {
+        this.apiMappings = Array.isArray(resp.mappings) ? resp.mappings : [];
+      }
+      if (resp?.action === "listPrompts" && resp.kind === "api-mapping") {
+        this.apiMappingPrompts = Array.isArray(resp.prompts) ? resp.prompts : [];
+      }
+      if (resp?.action === "saveApiMapping") {
+        this.isSavingApiMapping = false;
+        if (resp.status === "success") {
+          this.showApiMappingModal = false;
+          this.loadApiMappings();
+          this.addToast("success", "API mapping saved.");
+        } else {
+          this.apiMappingError = resp.message || "Save failed";
+          this.addToast("error", this.apiMappingError);
+        }
+      }
+      if (resp?.action === "deleteApiMapping" && resp.status === "success") {
+        this.apiMappings = (this.apiMappings || []).filter(m => m.uniqueId !== resp.uniqueId);
+        this.addToast("success", "API mapping deleted.");
+      }
+      if (resp?.action === "generateApiMappingWithAi") {
+        this.isGeneratingApiMapping = false;
+        if (resp.status === "success" && resp.apiRequest) {
+          this.apiMappingForm.apiRequest = Object.assign({}, resp.apiRequest);
+          this.apiMappingForm.queryParamsRaw = JSON.stringify(resp.apiRequest.queryParams || {}, null, 2);
+          this.apiMappingForm.headersRaw = JSON.stringify(resp.apiRequest.headers || {}, null, 2);
+          this.addToast("success", "AI generated API mapping.");
+        } else {
+          this.apiMappingError = resp.message || "AI generation failed";
+          this.addToast("error", this.apiMappingError);
+        }
+      }
+
+      if (resp?.action === "listAssetTypes" && resp.status === "success") {
+        this.isLoadingAssetTypes = false;
+        this.assetTypes = (resp.items || []).map(it => ({
+          id: it.uniqueId,
+          uniqueId: it.uniqueId,
+          name: it.name,
+          description: it.description,
+          icon: it.icon
+        }));
+      }
+
+      if (resp?.action === "saveAssetType") {
+        this.isSavingAssetType = false;
+        if (resp.status === "success" && resp.item) {
+          this.assetTypes.push({
+            id: resp.item.uniqueId,
+            uniqueId: resp.item.uniqueId,
+            name: resp.item.name,
+            description: resp.item.description,
+            icon: resp.item.icon
+          });
+          this.cancelAssetTypeForm();
+          this.addToast("success", "Asset type created.");
+        } else {
+          this.assetTypeError = resp.message || "Save failed";
+          this.addToast("error", this.assetTypeError);
+        }
+      }
+
+      if (resp?.action === "updateAssetType") {
+        this.isSavingAssetType = false;
+        if (resp.status === "success") {
+          const idx = this.assetTypes.findIndex(t => t.uniqueId === resp.uniqueId);
+          if (idx !== -1) {
+            this.assetTypes.splice(idx, 1, { ...this.assetTypes[idx], ...(resp.patch || {}) });
+          }
+          this.cancelAssetTypeForm();
+          this.addToast("success", "Asset type updated.");
+        } else {
+          this.assetTypeError = resp.message || "Update failed";
+          this.addToast("error", this.assetTypeError);
+        }
+      }
+
+      if (resp?.action === "deleteAssetType") {
+        if (resp.status === "success") {
+          this.assetTypes = this.assetTypes.filter(t => t.uniqueId !== resp.uniqueId && t.id !== resp.uniqueId);
+          this.addToast("success", "Asset type deleted.");
+        } else {
+          this.addToast("error", resp.message || "Delete failed");
+        }
+      }
+
+      if (resp?.action === "testRemoteCatalogConnection") {
+        if (this._testConnTimeout) { clearTimeout(this._testConnTimeout); this._testConnTimeout = null; }
+        this.testConnectionResult = {
+          status: resp.status || "error",
+          message: resp.message || "",
+          latency: Number(resp.latency) || 0,
+          httpCode: resp.httpCode
+        };
+        this.isTestingConnection = false;
+        return;
+      }
 
       if (resp?.action === "registerRemoteCatalog") {
         this.isRegisteringRemoteCatalog = false;
@@ -2275,6 +3112,11 @@ const app = createApp({
       }
 
       // ── Local Catalogue responses ──
+      if (resp?.action === "getLocalAssetDetail") {
+        this._applyLocalAssetDetailResponse(resp);
+        return;
+      }
+
       if (resp?.action === "getLocalCatalogue" && resp?.status === "success") {
         const assets = (Array.isArray(resp.assets) ? resp.assets : []).map(a => {
           // Normalize: ensure 'assets' field (display name) uses the best available identity
@@ -2307,26 +3149,26 @@ const app = createApp({
         this.loadLocalCatalogs();
       }
 
-      if (resp?.action === "inviteUser" && resp?.status === "success") {
-        const sent = payload?.data ?? msg?.data ?? {};
-        const firstName = sent?.profile?.firstName ?? sent?.firstName ?? "";
-        const lastName = sent?.profile?.lastName ?? sent?.lastName ?? "";
-        const uid = resp?.uniqueId ?? msg?.response?.uniqueId ?? payload?.response?.uniqueId;
-        const accessKeys = Array.isArray(sent?.access) ? sent.access : [];
-        const newUser = {
-          uniqueId: uid,
-          name: `${firstName} ${lastName}`.trim(),
-          avatar: "./img/avatar-16.jpg",
-          email: sent?.email ?? "",
-          access: accessKeys,
-          status: "Invited",
-          expiresIn: sent?.expiresIn ?? "30 Days",
-        };
-        let idx = uid ? this.users.findIndex(u => String(u.uniqueId) === String(uid)) : -1;
-        if (idx === -1 && newUser.email) idx = this.users.findIndex(u => String(u.email) === String(newUser.email));
-        if (idx !== -1) this.users.splice(idx, 1, newUser);
-        else this.users.unshift(newUser);
+      if (resp?.action === "createUser" && (resp?.status === "success" || resp?.ok)) {
+        this.isCreatingUser = false;
+        this.isCreateUserModal = false;
+        this.resetCreateUserForm();
+        const username = resp.user?.username || "";
+        this.addToast("success", "User " + username + " created");
+        // Reload users list from database
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listUsers", auth: auth });
         this.pagination.users.page = 1;
+      }
+      if (resp?.action === "createUser" && resp?.error) {
+        this.isCreatingUser = false;
+        if (resp.error === "validation" && resp.field) {
+          // Inline validation error — keep dialog open, highlight field
+          this.createUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
+        } else {
+          // Backend error — show destructive toast
+          this.addToast("error", resp.message || resp.reason || "Failed to create user: " + resp.error);
+        }
       }
 
       if (msg?.type === "getAdminTools" && msg?.response?.status === "success") {
@@ -2335,7 +3177,7 @@ const app = createApp({
           const uid = u.uniqueId ?? u.id ?? u._id ?? String(i);
           return {
             ...u, uniqueId: uid,
-            name: (`${u.profile?.firstName ?? ""} ${u.profile?.lastName ?? ""}`).trim() || u.name || u.email || "\u2014",
+            name: (`${u.profile?.firstName ?? ""} ${u.profile?.lastName ?? ""}`).trim() || u.name || u.username || u.email || "\u2014",
             avatar: u.avatar || "./img/avatar-16.jpg",
             email: u.email || "\u2014",
             status: u.status || (u.invited ? "Invited" : "Active"),
@@ -2343,9 +3185,247 @@ const app = createApp({
         });
       }
 
-      if (resp?.action === "logOut" && resp?.status === "success") {
-        window.location.href = "/facis-facis/login";
+      // ── New listUsers response (from permission-gated M4) ─────
+      if (resp?.action === "listUsers" && resp?.status === "success") {
+        const list = resp.users || [];
+        this.users = list.map((u, i) => {
+          const uid = u.uniqueId ?? u.id ?? u._id ?? String(i);
+          return {
+            ...u, uniqueId: uid,
+            name: u.name || u.username || u.email || "\u2014",
+            avatar: u.avatar || "./img/avatar-16.jpg",
+            email: u.email || "\u2014",
+            status: u.status || "active",
+            access: u.roles || u.access || [],
+          };
+        });
+        this.pagination.users.page = 1;
+      }
+
+      // ── listRoles response ────────────────────────────────────
+      if (resp?.action === "listRoles" && resp?.status === "success") {
+        this.dcmRoles = resp.roles || [];
+      }
+
+      // ── deleteUser response ───────────────────────────────────
+      if (resp?.action === "deleteUser" && (resp?.ok || resp?.status === "success")) {
+        const delId = resp.uniqueId || msg?.data?.uniqueId;
+        if (delId) {
+          this.users = this.users.filter(u => String(u.uniqueId) !== String(delId));
+        }
+        this.addToast("success", "User deleted.");
+        // Reload users from server to reconcile
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listUsers", auth: auth });
+      }
+      if (resp?.action === "deleteUser" && resp?.error) {
+        this.addToast("error", resp.message || "Failed to delete user: " + resp.error);
+      }
+
+      // ── updateUser response ───────────────────────────────────
+      if (resp?.action === "updateUser" && (resp?.ok || resp?.status === "success")) {
+        // Close modal FIRST, then upsert into store ONCE
+        this.isEditUserModal = false;
+        this.isSavingUser = false;
+        this.addToast("success", "User updated.");
+        // Upsert returned user into list by _id (no API call)
+        if (resp.user) {
+          const uid = resp.user._id || resp.user.uniqueId;
+          const idx = this.users.findIndex(u => (u._id || u.uniqueId) === uid);
+          if (idx >= 0) { this.users.splice(idx, 1, { ...this.users[idx], ...resp.user }); }
+          else { this.users.push(resp.user); }
+        }
+      }
+      if (resp?.action === "updateUser" && resp?.error) {
+        this.isSavingUser = false;
+        if (resp.error === "validation" && resp.field) {
+          this.editUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
+        } else {
+          this.addToast("error", resp.message || resp.reason || "Failed to update user: " + resp.error);
+        }
+      }
+
+      // ── Monitoring overview response ─────────────────────────
+      if (resp?.action === "getMonitoringOverview") {
+        if (resp?.ok && resp?.data) {
+          this.monitoring = resp.data;
+          this.monitoringError = false;
+        } else {
+          this.monitoringError = true;
+        }
+      }
+
+      // ── Role CRUD responses ───────────────────────────────────
+      if (resp?.action === "createRole" && (resp?.ok || resp?.status === "success")) {
+        this.addToast("success", "Role created.");
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listRoles", auth: auth });
+      }
+      if (resp?.action === "updateRole" && (resp?.ok || resp?.status === "success")) {
+        this.addToast("success", "Role updated.");
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listRoles", auth: auth });
+      }
+      if (resp?.action === "deleteRole" && (resp?.ok || resp?.status === "success")) {
+        this.addToast("success", "Role deleted.");
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listRoles", auth: auth });
+      }
+      if ((resp?.action === "updateRole" || resp?.action === "deleteRole") && resp?.error === "forbidden") {
+        this.addToast("error", resp.message || "Cannot modify system roles.");
+      }
+
+      // ── Invitation responses ──────────────────────────────────
+      if (resp?.action === "resendInvitation" && (resp?.ok || resp?.status === "success")) {
+        this.addToast("success", "Invitation resent.");
+      }
+      if (resp?.action === "revokeInvitation" && (resp?.ok || resp?.status === "success")) {
+        this.addToast("success", "Invitation revoked.");
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listUsers", auth: auth });
+      }
+
+      // ── Auth Response Handlers ─────────────────────────────────
+      if (resp?.action === "login") {
+        this.isLoggingIn = false;
+        if (resp.status === "success" && resp.token) {
+          this.authToken = resp.token;
+          localStorage.setItem("authToken", resp.token);
+          document.cookie = "userToken=" + resp.token + "; path=/; max-age=86400";
+          if (resp.user) {
+            const perms = resp.user.permissions || [];
+            const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0
+              ? resp.user.access
+              : ['local_catalogue'];
+            this.userAccess = rawAccess;
+            this.userProfile.name = resp.user.username || this.userProfile.name;
+            this.userProfile.email = resp.user.email || this.userProfile.email;
+            this.userProfile.role = resp.user.role || this.userProfile.role;
+            // Populate currentUser with RBAC data + accessAreas as source of truth
+            this.currentUser = {
+              id: resp.user.id || '',
+              email: resp.user.email || '',
+              username: resp.user.username || '',
+              roles: resp.user.roles || [],
+              permissions: perms,
+              accessAreas: resp.user.accessAreas || [],
+              isAuthenticated: true,
+              status: resp.user.status || 'active'
+            };
+          }
+          this.isLoggedIn = true;
+          this.isCheckingAuth = false;
+          this.loginForm = { username: "", password: "" };
+          this.loginError = "";
+          this.loginErrorCode = "";
+          this.currentPage = "localCatalogue";
+          this.initDashboardData();
+          this.fetchSystemSettings();
+        } else if (resp.error === "account_disabled") {
+          this.loginErrorCode = "account_disabled";
+          this.loginError = "";
+        } else if (resp.error === "account_expired") {
+          this.loginErrorCode = "account_expired";
+          this.loginError = "Your account has expired. Contact an administrator.";
+        } else {
+          this.loginErrorCode = resp.error || "";
+          this.loginError = resp.message || "Login failed.";
+        }
+      }
+
+      if (resp?.action === "checkAuth") {
+        this.isCheckingAuth = false;
+        if (resp.status === "success" && resp.user) {
+          this.authToken = localStorage.getItem("authToken") || "";
+          const perms = resp.user.permissions || [];
+          const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0
+            ? resp.user.access
+            : ['local_catalogue'];
+          this.userAccess = rawAccess;
+          this.userProfile.name = resp.user.username || this.userProfile.name;
+          this.userProfile.email = resp.user.email || this.userProfile.email;
+          this.userProfile.role = resp.user.role || this.userProfile.role;
+          // Populate currentUser from session + accessAreas
+          this.currentUser = {
+            id: resp.user.id || '',
+            email: resp.user.email || '',
+            username: resp.user.username || '',
+            roles: resp.user.roles || [],
+            permissions: perms,
+            accessAreas: resp.user.accessAreas || [],
+            isAuthenticated: true,
+            status: resp.user.status || 'active'
+          };
+          this.isLoggedIn = true;
+          this.currentPage = "localCatalogue";
+          this.initDashboardData();
+          this.fetchSystemSettings();
+        } else {
+          localStorage.removeItem("authToken");
+          this.isLoggedIn = false;
+        }
+      }
+
+      // ── Hydrate Session (full permissions) ─────────────────────
+      if (resp?.action === "hydrateSession") {
+        if (resp.error === "account_disabled") {
+          // User was disabled mid-session — force logout and show banner
+          localStorage.removeItem("authToken");
+          document.cookie = "userToken=; path=/; max-age=0";
+          this.isLoggedIn = false;
+          this.authToken = "";
+          this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+          this.loginErrorCode = "account_disabled";
+          this.loginError = "";
+        } else if (resp.status === "success" && resp.user) {
+          const perms = resp.user.permissions || [];
+          const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0
+            ? resp.user.access
+            : ['local_catalogue'];
+          this.currentUser = {
+            id: resp.user.id || '',
+            email: resp.user.email || '',
+            username: resp.user.username || '',
+            roles: resp.user.roles || [],
+            permissions: perms,
+            accessAreas: resp.user.accessAreas || [],
+            isAuthenticated: true,
+            status: resp.user.status || 'active'
+          };
+          this.userAccess = rawAccess;
+          // Now that we know accessAreas, load admin data if needed
+          const aa = resp.user.accessAreas || [];
+          if (aa.includes('adminTools')) {
+            const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+            uibuilderService.send({ type: "listUsers", auth: auth });
+            uibuilderService.send({ type: "listRoles", auth: auth });
+          }
+        }
+      }
+
+      // ── Permission denied handler ──────────────────────────────
+      // Only toast permission_denied for user-initiated actions, not silent background calls
+      if (resp?.error === "permission_denied" && !msg?._silent) {
+        this.addToast("error", resp.message || "Permission denied for " + (resp.action || "this operation"));
+      }
+      if (resp?.error === "not_authenticated" || resp?.error === "account_disabled") {
+        // Force re-login
+        localStorage.removeItem("authToken");
         document.cookie = "userToken=; path=/; max-age=0";
+        this.isLoggedIn = false;
+        this.authToken = "";
+        this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+        if (resp?.error === "account_disabled") {
+          this.loginErrorCode = "account_disabled";
+          this.loginError = "";
+        }
+      }
+
+      if (resp?.action === "logOut" && resp?.status === "success") {
+        localStorage.removeItem("authToken");
+        document.cookie = "userToken=; path=/; max-age=0";
+        this.isLoggedIn = false;
+        this.authToken = "";
       }
 
       // ── Schema Prompts Backend Response Handlers ────────────────
@@ -2449,6 +3529,7 @@ const app = createApp({
         } else {
           this.promptTestError = resp.message || "Dry run failed.";
         }
+        this.promptTestResolvedFromBackend = resp.resolvedPrompt || "";
         this.promptTestRunning = false;
       }
 
@@ -2509,6 +3590,14 @@ const app = createApp({
 
       // ── Provider Backend Response Handlers ──────────────────────
 
+      if (resp?.action === "saveProvider" && resp?.ok === false) {
+        this.isSavingProvider  = false;
+        const errMsg = resp.error || resp.code || "Failed to save provider.";
+        this.providerFormError = errMsg;
+        this.addToast("error", errMsg);
+        // keep modal open so the user sees the error and can re-enter the key
+        return;
+      }
       if (resp?.action === "saveProvider" && resp?.status === "success") {
         if (resp.provider) {
           const idx = this.llmProviders.findIndex(p => p.id === resp.provider.id);
@@ -2517,12 +3606,21 @@ const app = createApp({
           } else {
             this.llmProviders.push(resp.provider);
           }
-          // Backend enforces default: if this provider is default, clear others
           if (resp.provider.isDefault) {
             this.llmProviders.forEach(p => { if (p.id !== resp.provider.id) p.isDefault = false; });
           }
         }
+        this.isSavingProvider = false;
+        this.closeProviderModal();
         this.addToast("success", resp.isNew ? "Provider created." : "Provider updated.");
+        // Refresh list so any subsequent Edit sees the authoritative hasKey flag from DB.
+        try {
+          uibuilderService.send({
+            type: "listProviders",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            data: {}
+          });
+        } catch (e) { /* non-fatal */ }
       }
 
       if (resp?.action === "deleteProvider" && resp?.status === "success") {
@@ -2539,26 +3637,149 @@ const app = createApp({
       // ── Local Schema Backend Response Handlers ─────────────────
 
       if (resp?.action === "listLocalSchemas" && resp?.status === "success") {
-        if (Array.isArray(resp.schemas) && resp.schemas.length > 0) {
+        if (Array.isArray(resp.schemas)) {
           this.schemaRegistry = resp.schemas;
         }
+        // Lazy-load versions for each unique schemaName
+        const names = new Set((this.schemaRegistry || []).map(s => s.schema).filter(Boolean));
+        names.forEach(n => { if (!this.localSchemaVersionsCache[n]) this.fetchSchemaVersions(n); });
       }
 
       if (resp?.action === "saveLocalSchema" && resp?.status === "success") {
         if (resp.schema) {
+          // Backend returns the version string — reflect it into the row
+          if (resp.newVersion) resp.schema.versioning = resp.newVersion;
           const idx = this.schemaRegistry.findIndex(s => s.id === resp.schema.id);
           if (idx !== -1) {
             this.schemaRegistry.splice(idx, 1, resp.schema);
           } else {
             this.schemaRegistry.push(resp.schema);
           }
+          // Invalidate the version cache for this schema so the next view reloads
+          if (resp.schema.schema) {
+            delete this.localSchemaVersionsCache[resp.schema.schema];
+            this.fetchSchemaVersions(resp.schema.schema);
+          }
         }
         this.addToast("success", resp.isNew ? "Schema created." : "Schema updated.");
       }
 
-      if (resp?.action === "deleteLocalSchema" && resp?.status === "success") {
+      if (resp?.action === "deleteLocalSchema" && (resp?.status === "success" || resp?.ok === true)) {
         this.schemaRegistry = this.schemaRegistry.filter(s => s.id !== resp.schemaId);
         this.addToast("success", "Schema deleted.");
+      }
+      if (resp?.action === "deleteLocalSchema" && resp?.ok === false) {
+        if (resp.code === "referenced") {
+          const prompts = (resp.by?.prompts || []).map(p => ({ id: p.id, remoteSchema: p.name || p.id, remoteCatalogue: "prompt" }));
+          const mappings = (resp.by?.mappings || []).map(m => ({ id: m.id, remoteSchema: "mapping " + m.id, remoteCatalogue: m.remoteCatalogue || "" }));
+          const all = [...prompts, ...mappings];
+          this.deleteBlockedModal = {
+            visible: true,
+            title: "Cannot delete Local Schema",
+            message: `This schema is referenced by ${all.length} object(s). Remove those references first.`,
+            mappings: all
+          };
+        } else {
+          this.addToast("error", resp.error || "Failed to delete schema.");
+        }
+      }
+
+      if (resp?.action === "listLocalSchemaVersions" && resp?.ok) {
+        this.localSchemaVersionsCache[resp.schemaName] = Array.isArray(resp.versions) ? resp.versions : [];
+        if (this.schemaVersionPanelName === resp.schemaName) {
+          this.schemaVersionPanelLoading = false;
+        }
+      }
+      if (resp?.action === "listLocalSchemaVersions" && resp?.ok === false) {
+        this.schemaVersionPanelLoading = false;
+        this.addToast("error", resp.error || "Failed to load schema versions.");
+      }
+
+      if (resp?.action === "activateLocalSchemaVersion" && resp?.ok) {
+        // Update cache: flip all to deprecated for this schema, set target to active
+        const cache = this.localSchemaVersionsCache[resp.schemaName];
+        if (Array.isArray(cache)) {
+          cache.forEach(v => {
+            if (v.status === "active") v.status = "deprecated";
+            if (v.version === resp.version) v.status = "active";
+          });
+        }
+        // Update the row's current version display
+        const row = this.schemaRegistry.find(s => s.schema === resp.schemaName);
+        if (row) row.versioning = resp.version;
+        this.addToast("success", "Version " + resp.version + " activated.");
+      }
+      if (resp?.action === "activateLocalSchemaVersion" && resp?.ok === false) {
+        this.addToast("error", resp.error || "Failed to activate version.");
+      }
+
+      if (resp?.action === "validateSampleAsset") {
+        this.validateSampleForm.loading = false;
+        this.validateSampleForm.result = resp;
+      }
+
+      // ── Prompt Version Response (D3) ──────────────────────────
+      if (resp?.action === "listPromptVersions" && resp?.ok) {
+        this.promptVersions = Array.isArray(resp.versions) ? resp.versions : [];
+        this.promptVersionPanelLoading = false;
+      }
+
+      // ── System Settings Response (E4) ─────────────────────────
+      if (resp?.action === "getSystemSettings" && resp?.ok) {
+        this.systemSettings = resp.settings || {};
+      }
+      if (resp?.action === "setSystemSetting" && resp?.ok) {
+        this.systemSettings[resp.key] = resp.value;
+        this.showToast("System setting updated", "success");
+      }
+
+      // ── Remote Schema Backend Response Handlers ─────────────────
+
+      if (resp?.action === "listRemoteSchemas" && resp?.status === "success") {
+        this.remoteSchemas = Array.isArray(resp.schemas) ? resp.schemas : [];
+        if (resp.catalogueIdToName) this.catalogueIdToName = resp.catalogueIdToName;
+        this.remoteSchemaLoading = false;
+      }
+
+      if (resp?.action === "saveRemoteSchema" && resp?.ok) {
+        if (resp.schema) {
+          const idx = this.remoteSchemas.findIndex(s => s.id === resp.schema.id);
+          if (idx !== -1) {
+            this.remoteSchemas.splice(idx, 1, resp.schema);
+          } else {
+            this.remoteSchemas.push(resp.schema);
+          }
+        }
+        this.addToast("success", resp.isNew ? "Remote schema registered." : "Remote schema updated.");
+      }
+      if (resp?.action === "saveRemoteSchema" && resp?.ok === false) {
+        let msg;
+        if (resp.code === "duplicate_version") {
+          msg = "A schema with that name and version already exists.";
+        } else if (resp.code === "validation_error") {
+          msg = resp.error || "Validation failed.";
+        } else {
+          msg = resp.error || "Failed to save remote schema.";
+        }
+        this.addToast("error", msg);
+      }
+
+      if (resp?.action === "deleteRemoteSchema" && resp?.ok) {
+        this.remoteSchemas = this.remoteSchemas.filter(s => s.id !== resp.schemaId);
+        this.addToast("success", "Remote schema deleted.");
+      }
+      if (resp?.action === "deleteRemoteSchema" && resp?.ok === false) {
+        console.log("[deleteRemoteSchema] raw server response:", JSON.stringify(resp));
+        if (resp.code === "referenced_by_mapping") {
+          this.deleteBlockedModal = {
+            visible: true,
+            title: "Cannot delete Remote Schema",
+            message: `This schema is referenced by ${resp.count || resp.mappings?.length || 0} mapping(s). Remove those mappings first.`,
+            mappings: resp.mappings || [],
+          };
+        } else {
+          this.addToast("error", resp.error || "Failed to delete remote schema.");
+        }
       }
 
       // ── Mapping Backend Response Handlers ───────────────────────
@@ -2592,6 +3813,87 @@ const app = createApp({
           this.closeMappingDetail();
         }
         this.addToast("success", "Mapping deleted.");
+      }
+
+      // ── RDF Mapping Config (FR-SR-06 / FR-SR-07) ──
+      if (resp?.action === "saveRdfMappingConfig") {
+        this.rdfConfigSaving = false;
+        if (resp.success) {
+          const idx = this.mappingRows.findIndex(r => r.id === resp.mappingId);
+          if (idx > -1) {
+            this.mappingRows[idx].namespacesToPreserve = resp.namespacesToPreserve;
+            this.mappingRows[idx].shaclShapeSchemaId = resp.shaclShapeSchemaId;
+          }
+          this.addToast("success", "RDF mapping rules saved.");
+        } else {
+          this.addToast("error", resp.error || "Failed to save RDF rules.");
+        }
+      }
+
+      if (resp?.action === "testRdfMapping") {
+        this.rdfTestRunning = false;
+        if (resp.success) {
+          this.rdfTestResult = resp.result;
+        } else {
+          this.rdfTestResult = { output: "", retainedCount: 0, discardedCount: 0, error: resp.error || "Test failed" };
+        }
+      }
+
+      // FR-SR-08: Hybrid Fallback response
+      if (resp?.action === "executeHybridTransform") {
+        this.hybridTransformLoading = false;
+        this.hybridTransformResult = resp;
+        if (resp.ok) {
+          this.addToast && this.addToast(
+            resp.fallbackTriggered ? 'warning' : 'success',
+            resp.fallbackTriggered
+              ? 'Hybrid transform completed (AI fallback was triggered)'
+              : 'Hybrid transform completed (deterministic only)'
+          );
+        } else {
+          this.addToast && this.addToast('error', 'Hybrid transform failed: ' + (resp.error || 'Unknown error'));
+        }
+      }
+
+      // ── Transformation Audit Trail Response Handlers ────────────
+
+      if (resp?.action === "listTransformationAudit") {
+        if (this._auditTimeout) { clearTimeout(this._auditTimeout); this._auditTimeout = null; }
+        this.auditTrail.loading = false;
+        this.auditTrail.loaded = true;
+        if (resp.ok !== false) {
+          this.auditTrail.rows = Array.isArray(resp.rows) ? resp.rows : [];
+          this.auditTrail.pagination.total = resp.total ?? this.auditTrail.rows.length;
+          this.auditTrail.pagination.page = resp.page ?? 1;
+        } else {
+          this.auditTrail.error = resp.error || resp.code || "Failed to load audit trail.";
+        }
+      }
+
+      if (resp?.action === "exportTransformationAudit") {
+        if (resp.ok !== false && resp.base64Payload) {
+          try {
+            const bin = atob(resp.base64Payload);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const mime = resp.format === "json" ? "application/json" : "text/csv";
+            const blob = new Blob([bytes], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = resp.filename || ("audit_export." + (resp.format || "csv"));
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            this.addToast("error", "Failed to download export file.");
+          }
+        } else if (resp.ok === false) {
+          this.addToast("error", resp.error || "Export failed.");
+        } else {
+          this.addToast("info", "No data to export.");
+        }
       }
 
       // ── Batch Retransform Backend Response Handlers ─────────────
@@ -2656,13 +3958,45 @@ const app = createApp({
 // app.component("admin-tools-view", AdminToolsView);
 // app.component("harvester-view", HarvesterView);
 app.component("view-modal", ViewModal);
-app.component("invite-modal", InviteModal);
+app.component("create-user-modal", CreateUserModal);
 app.component("manage-user-modal", ManageUserModal);
 app.component("register-catalog-modal", RegisterCatalogModal);
 app.component("schema-modal", SchemaModal);
 app.component("harvest-wizard-modal", HarvestWizardModal);
 app.component("access-info-modal", AccessInfoModal);
 app.component("manage-menu", ManageMenu);
+
+// ─── Global error handler — swallow Vue emit-on-unmounted cascade ──
+// Vue 3 throws "Cannot read properties of null (reading 'emitsOptions')" when
+// $emit is invoked on a component whose internal instance has been nulled
+// (e.g. emit fires after unmount). The error then poisons subsequent renders
+// with "Unhandled error during execution of component update". We log it once
+// per type and prevent the cascade so the rest of the app stays responsive.
+app.config.errorHandler = (err, instance, info) => {
+  const msg = err && err.message ? String(err.message) : String(err);
+  if (msg.includes("emitsOptions") ||
+      msg.includes("Cannot read properties of null") ||
+      msg.includes("Cannot read properties of undefined (reading 'filter')")) {
+    // Known transient lifecycle error — suppress to prevent render cascade
+    if (typeof console !== "undefined" && console.warn) {
+      console.warn("[suppressed Vue emit/lifecycle error]", info, msg);
+    }
+    return;
+  }
+  // Unknown error — log normally
+  if (typeof console !== "undefined" && console.error) {
+    console.error("[Vue errorHandler]", info, err);
+  }
+};
+
+app.config.warnHandler = (msg, instance, trace) => {
+  if (msg && (msg.includes("emitsOptions") || msg.includes("Unhandled error during execution"))) {
+    return; // suppress cascade noise
+  }
+  if (typeof console !== "undefined" && console.warn) {
+    console.warn("[Vue warn]", msg, trace);
+  }
+};
 
 // ─── Mount ───────────────────────────────────────────────────────
 app.mount("#app");

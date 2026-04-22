@@ -1,5 +1,10 @@
 (() => {
   // src/services/uibuilder.service.js
+  function getCookie(name2) {
+    if (typeof document === "undefined") return "";
+    const match = document.cookie.match(new RegExp("(^| )" + name2 + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : "";
+  }
   var mockUsers = [
     {
       uniqueId: "u1",
@@ -134,16 +139,41 @@
   var ROUTE_MAP = {
     // Dashboard / Auth
     getDashboard: "dashboard",
-    logOut: "dashboard",
+    login: "auth",
+    checkAuth: "auth",
+    logOut: "auth",
     // Admin Tools
-    inviteUser: "admin-tools",
+    createUser: "admin-tools",
     getAdminTools: "admin-tools",
+    listUsers: "admin-tools",
+    getUserDetail: "admin-tools",
+    updateUser: "admin-tools",
+    deleteUser: "admin-tools",
+    listRoles: "admin-tools",
+    createRole: "admin-tools",
+    updateRole: "admin-tools",
+    deleteRole: "admin-tools",
+    listAudit: "admin-tools",
+    getMonitoringOverview: "admin-tools",
+    // Auth (new endpoints)
+    hydrateSession: "auth",
+    changePassword: "auth",
     // Catalogue Registry
     getCatalogRegistry: "catalogue-registry",
     registerRemoteCatalog: "catalogue-registry",
     updateRemoteCatalog: "catalogue-registry",
     deleteRemoteCatalog: "catalogue-registry",
     uploadCatalogJson: "catalogue-registry",
+    listAssetTypes: "catalogue-registry",
+    saveAssetType: "catalogue-registry",
+    updateAssetType: "catalogue-registry",
+    deleteAssetType: "catalogue-registry",
+    testRemoteCatalogConnection: "catalogue-registry",
+    // FR-CR-03 API Mappings
+    listApiMappings: "catalogue-registry",
+    saveApiMapping: "catalogue-registry",
+    deleteApiMapping: "catalogue-registry",
+    generateApiMappingWithAi: "catalogue-registry",
     // Local Catalogue
     getLocalCatalogue: "local-catalogue",
     deleteLocalAsset: "local-catalogue",
@@ -189,7 +219,21 @@
     saveMapping: "schema-registry",
     listMappings: "schema-registry",
     deleteMapping: "schema-registry",
-    saveRemoteSchema: "schema-registry"
+    saveRemoteSchema: "schema-registry",
+    listRemoteSchemas: "schema-registry",
+    deleteRemoteSchema: "schema-registry",
+    listLocalSchemaVersions: "schema-registry",
+    activateLocalSchemaVersion: "schema-registry",
+    validateSampleAsset: "schema-registry",
+    listTransformationAudit: "schema-registry",
+    exportTransformationAudit: "schema-registry",
+    listPromptVersions: "schema-registry",
+    getLlmUsage: "schema-registry",
+    getSystemSettings: "schema-registry",
+    setSystemSetting: "schema-registry",
+    saveRdfMappingConfig: "schema-registry",
+    testRdfMapping: "schema-registry",
+    executeHybridTransform: "schema-registry"
   };
   function resolveRoute(type) {
     return ROUTE_MAP[type] || null;
@@ -245,17 +289,216 @@
         response: { status: "success", users: mockUsers }
       });
     }
-    if (msg.type === "inviteUser") {
+    if (msg.type === "getMonitoringOverview") {
+      dispatchMsg({ payload: { response: {
+        action: "getMonitoringOverview",
+        ok: true,
+        status: "success",
+        data: {
+          generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          users: { total: 5, active: 3, disabled: 1, expired: 1 },
+          sessions: { active: 2 },
+          activity24h: { logins: 8, loginsFailed: 2, loginsBlockedDisabled: 1, userUpdates: 3, userDeletions: 0 },
+          audit7dCount: 42,
+          modules: [
+            { module: "SchemaRegistry", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() },
+            { module: "CatalogueRegistry", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() },
+            { module: "Harvester", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() },
+            { module: "AdminTools", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() },
+            { module: "Auth", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() },
+            { module: "LocalCatalogue", status: "up", lastSeen: (/* @__PURE__ */ new Date()).toISOString() }
+          ],
+          recentAudit: [
+            { at: (/* @__PURE__ */ new Date()).toISOString(), action: "login.success", actor: "admin", target: "admin", meta: null },
+            { at: new Date(Date.now() - 6e4).toISOString(), action: "updateUser", actor: "admin", target: "editor1", meta: '{"status":"active"}' },
+            { at: new Date(Date.now() - 12e4).toISOString(), action: "createUser", actor: "admin", target: "viewer1", meta: null },
+            { at: new Date(Date.now() - 3e5).toISOString(), action: "login.failed", actor: "unknown", target: "unknown", meta: null },
+            { at: new Date(Date.now() - 6e5).toISOString(), action: "login.blocked.disabled", actor: "disabledUser", target: "disabledUser", meta: null }
+          ]
+        }
+      } } });
+    }
+    if (msg.type === "listUsers") {
+      var listUserRows = mockUsers.map(function(u, i) {
+        var areas = u.access || [];
+        var allFive = ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"];
+        var accessLabel = "No Access";
+        if (allFive.every(function(a) {
+          return areas.indexOf(a) >= 0;
+        })) {
+          accessLabel = "Full Access";
+        } else {
+          accessLabel = areas.map(function(a) {
+            return a.replace(/_/g, " ").replace(/\b\w/g, function(c) {
+              return c.toUpperCase();
+            });
+          }).join(" + ") || "No Access";
+        }
+        return {
+          uniqueId: u.uniqueId,
+          _id: u.uniqueId,
+          username: u.email.split("@")[0],
+          email: u.email,
+          name: u.profile ? u.profile.firstName + " " + u.profile.lastName : u.email,
+          status: u.status || "Active",
+          roles: ["viewer"],
+          access: areas,
+          accessAreas: areas,
+          accessLabel,
+          expiresAt: null,
+          createdAt: "2026-01-01"
+        };
+      });
       dispatchMsg({
         payload: {
-          data: msg.data,
           response: {
-            action: "inviteUser",
+            action: "listUsers",
+            ok: true,
             status: "success",
-            uniqueId: "mock-" + Date.now()
+            users: listUserRows
           }
         }
       });
+    }
+    if (msg.type === "listRoles") {
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "listRoles",
+            ok: true,
+            status: "success",
+            roles: [
+              { id: "r1", key: "admin", name: "Administrator", description: "Full system access", permissions: ["*"], system: true },
+              { id: "r2", key: "editor", name: "Editor", description: "Can create and update", permissions: ["catalogue.registry.read", "catalogue.registry.create"], system: true },
+              { id: "r3", key: "viewer", name: "Viewer", description: "Read-only access", permissions: ["catalogue.registry.read"], system: true }
+            ]
+          }
+        }
+      });
+    }
+    if (msg.type === "createUser") {
+      const id2 = msg.data || {};
+      const now2 = (/* @__PURE__ */ new Date()).toISOString();
+      const areas = id2.accessAreas || [];
+      const allFive = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"];
+      let accessLabel = "No Access";
+      if (allFive.every((a) => areas.includes(a))) {
+        accessLabel = "Full Access";
+      } else {
+        const lm = { localCatalogue: "Local Catalogue", catalogueRegistry: "Catalogue Registry", schemaRegistry: "Schema Registry", adminTools: "Admin Tools", harvest: "Harvest" };
+        accessLabel = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"].filter((a) => areas.includes(a)).map((a) => lm[a]).join(" + ") || "No Access";
+      }
+      let expiresAt = null;
+      if (id2.expiresInDays && Number(id2.expiresInDays) > 0) expiresAt = new Date(Date.now() + Number(id2.expiresInDays) * 864e5).toISOString();
+      const uid = "mock-u-" + Date.now().toString(36);
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "createUser",
+            ok: true,
+            status: "success",
+            user: {
+              _id: uid,
+              uniqueId: uid,
+              email: id2.email || null,
+              username: id2.username || "",
+              status: "active",
+              accessAreas: areas,
+              accessLabel,
+              expiresAt,
+              roles: ["custom:mock"],
+              createdAt: now2,
+              updatedAt: now2
+            }
+          }
+        }
+      });
+    }
+    if (msg.type === "updateUser") {
+      const id2 = msg.data || {};
+      const areas = id2.accessAreas || [];
+      const allFive = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"];
+      let accessLabel = "No Access";
+      if (allFive.every((a) => areas.includes(a))) {
+        accessLabel = "Full Access";
+      } else {
+        const lm = { localCatalogue: "Local Catalogue", catalogueRegistry: "Catalogue Registry", schemaRegistry: "Schema Registry", adminTools: "Admin Tools", harvest: "Harvest" };
+        accessLabel = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"].filter((a) => areas.includes(a)).map((a) => lm[a]).join(" + ") || "No Access";
+      }
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "updateUser",
+            ok: true,
+            status: "success",
+            user: {
+              _id: id2.userId || "mock",
+              uniqueId: id2.userId || "mock",
+              username: id2.username || "",
+              email: id2.email || null,
+              status: id2.status || "active",
+              accessAreas: areas,
+              accessLabel,
+              expiresAt: id2.expiresAt || null,
+              roles: ["custom:mock"],
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+            }
+          }
+        }
+      });
+    }
+    if (msg.type === "deleteUser") {
+      const id2 = msg.data || {};
+      const delId = id2.userId || id2.uniqueId || id2._id;
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "deleteUser",
+            ok: true,
+            status: "success",
+            uniqueId: delId
+          }
+        }
+      });
+    }
+    if (msg.type === "listAssetTypes") {
+      const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+      dispatchMsg({ payload: { response: { action: "listAssetTypes", status: "success", items } } });
+    }
+    if (msg.type === "saveAssetType") {
+      const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+      const d = msg.data || {};
+      const uid = "at_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const item = {
+        uniqueId: uid,
+        name: d.name || "",
+        description: d.description || "",
+        icon: d.icon || "dataset",
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      items.push(item);
+      localStorage.setItem("mock_asset_types", JSON.stringify(items));
+      dispatchMsg({ payload: { response: { action: "saveAssetType", status: "success", uniqueId: uid, item } } });
+    }
+    if (msg.type === "updateAssetType") {
+      const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+      const d = msg.data || {};
+      const idx = items.findIndex((it) => it.uniqueId === d.uniqueId);
+      if (idx !== -1) {
+        items[idx] = { ...items[idx], ...d.patch || {}, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+        localStorage.setItem("mock_asset_types", JSON.stringify(items));
+        dispatchMsg({ payload: { response: { action: "updateAssetType", status: "success", uniqueId: d.uniqueId, patch: d.patch || {} } } });
+      } else {
+        dispatchMsg({ payload: { response: { action: "updateAssetType", status: "error", message: "Not found" } } });
+      }
+    }
+    if (msg.type === "deleteAssetType") {
+      const items = JSON.parse(localStorage.getItem("mock_asset_types") || "[]");
+      const d = msg.data || {};
+      const filtered = items.filter((it) => it.uniqueId !== d.uniqueId);
+      localStorage.setItem("mock_asset_types", JSON.stringify(filtered));
+      dispatchMsg({ payload: { response: { action: "deleteAssetType", status: "success", uniqueId: d.uniqueId } } });
     }
     if (msg.type === "registerRemoteCatalog") {
       const uid = "mock-rc-" + Date.now();
@@ -365,8 +608,61 @@
         }
       });
     }
+    if (msg.type === "login") {
+      const d = msg.data || {};
+      if (d.username === "admin" && d.password === "1234") {
+        const token = "mock-token-" + Date.now().toString(36);
+        dispatchMsg({ payload: { response: {
+          action: "login",
+          status: "success",
+          token,
+          user: {
+            username: "admin",
+            role: "Administrator",
+            email: "admin@facis.eu",
+            access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
+            accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
+            roles: ["admin"],
+            permissions: ["*"]
+          }
+        } } });
+      } else {
+        dispatchMsg({ payload: { response: {
+          action: "login",
+          status: "error",
+          message: "Invalid username or password."
+        } } });
+      }
+    }
+    if (msg.type === "checkAuth") {
+      const token = msg.data?.token || "";
+      if (token && token.startsWith("mock-token-")) {
+        dispatchMsg({ payload: { response: {
+          action: "checkAuth",
+          status: "success",
+          user: {
+            username: "admin",
+            role: "Administrator",
+            email: "admin@facis.eu",
+            access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
+            accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
+            roles: ["admin"],
+            permissions: ["*"]
+          }
+        } } });
+      } else {
+        dispatchMsg({ payload: { response: {
+          action: "checkAuth",
+          status: "error",
+          message: "Session expired or invalid."
+        } } });
+      }
+    }
     if (msg.type === "logOut") {
-      console.log("[facis-service] Logout requested (no redirect in preview)");
+      dispatchMsg({ payload: { response: {
+        action: "logOut",
+        status: "success"
+      } } });
     }
     function _loadStore(key) {
       try {
@@ -734,7 +1030,7 @@
       return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     }
     const schemaStubs = {
-      enhancePrompt: (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode \u2014 connect Node-RED backend for real AI enhancement]" }),
+      enhancePrompt: (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode \u2014 connect ORCE backend for real AI enhancement]" }),
       createPrompt: (d) => {
         const id2 = mockId("prompt-");
         const ts = now();
@@ -812,15 +1108,29 @@
       saveMapping: (d) => {
         const id2 = d.id || mockId("map-");
         const ts = now();
-        return { action: "saveMapping", status: "success", mappingId: id2, isNew: !d.id, mapping: { id: id2, remoteCatalogue: d.remoteCatalogue || "", remoteSchema: d.remoteSchema || "", remoteSchemaMeta: d.remoteSchemaMeta || "", transformationStrategy: d.transformationStrategy || "Deterministic RDF", promptsCount: d.promptsCount || 0, shaclCount: d.shaclCount || 0, createdAt: ts, updatedAt: ts } };
+        return { action: "saveMapping", status: "success", mappingId: id2, isNew: !d.id, mapping: { id: id2, remoteCatalogueId: d.remoteCatalogueId || "", remoteSchemaId: d.remoteSchemaId || "", remoteCatalogue: d.remoteCatalogue || "", remoteSchema: d.remoteSchema || "", remoteSchemaMeta: d.remoteSchemaMeta || "", transformationStrategy: d.transformationStrategy || "Deterministic RDF", promptsCount: d.promptsCount || 0, shaclCount: d.shaclCount || 0, createdAt: ts, updatedAt: ts } };
       },
       listMappings: () => ({ action: "listMappings", status: "success", mappings: [] }),
       deleteMapping: (d) => ({ action: "deleteMapping", status: "success", mappingId: d.mappingId }),
       saveRemoteSchema: (d) => {
         const id2 = d.id || mockId("rschema-");
         const ts = now();
-        return { action: "saveRemoteSchema", status: "success", schemaId: id2, schema: { id: id2, schema: d.schema || "", format: d.format || "SHACL", catalogs: d.catalogs || 0, remoteCatalogs: d.remoteCatalogs || [], versioning: d.version || "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: d.trustLevel || "Federated", createdAt: ts, updatedAt: ts } };
+        return { action: "saveRemoteSchema", ok: true, status: "success", schemaId: id2, isNew: !d.id, schema: { id: id2, name: d.name || d.schema || "", format: d.format || "json-schema", body: d.body || "", namespaces: d.namespaces || [], version: d.version || "1.0.0", status: d.status || "draft", trustLevel: d.trustLevel || "Federated", catalogueIds: d.catalogueIds || [], description: d.description || "", author: d.author || "", createdAt: ts, updatedAt: ts } };
       },
+      listRemoteSchemas: () => ({ action: "listRemoteSchemas", ok: true, status: "success", schemas: [], catalogueIdToName: {} }),
+      deleteRemoteSchema: (d) => ({ action: "deleteRemoteSchema", ok: true, status: "success", schemaId: d.schemaId || d.id }),
+      listLocalSchemaVersions: (d) => ({ action: "listLocalSchemaVersions", ok: true, status: "success", schemaName: d.schemaName, versions: [] }),
+      activateLocalSchemaVersion: (d) => ({ action: "activateLocalSchemaVersion", ok: true, status: "success", schemaName: d.schemaName, version: d.version }),
+      validateSampleAsset: () => ({ action: "validateSampleAsset", ok: true, valid: true, errors: [] }),
+      listPromptVersions: (d) => ({ action: "listPromptVersions", ok: true, status: "success", versions: [] }),
+      getLlmUsage: () => ({ action: "getLlmUsage", ok: true, status: "success", usage: [], total: 0 }),
+      getSystemSettings: () => ({ action: "getSystemSettings", ok: true, status: "success", settings: {} }),
+      setSystemSetting: (d) => ({ action: "setSystemSetting", ok: true, status: "success", key: d.key, value: d.value }),
+      saveRdfMappingConfig: (d) => ({ action: "saveRdfMappingConfig", success: true, mappingId: d.mappingId, namespacesToPreserve: d.namespacesToPreserve || [], shaclShapeSchemaId: d.shaclShapeSchemaId || "" }),
+      testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode \u2014 RDF execution runs in ORCE backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
+      executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode \u2014 Hybrid execution runs in ORCE backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: (/* @__PURE__ */ new Date()).toISOString(), completedAt: (/* @__PURE__ */ new Date()).toISOString() } }),
+      listTransformationAudit: () => ({ action: "listTransformationAudit", ok: true, status: "success", rows: [], total: 0 }),
+      exportTransformationAudit: (d) => ({ action: "exportTransformationAudit", ok: true, status: "success", format: d.format || "csv", base64Payload: "", filename: "audit_export." + (d.format || "csv") }),
       listLlmConfigs: () => ({ action: "listLlmConfigs", status: "success", configs: [
         { id: "llm-001", name: "GPT-4o Production", provider: "OpenAI", model: "gpt-4o", temperature: 0.2, maxTokens: 4096, timeout: 30, status: "active", createdAt: "2026-01-10", updatedAt: "2026-02-15" },
         { id: "llm-002", name: "Claude Staging", provider: "Anthropic", model: "claude-3.5-sonnet", temperature: 0.3, maxTokens: 8192, timeout: 60, status: "active", createdAt: "2026-02-01", updatedAt: "2026-02-20" },
@@ -862,13 +1172,18 @@
   };
   var uibuilderService = {
     init() {
-      if (window.uibuilder) {
+      var forceMock = false;
+      try {
+        forceMock = window.__VITE_USE_MOCK === "true";
+      } catch (e) {
+      }
+      if (window.uibuilder && !forceMock) {
         _isMock = false;
         console.log("[facis-service] Using real uibuilder");
-      } else {
+      } else if (forceMock || !window.uibuilder) {
         _isMock = true;
         window.uibuilder = mockAdapter;
-        console.log("[facis-service] Mock uibuilder activated");
+        console.log("[facis-service] Mock uibuilder activated" + (forceMock ? " (VITE_USE_MOCK)" : " (no uibuilder)"));
       }
     },
     onMessage(handler) {
@@ -882,6 +1197,20 @@
       if (msg && msg.type && !msg.route) {
         const route = resolveRoute(msg.type);
         if (route) msg.route = route;
+      }
+      const token = typeof localStorage !== "undefined" && localStorage.getItem("authToken") || typeof document !== "undefined" && getCookie("userToken") || "";
+      if (token && msg.type !== "login") {
+        msg._token = token;
+        if (!msg.data) msg.data = {};
+        if (!msg.data.token) msg.data.token = token;
+        if (!msg.payload) msg.payload = {};
+        if (typeof msg.payload === "object" && !Array.isArray(msg.payload)) {
+          msg.payload.token = token;
+        }
+        if (!msg.topic) msg.topic = "";
+        if (msg.topic.indexOf("|") === -1) {
+          msg.topic = (msg.topic || msg.route || "") + "|" + token;
+        }
       }
       window.uibuilder.send(msg);
     },
@@ -25924,7 +26253,28 @@
   // src/state/store.js
   function createStoreData() {
     return {
-      currentPage: "schemaRegistry",
+      // Auth state
+      isLoggedIn: false,
+      isCheckingAuth: true,
+      isLoggingIn: false,
+      loginError: "",
+      loginErrorCode: "",
+      loginForm: { username: "", password: "" },
+      authToken: "",
+      // Current user with RBAC permissions (populated from hydrateSession)
+      currentUser: {
+        id: "",
+        email: "",
+        username: "",
+        roles: [],
+        permissions: [],
+        // flattened permission strings from all roles
+        accessAreas: [],
+        // canonical source of truth for sidebar visibility
+        isAuthenticated: false,
+        status: ""
+      },
+      currentPage: "localCatalogue",
       currentTab: "localCatalogue",
       currentSchemaTab: "localSchema",
       currentAdminTab: "accessControl",
@@ -25932,23 +26282,36 @@
       isViewModal: false,
       manageUserModal: false,
       currentViewTab: "Overview",
-      isInviteModal: false,
+      isCreateUserModal: false,
       showRegisterRemoteCatalogModal: false,
       isRegisterSchemaEditModal: false,
       isRegisterSchemaNewModal: false,
       showHarvestWizard: false,
       showAccessInformation: false,
-      // Invite form
-      inviteForm: {
-        firstName: "",
-        lastName: "",
+      isCreatingUser: false,
+      // Create user form
+      createUserForm: {
+        username: "",
         email: "",
-        role: "Searcher",
-        expiresIn: "30 Days",
-        altRole: "",
-        message: "You have been invited to join the federated catalogue system.",
-        selectedAccess: ["Local Catalogue"]
+        password: "",
+        showPassword: false,
+        accessAreas: ["localCatalogue"],
+        expiresInDays: null,
+        validationError: null
       },
+      // Edit user modal
+      isEditUserModal: false,
+      isSavingUser: false,
+      editUserForm: {
+        userId: "",
+        username: "",
+        email: "",
+        status: "active",
+        accessAreas: ["localCatalogue"],
+        expiresAt: null,
+        validationError: null
+      },
+      editUserBaseline: null,
       // Manage user form
       manageForm: {
         firstName: "",
@@ -26001,6 +26364,8 @@
         responseAssetIdField: "",
         responseAssetNameField: "",
         responseAssetTypeField: "",
+        // FR-CR-02 remote → local asset type mapping
+        typeMapping: [],
         trustAnchor: "",
         enabled: true
       },
@@ -26111,6 +26476,8 @@ ex:publisher a ex:Property .`,
       // Asset Detail Panel (Milestone 1)
       showAssetDetailPanel: false,
       assetDetailRow: null,
+      viewingForm: "both",
+      // FR-ACM-04: which form is shown in the View modal ('transformed' | 'original' | 'both')
       isEditingAsset: false,
       assetEditForm: {
         assets: "",
@@ -26229,35 +26596,37 @@ ex:publisher a ex:Property .`,
       allCatalogsRaw: [],
       tableRows: [],
       localCatalogueStats: { totalAssets: 0, totalRuns: 0 },
-      schemaRegistry: [
-        { id: 1, schema: "DCAT-AP.de", catalogs: 3, localMapping: "Service, Data Product", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 2, schema: "Data Specifications", catalogs: 2, localMapping: "Dataset (1)", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 3, schema: "OGC SensorML", catalogs: 1, localMapping: "Asset + Safety", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 4, schema: "Xxx Taxonomy", catalogs: 1, localMapping: null, versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Untrusted" }
-      ],
-      remoteSchema: [
-        { id: 1, schema: "ISO 19115-1", catalogs: 5, localMapping: "Dataset (2)", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 2, schema: "schema.org Dataset", catalogs: 7, localMapping: "Dataset (5)", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 3, schema: "OpenAPI Specification", catalogs: 3, localMapping: "Service, Data Product", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 4, schema: "W3C PROV-O", catalogs: 2, localMapping: "Asset + Safety", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 5, schema: "SKOS Concept Scheme", catalogs: 1, localMapping: null, versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Untrusted" },
-        { id: 6, schema: "INSPIRE Metadata", catalogs: 4, localMapping: "Dataset (4)", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 7, schema: "DCAT", catalogs: 8, localMapping: "Service, Data Product", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-        { id: 8, schema: "OGC Observations & Measurements", catalogs: 2, localMapping: "Asset + Safety", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" }
-      ],
+      schemaRegistry: [],
+      remoteSchemas: [],
+      remoteSchemaLoading: false,
+      catalogueIdToName: {},
       catalogsTable: [],
-      // Asset Type Registry
-      assetTypes: [
-        { id: 1, name: "Dataset", description: "A collection of related data records", icon: "dataset" },
-        { id: 2, name: "Service", description: "An API or web service endpoint", icon: "service" },
-        { id: 3, name: "Document", description: "A document or report artifact", icon: "document" },
-        { id: 4, name: "Software Release", description: "A versioned software package or release", icon: "software" },
-        { id: 5, name: "Compliance Artifact", description: "A regulatory or compliance record", icon: "compliance" }
-      ],
+      // Asset Type Registry (FR-CR-02) — loaded from backend on mount
+      assetTypes: [],
+      isLoadingAssetTypes: false,
+      isSavingAssetType: false,
+      assetTypeError: "",
       assetTypeForm: { id: null, name: "", description: "", icon: "dataset" },
       isEditingAssetType: false,
       showAssetTypeForm: false,
       currentCatalogRegistryTab: "catalogues",
+      // FR-CR-03 Catalogue API Mappings
+      apiMappings: [],
+      apiMappingPrompts: [],
+      showApiMappingModal: false,
+      apiMappingForm: {
+        uniqueId: null,
+        catalogueId: "",
+        localTypeId: "",
+        remoteType: "",
+        promptId: "",
+        apiRequest: { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+        queryParamsRaw: "{}",
+        headersRaw: "{}"
+      },
+      isGeneratingApiMapping: false,
+      isSavingApiMapping: false,
+      apiMappingError: "",
       // Prompt Management (FR-SR-03, FR-SR-04)
       // Prompts are loaded from MongoDB on mount
       prompts: [],
@@ -26308,6 +26677,8 @@ ex:publisher a ex:Property .`,
       promptTestResult: "",
       promptTestError: "",
       promptTestShowResolved: false,
+      promptTestResolvedFromBackend: "",
+      showBackendResolved: false,
       // Test cases are loaded from MongoDB on mount
       promptTestCases: [],
       showTestCaseModal: false,
@@ -26321,13 +26692,10 @@ ex:publisher a ex:Property .`,
         expectedOutput: ""
       },
       users: [],
+      dcmRoles: [],
+      // Role definitions from dcm_roles collection
       harvestRecords: [],
-      mappingRows: [
-        { id: 1, remoteCatalogue: "DCAT-AP.de", remoteSchema: "Data Service Entity 1.0", remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF", promptsCount: 2, shaclCount: 3 },
-        { id: 2, remoteCatalogue: "DCAT-AP.de", remoteSchema: "Energy Product 1.0", remoteSchemaMeta: "5", transformationStrategy: " AI-driven", promptsCount: 1, shaclCount: 2 },
-        { id: 3, remoteCatalogue: "OGC SensorML", remoteSchema: "Dataset Schema", remoteSchemaMeta: "v1", transformationStrategy: "Deterministic RDF", promptsCount: 2, shaclCount: 3 },
-        { id: 4, remoteCatalogue: "OGC SensorML", remoteSchema: "Mobility Data", remoteSchemaMeta: "Mobility 0.3 Data Service", transformationStrategy: "Hybrid AI Mapping", promptsCount: 0, shaclCount: 0 }
-      ],
+      mappingRows: [],
       // Resize
       resizeTimer: null,
       userAccess: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
@@ -26414,6 +26782,15 @@ ex:publisher a ex:Property .`,
         { id: "br-001", trigger: "Prompt updated (prompt-001 v1.0\u2192v1.1)", scope: "All assets", dryRun: false, total: 275, success: 270, errors: 5, skipped: 0, startedAt: "2026-02-20 14:30", completedAt: "2026-02-20 14:42", status: "completed" },
         { id: "br-002", trigger: "LLM config changed (llm-001)", scope: "Catalogue: SensorML", dryRun: true, total: 120, success: 118, errors: 2, skipped: 0, startedAt: "2026-02-18 09:15", completedAt: "2026-02-18 09:22", status: "completed" }
       ],
+      // Transformation Audit Trail (Section B)
+      auditTrail: {
+        rows: [],
+        filters: { assetId: "", catalogueId: "", promptVersion: "", status: "", dateFrom: "", dateTo: "" },
+        pagination: { page: 1, perPage: 20, total: 0 },
+        loading: false,
+        error: "",
+        loaded: false
+      },
       // Multi-Model Provider Support (FR-SR-12)
       // Providers are loaded from MongoDB on mount
       llmProviders: [],
@@ -26432,11 +26809,29 @@ ex:publisher a ex:Property .`,
         status: "active"
       },
       providerFormError: "",
+      isSavingProvider: false,
+      showProviderApiKey: false,
       providerSearch: "",
       // ── Milestone 2: Schema & Mapping Workflows ─────────────
       localSchemaSearch: "",
       remoteSchemaSearch: "",
       mappingSearch: "",
+      mappingFilterCatalogue: "",
+      mappingFilterRemoteSchema: "",
+      mappingFilterLocalSchema: "",
+      // RDF Mapping Config (FR-SR-06 / FR-SR-07)
+      showRdfConfigPanel: false,
+      rdfConfigMapping: null,
+      rdfConfigSaving: false,
+      rdfConfigForm: { namespacesToPreserve: [], shaclShapeSchemaId: "" },
+      rdfConfigNewNamespace: "",
+      rdfTestFormat: "turtle",
+      rdfTestInput: "",
+      rdfTestRunning: false,
+      rdfTestResult: null,
+      // FR-SR-08: Hybrid Fallback
+      hybridTransformLoading: false,
+      hybridTransformResult: null,
       // Local Schema create modal
       showCreateLocalSchemaModal: false,
       isEditingLocalSchema: false,
@@ -26444,11 +26839,24 @@ ex:publisher a ex:Property .`,
       localSchemaForm: {
         schema: "",
         format: "SHACL",
+        body: "",
+        namespaces: "",
+        status: "draft",
         catalogs: 1,
         localMapping: "",
-        versioning: "v1.0",
+        versioning: "1.0.0",
         trustLevel: "Federated"
       },
+      localSchemaVersionsCache: {},
+      showSchemaVersionPanel: false,
+      schemaVersionPanelName: "",
+      schemaVersionPanelLoading: false,
+      validateSampleForm: { assetBody: "", result: null, loading: false },
+      showPromptVersionPanel: false,
+      promptVersionPanelName: "",
+      promptVersionPanelLoading: false,
+      promptVersions: [],
+      systemSettings: {},
       showDeleteSchemaConfirm: false,
       deleteSchemaTargetId: null,
       // Schema version diff
@@ -26461,6 +26869,8 @@ ex:publisher a ex:Property .`,
       isEditingMapping: false,
       editingMappingId: null,
       addMappingForm: {
+        remoteCatalogueId: "",
+        remoteSchemaId: "",
         remoteCatalogue: "",
         remoteSchema: "",
         remoteSchemaMeta: "",
@@ -26516,38 +26926,19 @@ ex:publisher a ex:Property .`,
       },
       showDeleteRemoteCatalogConfirm: false,
       deleteRemoteCatalogTargetId: null,
-      // ── Milestone 4: Admin Tools & Monitoring ──────────────────
-      // Monitoring dashboard
-      monitoringMetrics: {
-        systemUptime: "99.7%",
-        avgResponseTime: "245ms",
-        totalHarvestsToday: 12,
-        failedHarvestsToday: 1,
-        activeConnections: 8,
-        queuedJobs: 3,
-        diskUsage: "42%",
-        memoryUsage: "67%"
+      // Blocking modal for delete-blocked-by-mapping
+      deleteBlockedModal: {
+        visible: false,
+        title: "",
+        message: "",
+        mappings: []
       },
-      monitoringEvents: [
-        { id: 1, type: "info", source: "Harvester", message: "Scheduled harvest completed for SensorML", timestamp: "2026-03-05 12:58 (UTC)" },
-        { id: 2, type: "warning", source: "Schema Mapper", message: "SHACL validation returned 3 minor warnings for DCAT-AP.de batch", timestamp: "2026-03-05 12:45 (UTC)" },
-        { id: 3, type: "error", source: "Remote Catalogue", message: "Connection to OGC SensorML endpoint timed out after 30s", timestamp: "2026-03-05 12:30 (UTC)" },
-        { id: 4, type: "info", source: "System", message: "Automatic backup completed successfully", timestamp: "2026-03-05 12:00 (UTC)" },
-        { id: 5, type: "info", source: "Auth", message: "User 'admin@facis.eu' logged in", timestamp: "2026-03-05 11:45 (UTC)" },
-        { id: 6, type: "warning", source: "LLM Provider", message: "OpenAI rate limit approached \u2014 85% of quota used", timestamp: "2026-03-05 11:30 (UTC)" },
-        { id: 7, type: "info", source: "Harvester", message: "275 assets imported from DCAT-AP.de", timestamp: "2026-03-05 11:00 (UTC)" },
-        { id: 8, type: "error", source: "Schema Mapper", message: "LLM transformation failed for 2 assets \u2014 timeout exceeded", timestamp: "2026-03-05 10:30 (UTC)" }
-      ],
+      // ── Milestone 4: Admin Tools & Monitoring ──────────────────
+      // Monitoring dashboard (live data from backend)
+      monitoring: null,
+      monitoringError: false,
       monitoringEventFilter: "all",
       monitoringAuditSearch: "",
-      // Service status
-      serviceStatus: [
-        { name: "Harvest Engine", status: "operational", lastCheck: "2 min ago" },
-        { name: "Schema Mapper", status: "operational", lastCheck: "1 min ago" },
-        { name: "LLM Gateway", status: "degraded", lastCheck: "5 min ago" },
-        { name: "SPARQL Endpoint", status: "operational", lastCheck: "3 min ago" },
-        { name: "Remote Catalogue Proxy", status: "operational", lastCheck: "1 min ago" }
-      ],
       // User profile
       showUserProfile: false,
       userProfile: {
@@ -26643,7 +27034,7 @@ ex:publisher a ex:Property .`,
   }
 
   // src/utils/helpers.js
-  function getCookie(name2) {
+  function getCookie2(name2) {
     const value = "; " + document.cookie;
     const parts = value.split("; " + name2 + "=");
     if (parts.length === 2) return parts.pop().split(";").shift();
@@ -26680,6 +27071,12 @@ ex:publisher a ex:Property .`,
     });
     return patch;
   }
+  function hasPermission(store, area, action) {
+    if (!store?.currentUser?.isAuthenticated) return false;
+    const perms = store.currentUser.permissions || [];
+    if (perms.includes("*")) return true;
+    return perms.includes(area + "." + action);
+  }
   function parseJsonLine(text) {
     const match = text.match(/^(\s*)"([^"]+)"\s*:\s*"([^"]*)"(.*)$/);
     if (!match) return null;
@@ -26705,7 +27102,9 @@ ex:publisher a ex:Property .`,
       auditSearch: { type: String, default: "" },
       auditFilters: { type: Object, default: () => ({}) },
       originalJsonLines: { type: Array, default: () => [] },
-      localJsonLines: { type: Array, default: () => [] }
+      localJsonLines: { type: Array, default: () => [] },
+      viewingForm: { type: String, default: "both" },
+      linkedAssets: { type: Object, default: null }
     },
     emits: [
       "close",
@@ -26713,19 +27112,22 @@ ex:publisher a ex:Property .`,
       "update:auditSearch",
       "update:auditFilters",
       "export-audit",
-      "clear-audit-filters"
+      "clear-audit-filters",
+      "set-viewing-form"
     ],
     computed: {
       filteredAuditMini() {
-        const q = this.auditSearch.trim().toLowerCase();
-        if (!q) return this.auditMini;
-        return this.auditMini.filter(
+        const q = (this.auditSearch || "").trim().toLowerCase();
+        const rows = Array.isArray(this.auditMini) ? this.auditMini : [];
+        if (!q) return rows;
+        return rows.filter(
           (r) => (r.level || "").toLowerCase().includes(q) || (r.step || "").toLowerCase().includes(q) || (r.timestamp || "").toLowerCase().includes(q)
         );
       },
       filteredAuditRows() {
         const f = this.auditFilters || {};
-        return this.auditRows.filter((row) => {
+        const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+        return rows.filter((row) => {
           if (f.assetId && !(row.assetId || "").toLowerCase().includes(f.assetId.toLowerCase())) return false;
           if (f.catalogueId && (row.catalogueId || "") !== f.catalogueId) return false;
           if (f.promptVersion && (row.promptVersion || "") !== f.promptVersion) return false;
@@ -26743,22 +27145,25 @@ ex:publisher a ex:Property .`,
       },
       auditCatalogueOptions() {
         const set = /* @__PURE__ */ new Set();
-        this.auditRows.forEach((r) => {
-          if (r.catalogueId) set.add(r.catalogueId);
+        const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+        rows.forEach((r) => {
+          if (r && r.catalogueId) set.add(r.catalogueId);
         });
         return Array.from(set).sort();
       },
       auditPromptVersionOptions() {
         const set = /* @__PURE__ */ new Set();
-        this.auditRows.forEach((r) => {
-          if (r.promptVersion) set.add(r.promptVersion);
+        const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+        rows.forEach((r) => {
+          if (r && r.promptVersion) set.add(r.promptVersion);
         });
         return Array.from(set).sort();
       },
       auditStatusOptions() {
         const set = /* @__PURE__ */ new Set();
-        this.auditRows.forEach((r) => {
-          if (r.status) set.add(r.status);
+        const rows = Array.isArray(this.auditRows) ? this.auditRows : [];
+        rows.forEach((r) => {
+          if (r && r.status) set.add(r.status);
         });
         return Array.from(set).sort();
       },
@@ -26781,17 +27186,19 @@ ex:publisher a ex:Property .`,
 
   // src/modals/InviteModal.js
   var InviteModal_default = {
-    name: "InviteModal",
-    template: "#tpl-invite-modal",
+    name: "CreateUserModal",
+    template: "#tpl-create-user-modal",
     props: {
       visible: { type: Boolean, default: false },
-      inviteForm: { type: Object, required: true }
+      createUserForm: { type: Object, required: true },
+      loading: { type: Boolean, default: false }
     },
-    emits: ["close", "send-invite", "update:inviteForm"],
+    emits: ["close", "create-user", "update:createUserForm"],
     computed: {
-      canSendInvite() {
-        const f = this.inviteForm;
-        return f.firstName.trim() && f.lastName.trim() && f.email.trim() && f.role && f.expiresIn;
+      canCreateUser() {
+        const f = this.createUserForm;
+        const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+        return (f.username || "").trim() && (f.password || "").length >= 8 && emailOk && (f.accessAreas || []).length > 0;
       }
     }
   };
@@ -26802,13 +27209,19 @@ ex:publisher a ex:Property .`,
     template: "#tpl-manage-user-modal",
     props: {
       visible: { type: Boolean, default: false },
-      manageForm: { type: Object, required: true }
+      editUserForm: { type: Object, required: true },
+      loading: { type: Boolean, default: false },
+      canSave: { type: Boolean, default: false }
     },
-    emits: ["close", "send-manage"],
+    emits: ["close", "save-user"],
     computed: {
-      canSendManageUser() {
-        const m = this.manageForm;
-        return m.firstName.trim() && m.lastName.trim() && m.email.trim() && m.selectedRoles.length > 0 && m.expiresIn;
+      accessLabel() {
+        const areas = this.editUserForm.accessAreas || [];
+        const allFive = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"];
+        if (allFive.every((a) => areas.includes(a))) return "Full Access";
+        const labelMap = { localCatalogue: "Local Catalogue", catalogueRegistry: "Catalogue Registry", schemaRegistry: "Schema Registry", adminTools: "Admin Tools", harvest: "Harvest" };
+        const order = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"];
+        return order.filter((a) => areas.includes(a)).map((a) => labelMap[a]).join(" + ") || "No Access";
       }
     }
   };
@@ -26825,9 +27238,10 @@ ex:publisher a ex:Property .`,
       registerRemoteCatalogError: { type: String, default: "" },
       updateRemoteCatalogError: { type: String, default: "" },
       isTestingConnection: { type: Boolean, default: false },
-      testConnectionResult: { type: Object, default: () => ({ status: "", message: "", latency: 0 }) }
+      testConnectionResult: { type: Object, default: () => ({ status: "", message: "", latency: 0 }) },
+      assetTypes: { type: Array, default: () => [] }
     },
-    emits: ["close", "save", "test-connection"],
+    emits: ["close", "save", "test-connection", "add-type-mapping", "remove-type-mapping"],
     data() {
       return {
         uploadedJsonFile: null,
@@ -26949,22 +27363,13 @@ ex:publisher a ex:Property .`,
       visible: { type: Boolean, default: false },
       modalTitle: { type: String, default: "Register Remote Schema" },
       registerSchemaForm: { type: Object, required: true },
-      schemaSummaries: { type: Object, default: () => ({}) }
+      availableCatalogues: { type: Array, default: () => [] }
     },
-    emits: ["close", "save", "remove-catalog", "add-catalog"],
+    emits: ["close", "save"],
     computed: {
-      currentSummaryText() {
-        const t2 = this.registerSchemaForm.summaryTab;
-        return this.schemaSummaries[t2] || "";
-      },
-      filteredRemoteCatalogs() {
-        const q = (this.registerSchemaForm.catalogSearch || "").toLowerCase().trim();
-        if (!q) return this.registerSchemaForm.remoteCatalogs;
-        return this.registerSchemaForm.remoteCatalogs.filter((c) => c.toLowerCase().includes(q));
+      showCatalogueError() {
+        return this.registerSchemaForm.name && (!this.registerSchemaForm.catalogueIds || this.registerSchemaForm.catalogueIds.length === 0);
       }
-    },
-    methods: {
-      namespaceClass
     }
   };
 
@@ -27055,9 +27460,9 @@ ex:publisher a ex:Property .`,
       },
       filteredRemoteSchema() {
         const q = (this.remoteSchemaSearch || "").trim().toLowerCase();
-        if (!q) return this.remoteSchema;
-        return this.remoteSchema.filter(
-          (s) => (s.schema || "").toLowerCase().includes(q) || (s.localMapping || "").toLowerCase().includes(q) || (s.trustLevel || "").toLowerCase().includes(q)
+        if (!q) return this.remoteSchemas;
+        return this.remoteSchemas.filter(
+          (s) => (s.name || "").toLowerCase().includes(q) || (s.format || "").toLowerCase().includes(q) || (s.trustLevel || "").toLowerCase().includes(q)
         );
       },
       remoteSchemaPagination() {
@@ -27065,10 +27470,22 @@ ex:publisher a ex:Property .`,
       },
       filteredMappingRows() {
         const q = (this.mappingSearch || "").trim().toLowerCase();
-        if (!q) return this.mappingRows;
-        return this.mappingRows.filter(
-          (r) => (r.remoteCatalogue || "").toLowerCase().includes(q) || (r.remoteSchema || "").toLowerCase().includes(q) || (r.transformationStrategy || "").toLowerCase().includes(q)
-        );
+        let rows = this.mappingRows;
+        if (this.mappingFilterCatalogue) {
+          rows = rows.filter((r) => r.remoteCatalogue === this.mappingFilterCatalogue);
+        }
+        if (this.mappingFilterRemoteSchema) {
+          rows = rows.filter((r) => r.remoteSchema === this.mappingFilterRemoteSchema);
+        }
+        if (this.mappingFilterLocalSchema) {
+          rows = rows.filter((r) => r.localSchema === this.mappingFilterLocalSchema);
+        }
+        if (q) {
+          rows = rows.filter(
+            (r) => (r.remoteCatalogue || "").toLowerCase().includes(q) || (r.remoteSchema || "").toLowerCase().includes(q) || (r.localSchema || "").toLowerCase().includes(q) || (r.transformationStrategy || "").toLowerCase().includes(q)
+          );
+        }
+        return rows;
       },
       mappingPagination() {
         return paginate(this.filteredMappingRows, this.pagination.mapping.page, this.pagination.mapping.perPage);
@@ -27097,6 +27514,27 @@ ex:publisher a ex:Property .`,
       },
       harvestPagination() {
         return paginate(this.harvestRecords, this.pagination.harvest.page, this.pagination.harvest.perPage);
+      },
+      harvesterOverviewStats() {
+        const remoteCataloguesCount = Array.isArray(this.catalogsTable) ? this.catalogsTable.length : 0;
+        const toInt = (v) => {
+          if (v == null) return 0;
+          if (typeof v === "number") return isFinite(v) ? v : 0;
+          const n = parseInt(String(v).replace(/^\+/, "").trim(), 10);
+          return isNaN(n) ? 0 : n;
+        };
+        let newAssetsCount = 0;
+        let errorsCount = 0;
+        const runs = Array.isArray(this.harvestRecords) ? this.harvestRecords : [];
+        for (const row of runs) {
+          const raw = row && row._run ? row._run : row || {};
+          const added = toInt(raw.assetsAdded);
+          const succ = toInt(raw.successCount);
+          const errs = toInt(raw.errorCount);
+          newAssetsCount += added > 0 ? added : succ;
+          errorsCount += errs;
+        }
+        return { remoteCataloguesCount, newAssetsCount, errorsCount };
       },
       harvestWizardPagination() {
         return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
@@ -27134,13 +27572,24 @@ ex:publisher a ex:Property .`,
         if (!ids.length) return false;
         return ids.every((id2) => this.harvestWizardSelectedRows.includes(id2));
       },
-      canSendInvite() {
-        const f = this.inviteForm;
-        return f.firstName.trim() && f.lastName.trim() && f.email.trim() && f.role && f.expiresIn;
+      canCreateUser() {
+        const f = this.createUserForm;
+        const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+        return (f.username || "").trim() && (f.password || "").length >= 8 && emailOk && (f.accessAreas || []).length > 0;
       },
-      canSendManageUser() {
-        const m = this.manageForm;
-        return m.firstName.trim() && m.lastName.trim() && m.email.trim() && m.selectedRoles.length > 0 && m.expiresIn;
+      canSaveEditUser() {
+        const f = this.editUserForm;
+        const emailOk = !(f.email || "").trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((f.email || "").trim());
+        if (!emailOk || (f.accessAreas || []).length === 0) return false;
+        if (this.isSavingUser) return false;
+        if (!this.editUserBaseline) return false;
+        const current = JSON.stringify({
+          email: (f.email || "").trim().toLowerCase() || "",
+          status: f.status || "active",
+          accessAreas: (f.accessAreas || []).slice().sort(),
+          expiresAt: f.expiresAt ? String(f.expiresAt) : null
+        });
+        return current !== this.editUserBaseline;
       },
       currentSummaryText() {
         return this.schemaSummaries[this.registerSchemaForm.summaryTab] || "";
@@ -27209,12 +27658,21 @@ ex:publisher a ex:Property .`,
         return rows;
       },
       filteredMonitoringEvents() {
+        const m = this.monitoring;
+        if (!m || !m.recentAudit) return [];
         const f = this.monitoringEventFilter;
         const q = (this.monitoringAuditSearch || "").trim().toLowerCase();
-        let events = this.monitoringEvents;
-        if (f !== "all") events = events.filter((e) => e.type === f);
+        let events = m.recentAudit;
+        if (f !== "all") {
+          events = events.filter((e) => {
+            const a = (e.action || "").toLowerCase();
+            if (f === "error") return a.includes("failed") || a.includes("blocked") || a.includes("delete");
+            if (f === "warning") return a.includes("update") || a.includes("degraded");
+            return !a.includes("failed") && !a.includes("blocked") && !a.includes("delete");
+          });
+        }
         if (q) events = events.filter(
-          (e) => (e.source || "").toLowerCase().includes(q) || (e.message || "").toLowerCase().includes(q) || (e.timestamp || "").toLowerCase().includes(q)
+          (e) => (e.action || "").toLowerCase().includes(q) || (e.actor || "").toLowerCase().includes(q) || (e.target || "").toLowerCase().includes(q) || (e.at || "").toLowerCase().includes(q)
         );
         return events;
       },
@@ -27317,14 +27775,30 @@ ex:publisher a ex:Property .`,
       showIncludeNewAssetsToggle() {
         const s = this.harvestScope.selected;
         return s.includes("last_harvest") || s.includes("ever_imported");
+      },
+      auditTrailTotalPages() {
+        return Math.max(1, Math.ceil(this.auditTrail.pagination.total / this.auditTrail.pagination.perPage));
+      },
+      auditTrailPage() {
+        const p = this.auditTrail.pagination;
+        const start = (p.page - 1) * p.perPage;
+        return this.auditTrail.rows.slice(start, start + p.perPage);
       }
     },
     watch: {
       isViewModal(val) {
         document.body.style.overflow = val ? "hidden" : "";
       },
-      isInviteModal(v) {
+      isCreateUserModal(v) {
         document.body.style.overflow = v ? "hidden" : "";
+      },
+      isEditUserModal(v) {
+        document.body.style.overflow = v ? "hidden" : "";
+      },
+      currentSchemaTab(val) {
+        if (val === "auditTrail" && !this.auditTrail.loaded) {
+          this.fetchAuditTrail();
+        }
       },
       provenanceFilters: {
         handler() {
@@ -27344,21 +27818,39 @@ ex:publisher a ex:Property .`,
         if (newPage === "catalogueRegistry") {
           uibuilderService.send({
             type: "getCatalogRegistry",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
           });
         }
         if (newPage === "adminTools") {
-          uibuilderService.send({
-            type: "getAdminTools",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-          });
+          const aa = this.currentUser.accessAreas || [];
+          if (aa.includes("adminTools") || this.userAccess.includes("admin_tools")) {
+            const auth = { userToken: localStorage.getItem("authToken") || getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") };
+            uibuilderService.send({ type: "listUsers", auth });
+            uibuilderService.send({ type: "listRoles", auth });
+            if (this.currentAdminTab === "monitoring") {
+              this.startMonitoringPolling();
+            }
+          }
+        } else {
+          this.stopMonitoringPolling();
         }
         if (newPage === "harvester") {
           this.loadHarvestData();
+          uibuilderService.send({
+            type: "getCatalogRegistry",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+          });
         }
         if (newPage === "localCatalogue") {
           this.loadLocalCatalogs();
           this.loadLocalProvenance();
+        }
+      },
+      currentAdminTab(newTab) {
+        if (newTab === "monitoring" && this.currentPage === "adminTools") {
+          this.startMonitoringPolling();
+        } else {
+          this.stopMonitoringPolling();
         }
       }
     },
@@ -27375,20 +27867,43 @@ ex:publisher a ex:Property .`,
       getAccessInitial,
       parseJsonLine,
       // ── Helpers ────────────────────────────────────────────────
-      getCookie,
+      getCookie: getCookie2,
       hasAccess(key) {
-        return this.userAccess.includes(key);
+        const aa = this.currentUser.accessAreas || [];
+        const keyMap = { local_catalogue: "localCatalogue", catalogue_registry: "catalogueRegistry", schema_registry: "schemaRegistry", admin_tools: "adminTools", harvester: "harvest" };
+        const mapped = keyMap[key] || key;
+        return aa.includes(mapped) || this.userAccess.includes(key);
+      },
+      $can(area, action) {
+        return hasPermission(this.$data, area, action);
       },
       canRead(area) {
+        if (this.currentUser?.isAuthenticated) {
+          const areaMap = { admin_tools: "users", catalogue_registry: "catalogue.registry", schema_registry: "schema.registry", harvester: "harvest.run", local_catalogue: "local.catalogue" };
+          const mapped = areaMap[area] || area;
+          return this.$can(mapped, "read");
+        }
         return !!(this.userPermissions[area] && this.userPermissions[area].read);
       },
       canCreate(area) {
+        if (this.currentUser?.isAuthenticated) {
+          const areaMap = { admin_tools: "users", catalogue_registry: "catalogue.registry", schema_registry: "schema.registry", harvester: "harvest.run", local_catalogue: "catalogue.registry" };
+          return this.$can(areaMap[area] || area, "create");
+        }
         return !!(this.userPermissions[area] && this.userPermissions[area].create);
       },
       canUpdate(area) {
+        if (this.currentUser?.isAuthenticated) {
+          const areaMap = { admin_tools: "users", catalogue_registry: "catalogue.registry", schema_registry: "schema.registry", harvester: "harvest.run", local_catalogue: "catalogue.registry" };
+          return this.$can(areaMap[area] || area, "update");
+        }
         return !!(this.userPermissions[area] && this.userPermissions[area].update);
       },
       canDelete(area) {
+        if (this.currentUser?.isAuthenticated) {
+          const areaMap = { admin_tools: "users", catalogue_registry: "catalogue.registry", schema_registry: "schema.registry", harvester: "harvest.run", local_catalogue: "catalogue.registry" };
+          return this.$can(areaMap[area] || area, "delete");
+        }
         return !!(this.userPermissions[area] && this.userPermissions[area].delete);
       },
       // ── Pagination ─────────────────────────────────────────────
@@ -27437,7 +27952,7 @@ ex:publisher a ex:Property .`,
       loadLocalCatalogs() {
         uibuilderService.send({
           type: "getLocalCatalogue",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
         });
       },
       runSearch() {
@@ -27495,17 +28010,58 @@ ex:publisher a ex:Property .`,
       loadLocalProvenance() {
         uibuilderService.send({
           type: "getLocalProvenance",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
         });
       },
-      // ── Asset Detail Panel (Milestone 1) ──────────────────────
+      // ── Asset Detail Panel / View Modal (FR-ACM-04) ──────────
       openViewDetail(row) {
-        const original = row.originalForm || row;
-        const transformed = row.transformedForm || row;
-        this.originalJsonLines = this._jsonToLines(original);
-        this.localJsonLines = this._jsonToLines(transformed, original);
         this.assetDetailRow = { ...row };
         this.isViewModal = true;
+        this.viewingForm = "both";
+        this.originalJsonLines = [{ text: "Loading original form...", changeType: null }];
+        this.localJsonLines = [{ text: "Loading transformed form...", changeType: null }];
+        const uid = row.uniqueId || row.id;
+        if (!uid) return;
+        uibuilderService.send({
+          type: "getLocalAssetDetail",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { uniqueId: uid, form: "both" }
+        });
+      },
+      _applyLocalAssetDetailResponse(resp) {
+        const a = resp && resp.asset;
+        if (!a) {
+          this.originalJsonLines = [{ text: "No data.", changeType: null }];
+          this.localJsonLines = [{ text: "No data.", changeType: null }];
+          return;
+        }
+        const original = a.originalForm || null;
+        const transformed = a.transformedForm || null;
+        this.viewingForm = a.viewingForm || resp.form || "both";
+        if (original) {
+          this.originalJsonLines = this._jsonToLines(original);
+        } else {
+          this.originalJsonLines = [{ text: "No original form stored for this asset.", changeType: null }];
+        }
+        if (transformed) {
+          this.localJsonLines = this._jsonToLines(transformed, original || void 0);
+        } else {
+          this.localJsonLines = [{ text: "No transformed form yet (mapping pending or not configured).", changeType: null }];
+        }
+        this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, {
+          linkedAssets: a.linkedAssets || { hasOriginal: !!original, hasTransformed: !!transformed }
+        });
+      },
+      setViewingForm(form) {
+        if (form !== "transformed" && form !== "original" && form !== "both") return;
+        this.viewingForm = form;
+        const uid = this.assetDetailRow && (this.assetDetailRow.uniqueId || this.assetDetailRow.id) || null;
+        if (!uid) return;
+        uibuilderService.send({
+          type: "getLocalAssetDetail",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { uniqueId: uid, form }
+        });
       },
       _jsonToLines(obj, compareObj) {
         try {
@@ -27557,7 +28113,7 @@ ex:publisher a ex:Property .`,
           if (uid) {
             uibuilderService.send({
               type: "updateLocalAsset",
-              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
               data: { uniqueId: uid, patch: { title: updated.assets, type: updated.type, domain: updated.domain, status: updated.integrationStatus } }
             });
           }
@@ -27577,7 +28133,7 @@ ex:publisher a ex:Property .`,
         if (uid) {
           uibuilderService.send({
             type: "deleteLocalAsset",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { uniqueId: uid }
           });
         }
@@ -27597,7 +28153,7 @@ ex:publisher a ex:Property .`,
           if (uid) {
             uibuilderService.send({
               type: "updateLocalAsset",
-              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
               data: { uniqueId: uid, patch: { status: "Archived" } }
             });
           }
@@ -27615,7 +28171,7 @@ ex:publisher a ex:Property .`,
             if (uid) {
               uibuilderService.send({
                 type: "deleteLocalAsset",
-                auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+                auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
                 data: { uniqueId: uid }
               });
             }
@@ -27638,7 +28194,7 @@ ex:publisher a ex:Property .`,
           if (uid) {
             uibuilderService.send({
               type: "updateLocalAsset",
-              auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+              auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
               data: { uniqueId: uid, patch: { status } }
             });
           }
@@ -27708,6 +28264,7 @@ ex:publisher a ex:Property .`,
           strategy: "none",
           promptId: "",
           llmConfigId: "",
+          providerId: "",
           namespacesToPreserve: "",
           shaclShapeId: "",
           auth: "none",
@@ -27754,12 +28311,9 @@ ex:publisher a ex:Property .`,
       testRemoteCatalogConnection() {
         this.isTestingConnection = true;
         this.testConnectionResult = { status: "", message: "", latency: 0 };
-        const start = Date.now();
         const auth = this.remoteCatalogForm.auth || "none";
-        const endpoint = this.remoteCatalogForm.baseEndpoint || this.remoteCatalogForm.queryEndpoint || "";
         if (auth === "token-login") {
-          const loginUrl = this.remoteCatalogForm.authLoginEndpoint || "";
-          if (!loginUrl.trim()) {
+          if (!(this.remoteCatalogForm.authLoginEndpoint || "").trim()) {
             this.testConnectionResult = { status: "error", message: "Login endpoint URL is required for Token Login auth.", latency: 0 };
             this.isTestingConnection = false;
             return;
@@ -27770,16 +28324,18 @@ ex:publisher a ex:Property .`,
             return;
           }
         }
-        setTimeout(() => {
-          const latency = Date.now() - start;
-          if (!endpoint.trim()) {
-            this.testConnectionResult = { status: "error", message: "No endpoint URL provided.", latency: 0 };
-          } else {
-            const authLabel = auth === "token-login" ? " (Token Login authenticated)" : auth === "bearer" ? " (Bearer Token)" : auth === "apikey" ? " (API Key)" : auth === "oauth" ? " (OAuth2)" : "";
-            this.testConnectionResult = { status: "success", message: `Connection successful to ${endpoint}${authLabel}`, latency };
+        uibuilderService.send({
+          type: "testRemoteCatalogConnection",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: JSON.parse(JSON.stringify(this.remoteCatalogForm))
+        });
+        if (this._testConnTimeout) clearTimeout(this._testConnTimeout);
+        this._testConnTimeout = setTimeout(() => {
+          if (this.isTestingConnection) {
+            this.testConnectionResult = { status: "error", message: "No response from backend \u2014 request timed out after 15s.", latency: 0 };
+            this.isTestingConnection = false;
           }
-          this.isTestingConnection = false;
-        }, 800 + Math.random() * 700);
+        }, 15e3);
       },
       registerRemoteCatalog() {
         const payload = JSON.parse(JSON.stringify(this.remoteCatalogForm));
@@ -27788,7 +28344,7 @@ ex:publisher a ex:Property .`,
         this.pendingRemoteCatalog = payload;
         uibuilderService.send({
           type: "registerRemoteCatalog",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: payload
         });
       },
@@ -27806,7 +28362,7 @@ ex:publisher a ex:Property .`,
           this.pendingUpdateRemoteCatalogId = this.editingRemoteCatalogId;
           uibuilderService.send({
             type: "updateRemoteCatalog",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { uniqueId: this.editingRemoteCatalogId, patch }
           });
           return;
@@ -27837,7 +28393,7 @@ ex:publisher a ex:Property .`,
             if (Array.isArray(json)) {
               uibuilderService.send({
                 type: "uploadCatalogJson",
-                auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+                auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
                 data: { catalogs: json }
               });
             } else if (typeof json === "object") {
@@ -27906,80 +28462,112 @@ ex:publisher a ex:Property .`,
       },
       deleteUser(userId) {
         const user = this.users.find((u) => String(u.uniqueId) === String(userId));
-        const name2 = user?.name || "this user";
+        const name2 = user?.username || user?.name || "this user";
+        if (this.currentUser && (String(this.currentUser.id) === String(userId) || this.currentUser.username === user?.username)) {
+          this.addToast("error", "You cannot delete your own account.");
+          this.closeManageMenu();
+          return;
+        }
         this.closeManageMenu();
         this.showConfirm("Delete User", `Are you sure you want to delete "${name2}"? This action cannot be undone.`, "Delete", () => {
-          this.users = this.users.filter((u) => String(u.uniqueId) !== String(userId));
-          this.addToast("success", "User deleted successfully.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({
+            type: "deleteUser",
+            auth,
+            data: { userId, uniqueId: userId, username: user?.username }
+          });
         });
       },
       openManageUserModal() {
         const userId = this.manageMenu.userId;
         const user = this.users.find((u) => String(u.uniqueId) === String(userId));
         if (!user) return;
-        const nameParts = (user.name || "").split(" ");
-        this.manageForm.firstName = nameParts[0] || "";
-        this.manageForm.lastName = nameParts.slice(1).join(" ") || "";
-        this.manageForm.email = user.email || "";
-        const accessKeys = Array.isArray(user.access) ? user.access : [];
-        const labels = accessKeys.map((k) => this.inverseAccessMap?.[k]).filter(Boolean);
-        if (!labels.includes("Local Catalogue")) labels.unshift("Local Catalogue");
-        this.manageForm.selectedRoles = labels;
-        this.manageForm.expiresIn = user.expiresIn || "30 Days";
-        this.manageForm.altRole = "";
-        this.manageForm.message = "";
-        this.manageUserModal = true;
+        const accessAreas = Array.isArray(user.accessAreas) ? [...user.accessAreas] : [];
+        if (!accessAreas.includes("localCatalogue")) accessAreas.unshift("localCatalogue");
+        let expiresAtLocal = null;
+        if (user.expiresAt) {
+          try {
+            expiresAtLocal = new Date(user.expiresAt).toISOString().slice(0, 16);
+          } catch (e) {
+          }
+        }
+        this.editUserForm = {
+          userId: user.uniqueId || user._id || "",
+          username: user.username || "",
+          email: user.email || "",
+          status: user.status || "active",
+          accessAreas,
+          expiresAt: expiresAtLocal,
+          validationError: null
+        };
+        this.editUserBaseline = JSON.stringify({
+          email: (this.editUserForm.email || "").trim().toLowerCase() || "",
+          status: this.editUserForm.status || "active",
+          accessAreas: (this.editUserForm.accessAreas || []).slice().sort(),
+          expiresAt: this.editUserForm.expiresAt ? String(this.editUserForm.expiresAt) : null
+        });
+        this.isEditUserModal = true;
         this.manageMenu.open = false;
       },
-      closeManageUserModal() {
-        this.manageUserModal = false;
-        this.manageForm.selectedRoles = ["Local Catalogue"];
+      closeEditUserModal() {
+        this.isEditUserModal = false;
+        this.isSavingUser = false;
       },
-      sendManageUser() {
-        const userId = this.manageMenu.userId;
-        const user = this.users.find((u) => String(u.uniqueId) === String(userId));
-        if (user) {
-          user.name = `${this.manageForm.firstName} ${this.manageForm.lastName}`.trim();
-          user.email = this.manageForm.email;
-          const accessKeys = (this.manageForm.selectedRoles || []).map((label) => this.accessMap[label] || label);
-          if (!accessKeys.includes("local_catalogue")) accessKeys.unshift("local_catalogue");
-          user.access = accessKeys;
-          user.expiresIn = this.manageForm.expiresIn || user.expiresIn;
-        }
-        this.manageUserModal = false;
-        this.manageForm.selectedRoles = ["Local Catalogue"];
-        this.addToast("success", "User updated successfully.");
-      },
-      // ── Invite ─────────────────────────────────────────────────
-      closeInviteModal() {
-        this.isInviteModal = false;
-        this.resetInviteForm();
-      },
-      sendInvite() {
-        const raw = toRaw(this.inviteForm);
-        const { role, altRole, firstName, lastName, selectedAccess, ...rest } = raw;
-        const mappedAccess = (selectedAccess || []).map((label) => this.accessMap[label] || label);
-        const data = { profile: { firstName, lastName }, ...rest, access: mappedAccess };
+      submitEditUser() {
+        if (this.isSavingUser) return;
+        this.editUserForm.validationError = null;
+        this.isSavingUser = true;
+        const raw = toRaw(this.editUserForm);
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
         uibuilderService.send({
-          type: "inviteUser",
-          auth: { userToken: getCookie("userToken") },
-          data
+          type: "updateUser",
+          auth,
+          data: {
+            userId: raw.userId,
+            username: raw.username,
+            email: raw.email || null,
+            status: raw.status,
+            accessAreas: raw.accessAreas || [],
+            expiresAt: raw.expiresAt ? new Date(raw.expiresAt).toISOString() : null
+          }
         });
-        this.isInviteModal = false;
-        this.resetInviteForm();
-        this.addToast("success", "Invitation sent successfully.");
       },
-      resetInviteForm() {
-        this.inviteForm = {
-          firstName: "",
-          lastName: "",
+      // ── Create User ──────────────────────────────────────────
+      closeCreateUserModal() {
+        this.isCreateUserModal = false;
+        this.resetCreateUserForm();
+      },
+      submitCreateUser() {
+        this.createUserForm.validationError = null;
+        this.isCreatingUser = true;
+        const raw = toRaw(this.createUserForm);
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({
+          type: "createUser",
+          auth,
+          data: {
+            email: raw.email || "",
+            username: raw.username,
+            password: raw.password,
+            accessAreas: raw.accessAreas || [],
+            expiresInDays: raw.expiresInDays
+          }
+        });
+      },
+      resetCreateUserForm() {
+        this.createUserForm = {
+          username: "",
           email: "",
-          role: "Searcher",
-          expiresIn: "30 Days",
-          altRole: "",
-          message: "You have been invited to join the federated catalogue system.",
-          selectedAccess: ["Local Catalogue"]
+          password: "",
+          showPassword: false,
+          accessAreas: ["localCatalogue"],
+          expiresInDays: null,
+          validationError: null
         };
+      },
+      openCreateUserModal() {
+        this.resetCreateUserForm();
+        this.isCreateUserModal = true;
       },
       // ── Schema Modals ──────────────────────────────────────────
       openRegisterSchemaEditModal() {
@@ -27987,14 +28575,17 @@ ex:publisher a ex:Property .`,
       },
       openEditRemoteSchema(row) {
         this.registerSchemaForm = {
-          name: row.schema || "",
-          format: row.format || "SHACL",
-          catalogSearch: "",
-          remoteCatalogs: row.remoteCatalogs || [],
+          name: row.name || "",
+          format: row.format || "json-schema",
+          body: row.body || "",
           namespaces: row.namespaces || [],
-          version: row.versioning || "",
-          sourceUrl: row.sourceUrl || "",
-          summaryTab: "SHACL",
+          namespacesStr: (row.namespaces || []).join(", "),
+          version: row.version || "",
+          status: row.status || "draft",
+          trustLevel: row.trustLevel || "Federated",
+          catalogueIds: row.catalogueIds || [],
+          description: row.description || "",
+          author: row.author || "",
           editId: row.id
         };
         this.isRegisterSchemaEditModal = true;
@@ -28002,13 +28593,16 @@ ex:publisher a ex:Property .`,
       openRegisterSchemaNewModal() {
         this.registerSchemaForm = {
           name: "",
-          format: "SHACL",
-          catalogSearch: "",
-          remoteCatalogs: [],
+          format: "json-schema",
+          body: "",
           namespaces: [],
+          namespacesStr: "",
           version: "",
-          sourceUrl: "",
-          summaryTab: "SHACL"
+          status: "draft",
+          trustLevel: "Federated",
+          catalogueIds: [],
+          description: "",
+          author: ""
         };
         this.isRegisterSchemaNewModal = true;
       },
@@ -28029,75 +28623,213 @@ ex:publisher a ex:Property .`,
         this.registerSchemaForm.catalogSearch = "";
       },
       saveRegisterSchemaNew() {
-        if (!this.registerSchemaForm.name) return;
+        const f = this.registerSchemaForm;
+        if (!f.name || !f.format || !f.version) {
+          this.addToast("error", "Name, format, and version are required.");
+          return;
+        }
         const data = {
-          schema: this.registerSchemaForm.name,
-          format: this.registerSchemaForm.format,
-          remoteCatalogs: this.registerSchemaForm.remoteCatalogs,
-          namespaces: this.registerSchemaForm.namespaces,
-          version: this.registerSchemaForm.version,
-          sourceUrl: this.registerSchemaForm.sourceUrl,
-          catalogs: this.registerSchemaForm.remoteCatalogs.length,
-          trustLevel: "Federated"
+          name: f.name,
+          format: f.format,
+          body: f.body || "",
+          namespaces: f.namespaces || [],
+          version: f.version,
+          status: f.status || "draft",
+          trustLevel: f.trustLevel || "Federated",
+          catalogueIds: f.catalogueIds || [],
+          description: f.description || "",
+          author: f.author || ""
         };
+        if (f.editId) data.id = f.editId;
         uibuilderService.send({
           type: "saveRemoteSchema",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data
         });
-        const maxId = this.remoteSchema.reduce((m, s) => Math.max(m, s.id), 0);
-        this.remoteSchema.push({
-          id: maxId + 1,
-          schema: data.schema,
-          catalogs: data.catalogs || 0,
-          localMapping: null,
-          versioning: data.version || "v1.0",
-          versionOptions: ["v1.0", "v1.1", "v2.0"],
-          trustLevel: data.trustLevel
-        });
         this.closeRegisterSchemaNewModal();
-        this.addToast("success", "Remote schema registered.");
+        this.closeRegisterSchemaEditModal();
       },
       saveRegisterSchemaEdit() {
-        this.closeRegisterSchemaEditModal();
-        this.addToast("success", "Schema details updated.");
+        this.saveRegisterSchemaNew();
       },
       // ── Asset Type Registry ──────────────────────────────────────
       openAssetTypeForm() {
         this.isEditingAssetType = false;
-        this.assetTypeForm = { id: null, name: "", description: "", icon: "dataset" };
+        this.assetTypeForm = { id: null, uniqueId: null, name: "", description: "", icon: "dataset" };
         this.showAssetTypeForm = true;
       },
       editAssetType(at) {
         this.isEditingAssetType = true;
-        this.assetTypeForm = { id: at.id, name: at.name, description: at.description, icon: at.icon };
+        this.assetTypeForm = {
+          id: at.id || at.uniqueId,
+          uniqueId: at.uniqueId || at.id,
+          name: at.name,
+          description: at.description,
+          icon: at.icon
+        };
         this.showAssetTypeForm = true;
       },
       cancelAssetTypeForm() {
         this.showAssetTypeForm = false;
-        this.assetTypeForm = { id: null, name: "", description: "", icon: "dataset" };
+        this.assetTypeForm = { id: null, uniqueId: null, name: "", description: "", icon: "dataset" };
         this.isEditingAssetType = false;
+        this.assetTypeError = "";
       },
       saveAssetType() {
-        if (!this.assetTypeForm.name) return;
-        if (this.isEditingAssetType && this.assetTypeForm.id != null) {
-          const idx = this.assetTypes.findIndex((t2) => t2.id === this.assetTypeForm.id);
-          if (idx !== -1) {
-            this.assetTypes.splice(idx, 1, { ...this.assetTypeForm });
-          }
-        } else {
-          const maxId = this.assetTypes.reduce((m, t2) => Math.max(m, t2.id), 0);
-          this.assetTypes.push({ ...this.assetTypeForm, id: maxId + 1 });
+        if (!this.assetTypeForm.name || !this.assetTypeForm.name.trim()) {
+          this.assetTypeError = "Name is required";
+          return;
         }
-        this.cancelAssetTypeForm();
-        this.addToast("success", this.isEditingAssetType ? "Asset type updated." : "Asset type created.");
+        this.isSavingAssetType = true;
+        this.assetTypeError = "";
+        const payload = {
+          name: this.assetTypeForm.name.trim(),
+          description: this.assetTypeForm.description || "",
+          icon: this.assetTypeForm.icon || "dataset"
+        };
+        if (this.isEditingAssetType && this.assetTypeForm.uniqueId) {
+          uibuilderService.send({
+            type: "updateAssetType",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            data: { uniqueId: this.assetTypeForm.uniqueId, patch: payload }
+          });
+        } else {
+          uibuilderService.send({
+            type: "saveAssetType",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            data: payload
+          });
+        }
       },
       deleteAssetType(id2) {
-        const at = this.assetTypes.find((t2) => t2.id === id2);
-        this.showConfirm("Delete Asset Type", `Are you sure you want to delete "${at?.name || "this type"}"?`, "Delete", () => {
-          this.assetTypes = this.assetTypes.filter((t2) => t2.id !== id2);
-          this.addToast("success", "Asset type deleted.");
+        const at = this.assetTypes.find((t2) => t2.uniqueId === id2 || t2.id === id2);
+        if (!at) return;
+        this.showConfirm("Delete Asset Type", `Are you sure you want to delete "${at.name}"?`, "Delete", () => {
+          uibuilderService.send({
+            type: "deleteAssetType",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            data: { uniqueId: at.uniqueId || at.id }
+          });
         });
+      },
+      loadAssetTypes() {
+        this.isLoadingAssetTypes = true;
+        uibuilderService.send({
+          type: "listAssetTypes",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {}
+        });
+      },
+      addTypeMappingRow() {
+        if (!this.remoteCatalogForm.typeMapping) this.remoteCatalogForm.typeMapping = [];
+        this.remoteCatalogForm.typeMapping.push({ remoteType: "", localTypeId: "" });
+      },
+      // ── FR-CR-03: Catalogue API Mappings ─────────────────────────
+      assetTypeIdToName(id2) {
+        const at = (this.assetTypes || []).find((t2) => t2.uniqueId === id2 || t2.id === id2);
+        return at ? at.name : id2;
+      },
+      loadApiMappings() {
+        const auth = { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({ type: "listApiMappings", auth, data: {} });
+        uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" } });
+      },
+      openApiMappingForm(mapping) {
+        this.apiMappingError = "";
+        if (mapping) {
+          this.apiMappingForm = {
+            uniqueId: mapping.uniqueId,
+            catalogueId: mapping.catalogueId || "",
+            localTypeId: mapping.localTypeId || "",
+            remoteType: mapping.remoteType || "",
+            promptId: mapping.promptId || "",
+            apiRequest: Object.assign(
+              { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+              mapping.apiRequest || {}
+            ),
+            queryParamsRaw: JSON.stringify(mapping.apiRequest && mapping.apiRequest.queryParams || {}, null, 2),
+            headersRaw: JSON.stringify(mapping.apiRequest && mapping.apiRequest.headers || {}, null, 2)
+          };
+        } else {
+          this.apiMappingForm = {
+            uniqueId: null,
+            catalogueId: "",
+            localTypeId: "",
+            remoteType: "",
+            promptId: "",
+            apiRequest: { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+            queryParamsRaw: "{}",
+            headersRaw: "{}"
+          };
+        }
+        this.showApiMappingModal = true;
+      },
+      closeApiMappingForm() {
+        this.showApiMappingModal = false;
+        this.apiMappingError = "";
+        this.isGeneratingApiMapping = false;
+        this.isSavingApiMapping = false;
+      },
+      generateApiMappingWithAi() {
+        if (!this.apiMappingForm.catalogueId || !this.apiMappingForm.localTypeId || !this.apiMappingForm.promptId) return;
+        this.apiMappingError = "";
+        this.isGeneratingApiMapping = true;
+        uibuilderService.send({
+          type: "generateApiMappingWithAi",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {
+            catalogueId: this.apiMappingForm.catalogueId,
+            localTypeId: this.apiMappingForm.localTypeId,
+            promptId: this.apiMappingForm.promptId,
+            remoteType: this.apiMappingForm.remoteType
+          }
+        });
+      },
+      saveApiMapping() {
+        let queryParams = {}, headers = {};
+        try {
+          queryParams = JSON.parse(this.apiMappingForm.queryParamsRaw || "{}");
+        } catch (e) {
+          this.apiMappingError = "Query Params is not valid JSON";
+          return;
+        }
+        try {
+          headers = JSON.parse(this.apiMappingForm.headersRaw || "{}");
+        } catch (e) {
+          this.apiMappingError = "Headers is not valid JSON";
+          return;
+        }
+        const notes = this.apiMappingForm.apiRequest.notes || "";
+        const payload = {
+          uniqueId: this.apiMappingForm.uniqueId,
+          catalogueId: this.apiMappingForm.catalogueId,
+          localTypeId: this.apiMappingForm.localTypeId,
+          remoteType: this.apiMappingForm.remoteType,
+          promptId: this.apiMappingForm.promptId,
+          apiRequest: Object.assign({}, this.apiMappingForm.apiRequest, { queryParams, headers }),
+          generatedBy: notes.indexOf("AI-generated") === 0 ? "ai" : "manual",
+          status: "active"
+        };
+        this.isSavingApiMapping = true;
+        this.apiMappingError = "";
+        uibuilderService.send({
+          type: "saveApiMapping",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: payload
+        });
+      },
+      confirmDeleteApiMapping(mapping) {
+        this.showConfirm("Delete API Mapping", "Delete this API mapping?", "Delete", () => {
+          uibuilderService.send({
+            type: "deleteApiMapping",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            data: { uniqueId: mapping.uniqueId }
+          });
+        });
+      },
+      removeTypeMappingRow(index) {
+        if (!this.remoteCatalogForm.typeMapping) return;
+        this.remoteCatalogForm.typeMapping.splice(index, 1);
       },
       // ── Prompt Management (FR-SR-03, FR-SR-04) ─────────────────
       openPromptModal() {
@@ -28114,7 +28846,8 @@ ex:publisher a ex:Property .`,
           template: "",
           examples: "",
           constraints: "",
-          author: ""
+          author: "",
+          providerId: ""
         };
         this.showPromptModal = true;
       },
@@ -28122,7 +28855,7 @@ ex:publisher a ex:Property .`,
         this.isEditingPrompt = true;
         this.promptFormError = "";
         this.isEnhancingPrompt = false;
-        this.promptForm = { ...p, name: p.name || "", author: p.author || "" };
+        this.promptForm = { ...p, name: p.name || "", author: p.author || "", providerId: p.providerId || "" };
         this.showPromptModal = true;
       },
       closePromptModal() {
@@ -28139,12 +28872,13 @@ ex:publisher a ex:Property .`,
         this.promptFormError = "";
         uibuilderService.send({
           type: "enhancePrompt",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {
             rawPrompt: this.promptForm.template,
             sourceSchema: this.promptForm.sourceSchema,
             targetSchema: this.promptForm.targetSchema,
-            schemaContext: this.schemaSummaries?.SHACL || ""
+            schemaContext: this.schemaSummaries?.SHACL || "",
+            providerId: this.promptForm.providerId || ""
           }
         });
       },
@@ -28163,7 +28897,7 @@ ex:publisher a ex:Property .`,
         if (this.isEditingPrompt && this.promptForm.id) {
           uibuilderService.send({
             type: "updatePrompt",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: {
               promptId: this.promptForm.id,
               name: promptName,
@@ -28175,14 +28909,15 @@ ex:publisher a ex:Property .`,
               constraints: this.promptForm.constraints || "",
               status: this.promptForm.status || "active",
               code: this.promptForm.generatedCode || "",
-              author: this.promptForm.author || ""
+              author: this.promptForm.author || "",
+              providerId: this.promptForm.providerId || ""
             }
           });
           this.closePromptModal();
         } else {
           uibuilderService.send({
             type: "createPrompt",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: {
               name: promptName,
               version: this.promptForm.version || "1.0",
@@ -28191,7 +28926,8 @@ ex:publisher a ex:Property .`,
               template: this.promptForm.template,
               examples: this.promptForm.examples || "",
               constraints: this.promptForm.constraints || "",
-              author: this.promptForm.author || ""
+              author: this.promptForm.author || "",
+              providerId: this.promptForm.providerId || ""
             }
           });
           this.closePromptModal();
@@ -28201,7 +28937,7 @@ ex:publisher a ex:Property .`,
         this.showConfirm("Delete Prompt", `Are you sure you want to delete prompt "${id2}"?`, "Delete", () => {
           uibuilderService.send({
             type: "deletePrompt",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { promptId: id2 }
           });
         });
@@ -28209,7 +28945,7 @@ ex:publisher a ex:Property .`,
       changePromptStatus(prompt, newStatus) {
         uibuilderService.send({
           type: "updatePromptStatus",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { promptId: prompt.id, status: newStatus, sourceSchema: prompt.sourceSchema, targetSchema: prompt.targetSchema }
         });
       },
@@ -28282,7 +29018,7 @@ ex:publisher a ex:Property .`,
         }
         uibuilderService.send({
           type: "updatePromptCode",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { promptId: this.editCodePromptId, code: this.editCodeValue }
         });
         this.closeEditCodeModal();
@@ -28333,7 +29069,7 @@ ex:publisher a ex:Property .`,
         if (!this.llmConfigForm.name || !this.llmConfigForm.model) return;
         uibuilderService.send({
           type: "saveLlmConfig",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { ...this.llmConfigForm }
         });
         this.closeLlmConfigModal();
@@ -28343,7 +29079,7 @@ ex:publisher a ex:Property .`,
         this.showConfirm("Delete LLM Configuration", `Are you sure you want to delete "${cfg?.name || id2}"?`, "Delete", () => {
           uibuilderService.send({
             type: "deleteLlmConfig",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { configId: id2 }
           });
         });
@@ -28372,7 +29108,7 @@ ex:publisher a ex:Property .`,
         this.promptTestError = "";
         uibuilderService.send({
           type: "dryRunPrompt",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {
             promptId: this.promptTestSelectedPrompt,
             llmConfigId: this.promptTestSelectedLlm,
@@ -28404,7 +29140,7 @@ ex:publisher a ex:Property .`,
         if (!this.testCaseForm.name) return;
         uibuilderService.send({
           type: "saveTestCase",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { ...this.testCaseForm }
         });
         this.closeTestCaseModal();
@@ -28413,7 +29149,7 @@ ex:publisher a ex:Property .`,
         this.showConfirm("Delete Test Case", "Are you sure you want to delete this test case?", "Delete", () => {
           uibuilderService.send({
             type: "deleteTestCase",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { testCaseId: id2 }
           });
         });
@@ -28462,7 +29198,7 @@ ex:publisher a ex:Property .`,
         b.completedAt = "";
         uibuilderService.send({
           type: "startBatchRetransform",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {
             trigger: b.trigger,
             scope: b.scope,
@@ -28475,24 +29211,60 @@ ex:publisher a ex:Property .`,
       cancelBatchRetransform() {
         uibuilderService.send({
           type: "cancelBatchRetransform",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {}
         });
       },
       batchTriggerLabel(t2) {
         return { prompt_change: "Prompt Change", strategy_change: "Strategy Change", llm_change: "LLM Config Change", manual: "Manual" }[t2] || t2;
       },
+      // ── Transformation Audit Trail (Section B) ────────────────
+      fetchAuditTrail() {
+        this.auditTrail.loading = true;
+        this.auditTrail.error = "";
+        if (this._auditTimeout) clearTimeout(this._auditTimeout);
+        this._auditTimeout = setTimeout(() => {
+          if (this.auditTrail.loading) {
+            this.auditTrail.loading = false;
+            this.auditTrail.error = "No response from backend \u2014 request timed out.";
+          }
+        }, 1e4);
+        const filters = { ...this.auditTrail.filters };
+        uibuilderService.send({
+          type: "listTransformationAudit",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { filters, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
+        });
+      },
+      applyAuditFilters() {
+        this.auditTrail.pagination.page = 1;
+        this.fetchAuditTrail();
+      },
+      exportAudit(format) {
+        uibuilderService.send({
+          type: "exportTransformationAudit",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { format, filters: { ...this.auditTrail.filters } }
+        });
+      },
       // ── Multi-Model Provider (FR-SR-12) ──────────────────────
       openProviderModal() {
         this.isEditingProvider = false;
         this.providerFormError = "";
-        this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active" };
+        this.showProviderApiKey = false;
+        this.providerForm = { id: null, name: "", type: "openai", apiEndpoint: "", apiKey: "", models: "", rateLimits: "", timeout: 30, isDefault: false, precedence: this.llmProviders.length + 1, status: "active", hasKey: false };
         this.showProviderModal = true;
       },
       openEditProvider(p) {
         this.isEditingProvider = true;
         this.providerFormError = "";
-        this.providerForm = { ...p, models: Array.isArray(p.models) ? p.models.join(", ") : p.models };
+        this.showProviderApiKey = false;
+        this.providerForm = {
+          ...p,
+          models: Array.isArray(p.models) ? p.models.join(", ") : p.models,
+          apiKey: "",
+          hasKey: !!p.hasKey
+        };
         this.showProviderModal = true;
       },
       closeProviderModal() {
@@ -28500,21 +29272,42 @@ ex:publisher a ex:Property .`,
         this.providerFormError = "";
       },
       saveProvider() {
-        if (!this.providerForm.name || !this.providerForm.apiEndpoint) return;
+        if (!this.providerForm.name || !this.providerForm.apiEndpoint) {
+          this.providerFormError = "Name and API endpoint are required.";
+          return;
+        }
+        if (!this.isEditingProvider && !this.providerForm.apiKey) {
+          this.providerFormError = "API key is required when creating a new provider.";
+          return;
+        }
+        if (!this.providerForm.models || Array.isArray(this.providerForm.models) && this.providerForm.models.length === 0 || typeof this.providerForm.models === "string" && this.providerForm.models.trim().length === 0) {
+          this.providerFormError = "At least one model is required (e.g. gpt-4o, gpt-4, gpt-3.5-turbo).";
+          return;
+        }
         const models = typeof this.providerForm.models === "string" ? this.providerForm.models.split(",").map((m) => m.trim()).filter(Boolean) : this.providerForm.models;
+        const data = {
+          ...this.providerForm,
+          models,
+          precedence: this.providerForm.precedence || this.llmProviders.length + 1
+        };
+        delete data.hasKey;
+        if (this.isEditingProvider && (!data.apiKey || data.apiKey.length === 0)) {
+          delete data.apiKey;
+        }
+        this.providerFormError = "";
+        this.isSavingProvider = true;
         uibuilderService.send({
           type: "saveProvider",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-          data: { ...this.providerForm, models, precedence: this.providerForm.precedence || this.llmProviders.length + 1 }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data
         });
-        this.closeProviderModal();
       },
       deleteProvider(id2) {
         const prov = this.llmProviders.find((p) => p.id === id2);
         this.showConfirm("Delete Provider", `Are you sure you want to delete "${prov?.name || id2}"?`, "Delete", () => {
           uibuilderService.send({
             type: "deleteProvider",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { providerId: id2 }
           });
         });
@@ -28530,7 +29323,7 @@ ex:publisher a ex:Property .`,
         });
         uibuilderService.send({
           type: "reorderProvider",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { providerId: id2, direction: "up" }
         });
       },
@@ -28545,7 +29338,7 @@ ex:publisher a ex:Property .`,
         });
         uibuilderService.send({
           type: "reorderProvider",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { providerId: id2, direction: "down" }
         });
       },
@@ -28597,34 +29390,64 @@ ex:publisher a ex:Property .`,
       openCreateLocalSchemaModal() {
         this.isEditingLocalSchema = false;
         this.editingLocalSchemaId = null;
-        this.localSchemaForm = { schema: "", format: "SHACL", catalogs: 1, localMapping: "", versioning: "v1.0", trustLevel: "Federated" };
+        this.localSchemaForm = { schema: "", format: "shacl", body: "", namespaces: "", status: "draft", catalogs: 1, localMapping: "", versioning: "1.0.0", trustLevel: "Federated", author: "", description: "" };
+        this.validateSampleForm = { assetBody: "", result: null, loading: false };
         this.showCreateLocalSchemaModal = true;
       },
       openEditLocalSchema(row) {
         this.isEditingLocalSchema = true;
         this.editingLocalSchemaId = row.id;
-        this.localSchemaForm = { schema: row.schema, format: "SHACL", catalogs: row.catalogs, localMapping: row.localMapping || "", versioning: row.versioning, trustLevel: row.trustLevel };
+        this.localSchemaForm = {
+          schema: row.schema,
+          format: row.format || "shacl",
+          body: row.body || "",
+          namespaces: Array.isArray(row.namespaces) ? row.namespaces.join(", ") : row.namespaces || "",
+          status: row.status || "draft",
+          catalogs: row.catalogs,
+          localMapping: row.localMapping || "",
+          versioning: row.versioning,
+          trustLevel: row.trustLevel,
+          author: row.author || "",
+          description: row.description || ""
+        };
+        this.validateSampleForm = { assetBody: "", result: null, loading: false };
         this.showCreateLocalSchemaModal = true;
       },
       closeCreateLocalSchemaModal() {
         this.showCreateLocalSchemaModal = false;
       },
+      confirmCloseLocalSchemaModal() {
+        if (this.localSchemaForm.schema || this.localSchemaForm.body) {
+          this.showConfirm("Discard changes?", "You have unsaved changes. Are you sure you want to close?", "Discard", () => {
+            this.closeCreateLocalSchemaModal();
+          });
+        } else {
+          this.closeCreateLocalSchemaModal();
+        }
+      },
       saveLocalSchema() {
         if (!this.localSchemaForm.schema) return;
+        const nsStr = this.localSchemaForm.namespaces || "";
+        const namespaces = nsStr.split(",").map((s) => s.trim()).filter(Boolean);
         const data = {
           schema: this.localSchemaForm.schema,
-          format: this.localSchemaForm.format || "SHACL",
+          format: this.localSchemaForm.format || "shacl",
+          body: this.localSchemaForm.body || "",
+          namespaces,
+          status: this.localSchemaForm.status || "draft",
           catalogs: this.localSchemaForm.catalogs,
           localMapping: this.localSchemaForm.localMapping || null,
           versioning: this.localSchemaForm.versioning,
-          trustLevel: this.localSchemaForm.trustLevel
+          trustLevel: this.localSchemaForm.trustLevel,
+          author: this.localSchemaForm.author || "",
+          description: this.localSchemaForm.description || ""
         };
         if (this.isEditingLocalSchema && this.editingLocalSchemaId != null) {
           data.id = this.editingLocalSchemaId;
         }
         uibuilderService.send({
           type: "saveLocalSchema",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data
         });
         this.showCreateLocalSchemaModal = false;
@@ -28634,16 +29457,88 @@ ex:publisher a ex:Property .`,
         this.showConfirm("Delete Schema", `Are you sure you want to delete "${schema?.schema || "this schema"}"? This action cannot be undone.`, "Delete", () => {
           uibuilderService.send({
             type: "deleteLocalSchema",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { schemaId: id2 }
           });
         });
       },
+      // ── Local Schema Versions (Section C) ─────────────────────
+      fetchSchemaVersions(schemaName) {
+        uibuilderService.send({
+          type: "listLocalSchemaVersions",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { schemaName }
+        });
+      },
+      openSchemaVersionPanel(schemaName) {
+        this.schemaVersionPanelName = schemaName;
+        this.schemaVersionPanelLoading = true;
+        this.showSchemaVersionPanel = true;
+        this.fetchSchemaVersions(schemaName);
+      },
+      activateSchemaVersion(schemaName, version) {
+        uibuilderService.send({
+          type: "activateLocalSchemaVersion",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { schemaName, version }
+        });
+      },
+      validateSampleAsset() {
+        if (!this.validateSampleForm.assetBody) return;
+        this.validateSampleForm.loading = true;
+        this.validateSampleForm.result = null;
+        uibuilderService.send({
+          type: "validateSampleAsset",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {
+            schemaBody: this.localSchemaForm.body,
+            assetBody: this.validateSampleForm.assetBody,
+            format: this.localSchemaForm.format
+          }
+        });
+      },
+      // ── Prompt Versions (D3) ──────────────────────────────
+      openPromptVersionPanel(p) {
+        this.promptVersionPanelName = p.sourceSchema + " \u2192 " + p.targetSchema;
+        this.promptVersionPanelLoading = true;
+        this.showPromptVersionPanel = true;
+        this.promptVersions = [];
+        uibuilderService.send({
+          type: "listPromptVersions",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { sourceSchemaId: p.sourceSchema, targetSchemaId: p.targetSchema }
+        });
+      },
+      activatePromptVersion(v) {
+        uibuilderService.send({
+          type: "updatePromptStatus",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { promptId: v.id, status: "active", sourceSchema: v.sourceSchema, targetSchema: v.targetSchema }
+        });
+      },
+      // ── System Settings (E4) ────────────────────────────────
+      fetchSystemSettings() {
+        uibuilderService.send({
+          type: "getSystemSettings",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {}
+        });
+      },
+      setDefaultProvider(providerId) {
+        uibuilderService.send({
+          type: "setSystemSetting",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { key: "defaultLlmProviderId", value: providerId }
+        });
+      },
       confirmDeleteRemoteSchema(id2) {
-        const schema = this.remoteSchema.find((s) => s.id === id2);
-        this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.schema || "this schema"}"?`, "Delete", () => {
-          this.remoteSchema = this.remoteSchema.filter((s) => s.id !== id2);
-          this.addToast("success", "Remote schema deleted.");
+        const schema = this.remoteSchemas.find((s) => s.id === id2);
+        this.showConfirm("Delete Remote Schema", `Are you sure you want to delete "${schema?.name || "this schema"}"?`, "Delete", () => {
+          uibuilderService.send({
+            type: "deleteRemoteSchema",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            data: { schemaId: id2 }
+          });
         });
       },
       // ── Schema Version Diff (Milestone 2) ─────────────────────
@@ -28727,23 +29622,41 @@ ex:publisher a ex:Property .`,
       },
       // ── Add Mapping Modal (Milestone 2) ───────────────────────
       openAddMappingModal() {
+        console.log("[facis] openAddMappingModal() fired");
         this.isEditingMapping = false;
         this.editingMappingId = null;
-        this.addMappingForm = { remoteCatalogue: "", remoteSchema: "", remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF", promptsCount: 0, shaclCount: 0 };
+        this.addMappingForm = {
+          remoteCatalogueId: "",
+          remoteSchemaId: "",
+          remoteCatalogue: "",
+          remoteSchema: "",
+          localSchemaId: "",
+          remoteSchemaMeta: "",
+          transformationStrategy: "Deterministic RDF",
+          promptsCount: 0,
+          shaclCount: 0
+        };
         this.showAddMappingModal = true;
       },
       closeAddMappingModal() {
         this.showAddMappingModal = false;
       },
       saveAddMapping() {
-        if (!this.addMappingForm.remoteCatalogue || !this.addMappingForm.remoteSchema) return;
-        const data = { ...this.addMappingForm };
+        if (!this.addMappingForm.remoteCatalogueId || !this.addMappingForm.remoteSchemaId || !this.addMappingForm.localSchemaId) return;
+        const cat = this.catalogsTable.find((c) => c.id === this.addMappingForm.remoteCatalogueId);
+        const rs = this.remoteSchemas.find((s) => s.id === this.addMappingForm.remoteSchemaId);
+        const data = {
+          ...this.addMappingForm,
+          remoteCatalogue: cat?.catalogName || this.addMappingForm.remoteCatalogueId,
+          remoteSchema: rs ? rs.name + " " + rs.version : this.addMappingForm.remoteSchemaId,
+          localSchema: this.addMappingForm.localSchemaId
+        };
         if (this.isEditingMapping && this.editingMappingId != null) {
           data.id = this.editingMappingId;
         }
         uibuilderService.send({
           type: "saveMapping",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data
         });
         this.showAddMappingModal = false;
@@ -28764,6 +29677,7 @@ ex:publisher a ex:Property .`,
         this.mappingDetailEditForm = {
           remoteCatalogue: this.mappingDetailRow.remoteCatalogue,
           remoteSchema: this.mappingDetailRow.remoteSchema,
+          localSchema: this.mappingDetailRow.localSchema || "",
           remoteSchemaMeta: this.mappingDetailRow.remoteSchemaMeta,
           transformationStrategy: this.mappingDetailRow.transformationStrategy
         };
@@ -28777,7 +29691,7 @@ ex:publisher a ex:Property .`,
         const data = { id: this.mappingDetailRow.id, ...this.mappingDetailEditForm };
         uibuilderService.send({
           type: "saveMapping",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data
         });
         this.isEditingMappingDetail = false;
@@ -28788,6 +29702,78 @@ ex:publisher a ex:Property .`,
       openMappingShacl(row) {
         this.openMappingViewEdit(row);
       },
+      // ── RDF Mapping Config (FR-SR-06 / FR-SR-07) ────────────
+      openRdfMappingConfig(row) {
+        this.rdfConfigMapping = row;
+        this.rdfConfigForm = {
+          namespacesToPreserve: Array.isArray(row.namespacesToPreserve) ? [...row.namespacesToPreserve] : [],
+          shaclShapeSchemaId: row.shaclShapeSchemaId || ""
+        };
+        this.rdfConfigNewNamespace = "";
+        this.rdfTestInput = "";
+        this.rdfTestResult = null;
+        this.showRdfConfigPanel = true;
+      },
+      addRdfNamespace() {
+        const ns = (this.rdfConfigNewNamespace || "").trim();
+        if (ns && !this.rdfConfigForm.namespacesToPreserve.includes(ns)) {
+          this.rdfConfigForm.namespacesToPreserve.push(ns);
+        }
+        this.rdfConfigNewNamespace = "";
+      },
+      addPresetNamespace(ns) {
+        if (!this.rdfConfigForm.namespacesToPreserve.includes(ns)) {
+          this.rdfConfigForm.namespacesToPreserve.push(ns);
+        }
+      },
+      getShaclShapeBody(schemaId) {
+        const s = this.schemaRegistry.find((x) => x.id === schemaId);
+        return s ? s.body || "(no body)" : "(schema not found)";
+      },
+      saveRdfConfig() {
+        if (!this.rdfConfigMapping) return;
+        this.rdfConfigSaving = true;
+        uibuilderService.send({
+          type: "saveRdfMappingConfig",
+          data: {
+            mappingId: this.rdfConfigMapping.id,
+            namespacesToPreserve: this.rdfConfigForm.namespacesToPreserve,
+            shaclShapeSchemaId: this.rdfConfigForm.shaclShapeSchemaId
+          }
+        });
+      },
+      testRdfMapping() {
+        this.rdfTestRunning = true;
+        this.rdfTestResult = null;
+        uibuilderService.send({
+          type: "testRdfMapping",
+          data: {
+            rdfInput: this.rdfTestInput,
+            rdfFormat: this.rdfTestFormat,
+            namespacesToPreserve: this.rdfConfigForm.namespacesToPreserve,
+            shaclShapeSchemaId: this.rdfConfigForm.shaclShapeSchemaId
+          }
+        });
+      },
+      // FR-SR-08: Hybrid Fallback transform execution
+      executeHybridTransform(mapping) {
+        if (!mapping || !mapping.id) return;
+        const inputData = this.rdfTestInput || "";
+        if (!inputData.trim()) {
+          this.addToast && this.addToast("warning", "Please enter test input data in the RDF Test Input field first");
+          return;
+        }
+        this.hybridTransformLoading = true;
+        this.hybridTransformResult = null;
+        uibuilderService.send({
+          type: "executeHybridTransform",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {
+            mappingId: mapping.id,
+            inputData
+          }
+        });
+      },
       // ── Mapping ────────────────────────────────────────────────
       toggleAllMappingRows(e) {
         this.selectedMappingRows = e.target.checked ? this.mappingPagination.rows.map((r) => r.id) : [];
@@ -28797,7 +29783,7 @@ ex:publisher a ex:Property .`,
         this.showConfirm("Delete Mapping", `Are you sure you want to delete the mapping for "${row?.remoteCatalogue || "this mapping"}"?`, "Delete", () => {
           uibuilderService.send({
             type: "deleteMapping",
-            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: { mappingId: id2 }
           });
         });
@@ -28830,11 +29816,11 @@ ex:publisher a ex:Property .`,
         this.harvestWizardRowsBase = [];
         uibuilderService.send({
           type: "getCatalogRegistry",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
         });
         uibuilderService.send({
           type: "getHarvestCatalogues",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
         });
       },
       closeHarvestWizard() {
@@ -28910,18 +29896,39 @@ ex:publisher a ex:Property .`,
             authApiKeyHeader: fullCat?.authApiKeyHeader || "X-API-Key"
           };
         });
+        if (this.harvestScope && this.harvestScope.resolveReferences) {
+          const selectedIds = new Set(selectedCatalogues.map((c) => c.uniqueId || c.catalogId));
+          const allRegistered = Array.isArray(this.catalogsTable) ? this.catalogsTable : [];
+          for (const reg of allRegistered) {
+            const regId = reg.uniqueId || reg.id || reg.catalogId;
+            if (!regId || selectedIds.has(regId)) continue;
+            selectedCatalogues.push({
+              uniqueId: regId,
+              catalogName: reg.catalogName || reg.catalog || reg.name || regId,
+              strategy: reg.strategy || "none",
+              baseEndpoint: reg.baseEndpoint || reg.queryEndpoint || reg.endpoint || "",
+              sourceData: reg.sourceData || reg._cachedSourceData || null,
+              responseRootPath: reg.responseRootPath || "",
+              responseAssetIdField: reg.responseAssetIdField || "",
+              responseAssetNameField: reg.responseAssetNameField || "",
+              responseAssetTypeField: reg.responseAssetTypeField || "",
+              typeMapping: Array.isArray(reg.typeMapping) ? reg.typeMapping : [],
+              _crawlOnly: true
+            });
+          }
+        }
         this.isSubmittingHarvest = true;
         this.harvestSubmitError = "";
         if (this._harvestTimeout) clearTimeout(this._harvestTimeout);
         this._harvestTimeout = setTimeout(() => {
           if (this.isSubmittingHarvest) {
             this.isSubmittingHarvest = false;
-            this.addToast("error", "Harvest request timed out \u2014 no response from backend. Check Node-RED logs.");
+            this.addToast("error", "Harvest request timed out \u2014 no response from backend. Check ORCE logs.");
           }
         }, 3e4);
         uibuilderService.send({
           type: "startHarvest",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {
             catalogues: selectedCatalogues,
             scope: { ...this.harvestScope },
@@ -28934,7 +29941,7 @@ ex:publisher a ex:Property .`,
       openHarvestRunDetail(run) {
         uibuilderService.send({
           type: "getHarvestRunDetail",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { runId: run.id }
         });
         this.harvestRunDetailData = { ...run, assets: [], logs: [], provenance: [] };
@@ -28963,7 +29970,7 @@ ex:publisher a ex:Property .`,
       pauseHarvest() {
         uibuilderService.send({
           type: "pauseHarvest",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { runId: this.activeHarvest._runId }
         });
         this.activeHarvest.status = "paused";
@@ -28972,7 +29979,7 @@ ex:publisher a ex:Property .`,
       resumeHarvest() {
         uibuilderService.send({
           type: "resumeHarvest",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { runId: this.activeHarvest._runId }
         });
         this.activeHarvest.status = "running";
@@ -28981,16 +29988,27 @@ ex:publisher a ex:Property .`,
       cancelHarvest() {
         uibuilderService.send({
           type: "cancelHarvest",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { runId: this.activeHarvest._runId }
         });
         this.activeHarvest.status = "cancelled";
         this.activeHarvest.running = false;
       },
       loadHarvestData() {
-        uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
-        uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
-        uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
+        uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
+        uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
+        uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
+      },
+      // ── Utility ─────────────────────────────────────────────────
+      formatRelativeDate(isoStr) {
+        if (!isoStr) return "never";
+        const d = new Date(isoStr);
+        const now = /* @__PURE__ */ new Date();
+        const diffMs = d - now;
+        const absDays = Math.abs(Math.round(diffMs / 864e5));
+        if (diffMs < 0) return "Expired " + absDays + " day" + (absDays !== 1 ? "s" : "") + " ago";
+        if (absDays === 0) return "today";
+        return "in " + absDays + " day" + (absDays !== 1 ? "s" : "");
       },
       // ── Toast Notifications (Milestone 5) ──────────────────────
       addToast(type, message, duration = 4e3) {
@@ -29014,6 +30032,18 @@ ex:publisher a ex:Property .`,
         }
         this.cancelConfirm();
       },
+      // ── Delete Blocked Modal ────────────────────────────────
+      closeDeleteBlockedModal() {
+        this.deleteBlockedModal = { visible: false, title: "", message: "", mappings: [] };
+      },
+      goToMappingRow(mappingId) {
+        this.closeDeleteBlockedModal();
+        this.currentSchemaTab = "mapping";
+        this.$nextTick(() => {
+          const row = this.$refs.mappingTableBody?.querySelector(`tr[data-id="${mappingId}"]`);
+          if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      },
       // ── Delete Remote Catalogue (Milestone 5) ────────────────
       confirmDeleteRemoteCatalog(id2) {
         const cat = this.catalogsTable.find((c) => String(c.id) === String(id2) || String(c.uniqueId) === String(id2));
@@ -29028,19 +30058,42 @@ ex:publisher a ex:Property .`,
       deleteRemoteCatalog(id2) {
         uibuilderService.send({
           type: "deleteRemoteCatalog",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { uniqueId: id2 }
         });
         this.catalogsTable = this.catalogsTable.filter((c) => String(c.id) !== String(id2) && String(c.uniqueId) !== String(id2));
         this.addToast("success", "Remote catalogue deleted successfully.");
       },
-      // ── Monitoring Log Export (Milestone 4) ─────────────────────
+      // ── Monitoring ─────────────────────────────────────────────
+      fetchMonitoring() {
+        const auth = { userToken: localStorage.getItem("authToken") || getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({ type: "getMonitoringOverview", auth, _silent: true });
+      },
+      startMonitoringPolling() {
+        this.fetchMonitoring();
+        this._monitoringTimer = setInterval(() => this.fetchMonitoring(), 1e4);
+      },
+      stopMonitoringPolling() {
+        if (this._monitoringTimer) {
+          clearInterval(this._monitoringTimer);
+          this._monitoringTimer = null;
+        }
+      },
+      formatMonitoringTime(iso) {
+        if (!iso) return "\u2014";
+        try {
+          const d = new Date(iso);
+          return d.toLocaleString(void 0, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        } catch (e) {
+          return iso;
+        }
+      },
       exportMonitoringLog(format) {
         const rows = this.filteredMonitoringEvents;
         let content2, filename, mimeType;
         if (format === "csv") {
-          const headers = ["ID", "Level", "Source", "Message", "Timestamp"];
-          const csvRows = rows.map((r) => [r.id, r.type, r.source, r.message, r.timestamp].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+          const headers = ["Timestamp", "Action", "Actor", "Target", "Meta"];
+          const csvRows = rows.map((r) => [r.at, r.action, r.actor, r.target, r.meta].map((v) => `"${String(v || "").replace(/"/g, '""')}"`).join(","));
           content2 = [headers.join(","), ...csvRows].join("\n");
           filename = "monitoring-events.csv";
           mimeType = "text/csv";
@@ -29085,31 +30138,184 @@ ex:publisher a ex:Property .`,
       closeAccessInformation() {
         this.showAccessInformation = false;
       },
-      // ── Logout ──────────────────────────────────────────────────
-      logout() {
+      // ── Role Management ───────────────────────────────────────────
+      confirmDeleteRole(roleKey) {
+        this.confirmDialog = {
+          visible: true,
+          title: "Delete Role",
+          message: "Are you sure you want to delete the role '" + roleKey + "'? This cannot be undone.",
+          confirmLabel: "Delete",
+          onConfirm: () => {
+            const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+            uibuilderService.send({ type: "deleteRole", data: { key: roleKey }, auth });
+            this.confirmDialog.visible = false;
+          }
+        };
+      },
+      // ── Authentication ──────────────────────────────────────────
+      loginSubmit() {
+        this.loginError = "";
+        this.loginErrorCode = "";
+        if (!this.loginForm.username || !this.loginForm.password) {
+          this.loginError = "Username and password are required.";
+          return;
+        }
+        this.isLoggingIn = true;
+        uibuilderService.send({
+          type: "login",
+          data: { username: this.loginForm.username, password: this.loginForm.password }
+        });
+      },
+      handleSignOut() {
+        this.showUserProfile = false;
+        const token = localStorage.getItem("authToken") || "";
         uibuilderService.send({
           type: "logOut",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          data: { token },
+          auth: { userToken: token, clientId: getCookie2("uibuilder-client-id") }
         });
+        localStorage.removeItem("authToken");
+        document.cookie = "userToken=; path=/; max-age=0";
+        this.isLoggedIn = false;
+        this.authToken = "";
+        this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+        this.loginForm = { username: "", password: "" };
+        this.loginError = "";
+        this.loginErrorCode = "";
+      },
+      logout() {
+        this.handleSignOut();
+      },
+      initDashboardData() {
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth });
+        uibuilderService.send({ type: "listPrompts", data: {} });
+        uibuilderService.send({ type: "listTestCases", data: {} });
+        uibuilderService.send({ type: "listLlmConfigs", data: {} });
+        uibuilderService.send({ type: "listProviders", data: {} });
+        uibuilderService.send({ type: "listLocalSchemas", data: {} });
+        uibuilderService.send({ type: "listMappings", data: {} });
+        uibuilderService.send({ type: "listRemoteSchemas", data: {} });
+        uibuilderService.send({ type: "getCatalogRegistry", auth });
+        uibuilderService.send({ type: "listAssetTypes", auth, data: {} });
+        const aa = this.currentUser.accessAreas || [];
+        if (aa.includes("adminTools") || this.userAccess.includes("admin_tools")) {
+          uibuilderService.send({ type: "listUsers", auth });
+          uibuilderService.send({ type: "listRoles", auth });
+        }
+        this.loadHarvestData();
       }
     },
     mounted() {
       uibuilderService.start();
-      uibuilderService.send({ type: "listPrompts", data: {} });
-      uibuilderService.send({ type: "listTestCases", data: {} });
-      uibuilderService.send({ type: "listLlmConfigs", data: {} });
-      uibuilderService.send({ type: "listProviders", data: {} });
-      uibuilderService.send({ type: "listLocalSchemas", data: {} });
-      uibuilderService.send({ type: "listMappings", data: {} });
-      uibuilderService.send({
-        type: "getCatalogRegistry",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-      });
-      this.loadHarvestData();
+      const storedToken = localStorage.getItem("authToken");
+      if (storedToken) {
+        this.isCheckingAuth = true;
+        uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
+      } else {
+        this.isCheckingAuth = false;
+        this.isLoggedIn = false;
+      }
       uibuilderService.onMessage((msg) => {
         console.log(msg);
         const payload = msg?.payload ?? msg;
         const resp = payload?.response ?? msg?.response;
+        if (resp?.action === "listApiMappings") {
+          this.apiMappings = Array.isArray(resp.mappings) ? resp.mappings : [];
+        }
+        if (resp?.action === "listPrompts" && resp.kind === "api-mapping") {
+          this.apiMappingPrompts = Array.isArray(resp.prompts) ? resp.prompts : [];
+        }
+        if (resp?.action === "saveApiMapping") {
+          this.isSavingApiMapping = false;
+          if (resp.status === "success") {
+            this.showApiMappingModal = false;
+            this.loadApiMappings();
+            this.addToast("success", "API mapping saved.");
+          } else {
+            this.apiMappingError = resp.message || "Save failed";
+            this.addToast("error", this.apiMappingError);
+          }
+        }
+        if (resp?.action === "deleteApiMapping" && resp.status === "success") {
+          this.apiMappings = (this.apiMappings || []).filter((m) => m.uniqueId !== resp.uniqueId);
+          this.addToast("success", "API mapping deleted.");
+        }
+        if (resp?.action === "generateApiMappingWithAi") {
+          this.isGeneratingApiMapping = false;
+          if (resp.status === "success" && resp.apiRequest) {
+            this.apiMappingForm.apiRequest = Object.assign({}, resp.apiRequest);
+            this.apiMappingForm.queryParamsRaw = JSON.stringify(resp.apiRequest.queryParams || {}, null, 2);
+            this.apiMappingForm.headersRaw = JSON.stringify(resp.apiRequest.headers || {}, null, 2);
+            this.addToast("success", "AI generated API mapping.");
+          } else {
+            this.apiMappingError = resp.message || "AI generation failed";
+            this.addToast("error", this.apiMappingError);
+          }
+        }
+        if (resp?.action === "listAssetTypes" && resp.status === "success") {
+          this.isLoadingAssetTypes = false;
+          this.assetTypes = (resp.items || []).map((it) => ({
+            id: it.uniqueId,
+            uniqueId: it.uniqueId,
+            name: it.name,
+            description: it.description,
+            icon: it.icon
+          }));
+        }
+        if (resp?.action === "saveAssetType") {
+          this.isSavingAssetType = false;
+          if (resp.status === "success" && resp.item) {
+            this.assetTypes.push({
+              id: resp.item.uniqueId,
+              uniqueId: resp.item.uniqueId,
+              name: resp.item.name,
+              description: resp.item.description,
+              icon: resp.item.icon
+            });
+            this.cancelAssetTypeForm();
+            this.addToast("success", "Asset type created.");
+          } else {
+            this.assetTypeError = resp.message || "Save failed";
+            this.addToast("error", this.assetTypeError);
+          }
+        }
+        if (resp?.action === "updateAssetType") {
+          this.isSavingAssetType = false;
+          if (resp.status === "success") {
+            const idx = this.assetTypes.findIndex((t2) => t2.uniqueId === resp.uniqueId);
+            if (idx !== -1) {
+              this.assetTypes.splice(idx, 1, { ...this.assetTypes[idx], ...resp.patch || {} });
+            }
+            this.cancelAssetTypeForm();
+            this.addToast("success", "Asset type updated.");
+          } else {
+            this.assetTypeError = resp.message || "Update failed";
+            this.addToast("error", this.assetTypeError);
+          }
+        }
+        if (resp?.action === "deleteAssetType") {
+          if (resp.status === "success") {
+            this.assetTypes = this.assetTypes.filter((t2) => t2.uniqueId !== resp.uniqueId && t2.id !== resp.uniqueId);
+            this.addToast("success", "Asset type deleted.");
+          } else {
+            this.addToast("error", resp.message || "Delete failed");
+          }
+        }
+        if (resp?.action === "testRemoteCatalogConnection") {
+          if (this._testConnTimeout) {
+            clearTimeout(this._testConnTimeout);
+            this._testConnTimeout = null;
+          }
+          this.testConnectionResult = {
+            status: resp.status || "error",
+            message: resp.message || "",
+            latency: Number(resp.latency) || 0,
+            httpCode: resp.httpCode
+          };
+          this.isTestingConnection = false;
+          return;
+        }
         if (resp?.action === "registerRemoteCatalog") {
           this.isRegisteringRemoteCatalog = false;
           if (resp.status === "success") {
@@ -29313,6 +30519,10 @@ ex:publisher a ex:Property .`,
           this.provenanceRows = this.harvestProvenance;
           this.pagination.provenance.page = 1;
         }
+        if (resp?.action === "getLocalAssetDetail") {
+          this._applyLocalAssetDetailResponse(resp);
+          return;
+        }
         if (resp?.action === "getLocalCatalogue" && resp?.status === "success") {
           const assets = (Array.isArray(resp.assets) ? resp.assets : []).map((a) => {
             if (a.title && typeof a.title === "string" && a.title.trim()) {
@@ -29338,26 +30548,23 @@ ex:publisher a ex:Property .`,
         if (resp?.action === "updateLocalAsset" && resp?.status === "success") {
           this.loadLocalCatalogs();
         }
-        if (resp?.action === "inviteUser" && resp?.status === "success") {
-          const sent = payload?.data ?? msg?.data ?? {};
-          const firstName = sent?.profile?.firstName ?? sent?.firstName ?? "";
-          const lastName = sent?.profile?.lastName ?? sent?.lastName ?? "";
-          const uid = resp?.uniqueId ?? msg?.response?.uniqueId ?? payload?.response?.uniqueId;
-          const accessKeys = Array.isArray(sent?.access) ? sent.access : [];
-          const newUser = {
-            uniqueId: uid,
-            name: `${firstName} ${lastName}`.trim(),
-            avatar: "./img/avatar-16.jpg",
-            email: sent?.email ?? "",
-            access: accessKeys,
-            status: "Invited",
-            expiresIn: sent?.expiresIn ?? "30 Days"
-          };
-          let idx = uid ? this.users.findIndex((u) => String(u.uniqueId) === String(uid)) : -1;
-          if (idx === -1 && newUser.email) idx = this.users.findIndex((u) => String(u.email) === String(newUser.email));
-          if (idx !== -1) this.users.splice(idx, 1, newUser);
-          else this.users.unshift(newUser);
+        if (resp?.action === "createUser" && (resp?.status === "success" || resp?.ok)) {
+          this.isCreatingUser = false;
+          this.isCreateUserModal = false;
+          this.resetCreateUserForm();
+          const username = resp.user?.username || "";
+          this.addToast("success", "User " + username + " created");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listUsers", auth });
           this.pagination.users.page = 1;
+        }
+        if (resp?.action === "createUser" && resp?.error) {
+          this.isCreatingUser = false;
+          if (resp.error === "validation" && resp.field) {
+            this.createUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
+          } else {
+            this.addToast("error", resp.message || resp.reason || "Failed to create user: " + resp.error);
+          }
         }
         if (msg?.type === "getAdminTools" && msg?.response?.status === "success") {
           const list = msg.response.users || [];
@@ -29366,16 +30573,222 @@ ex:publisher a ex:Property .`,
             return {
               ...u,
               uniqueId: uid,
-              name: `${u.profile?.firstName ?? ""} ${u.profile?.lastName ?? ""}`.trim() || u.name || u.email || "\u2014",
+              name: `${u.profile?.firstName ?? ""} ${u.profile?.lastName ?? ""}`.trim() || u.name || u.username || u.email || "\u2014",
               avatar: u.avatar || "./img/avatar-16.jpg",
               email: u.email || "\u2014",
               status: u.status || (u.invited ? "Invited" : "Active")
             };
           });
         }
-        if (resp?.action === "logOut" && resp?.status === "success") {
-          window.location.href = "/facis-facis/login";
+        if (resp?.action === "listUsers" && resp?.status === "success") {
+          const list = resp.users || [];
+          this.users = list.map((u, i) => {
+            const uid = u.uniqueId ?? u.id ?? u._id ?? String(i);
+            return {
+              ...u,
+              uniqueId: uid,
+              name: u.name || u.username || u.email || "\u2014",
+              avatar: u.avatar || "./img/avatar-16.jpg",
+              email: u.email || "\u2014",
+              status: u.status || "active",
+              access: u.roles || u.access || []
+            };
+          });
+          this.pagination.users.page = 1;
+        }
+        if (resp?.action === "listRoles" && resp?.status === "success") {
+          this.dcmRoles = resp.roles || [];
+        }
+        if (resp?.action === "deleteUser" && (resp?.ok || resp?.status === "success")) {
+          const delId = resp.uniqueId || msg?.data?.uniqueId;
+          if (delId) {
+            this.users = this.users.filter((u) => String(u.uniqueId) !== String(delId));
+          }
+          this.addToast("success", "User deleted.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listUsers", auth });
+        }
+        if (resp?.action === "deleteUser" && resp?.error) {
+          this.addToast("error", resp.message || "Failed to delete user: " + resp.error);
+        }
+        if (resp?.action === "updateUser" && (resp?.ok || resp?.status === "success")) {
+          this.isEditUserModal = false;
+          this.isSavingUser = false;
+          this.addToast("success", "User updated.");
+          if (resp.user) {
+            const uid = resp.user._id || resp.user.uniqueId;
+            const idx = this.users.findIndex((u) => (u._id || u.uniqueId) === uid);
+            if (idx >= 0) {
+              this.users.splice(idx, 1, { ...this.users[idx], ...resp.user });
+            } else {
+              this.users.push(resp.user);
+            }
+          }
+        }
+        if (resp?.action === "updateUser" && resp?.error) {
+          this.isSavingUser = false;
+          if (resp.error === "validation" && resp.field) {
+            this.editUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
+          } else {
+            this.addToast("error", resp.message || resp.reason || "Failed to update user: " + resp.error);
+          }
+        }
+        if (resp?.action === "getMonitoringOverview") {
+          if (resp?.ok && resp?.data) {
+            this.monitoring = resp.data;
+            this.monitoringError = false;
+          } else {
+            this.monitoringError = true;
+          }
+        }
+        if (resp?.action === "createRole" && (resp?.ok || resp?.status === "success")) {
+          this.addToast("success", "Role created.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listRoles", auth });
+        }
+        if (resp?.action === "updateRole" && (resp?.ok || resp?.status === "success")) {
+          this.addToast("success", "Role updated.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listRoles", auth });
+        }
+        if (resp?.action === "deleteRole" && (resp?.ok || resp?.status === "success")) {
+          this.addToast("success", "Role deleted.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listRoles", auth });
+        }
+        if ((resp?.action === "updateRole" || resp?.action === "deleteRole") && resp?.error === "forbidden") {
+          this.addToast("error", resp.message || "Cannot modify system roles.");
+        }
+        if (resp?.action === "resendInvitation" && (resp?.ok || resp?.status === "success")) {
+          this.addToast("success", "Invitation resent.");
+        }
+        if (resp?.action === "revokeInvitation" && (resp?.ok || resp?.status === "success")) {
+          this.addToast("success", "Invitation revoked.");
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listUsers", auth });
+        }
+        if (resp?.action === "login") {
+          this.isLoggingIn = false;
+          if (resp.status === "success" && resp.token) {
+            this.authToken = resp.token;
+            localStorage.setItem("authToken", resp.token);
+            document.cookie = "userToken=" + resp.token + "; path=/; max-age=86400";
+            if (resp.user) {
+              const perms = resp.user.permissions || [];
+              const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0 ? resp.user.access : ["local_catalogue"];
+              this.userAccess = rawAccess;
+              this.userProfile.name = resp.user.username || this.userProfile.name;
+              this.userProfile.email = resp.user.email || this.userProfile.email;
+              this.userProfile.role = resp.user.role || this.userProfile.role;
+              this.currentUser = {
+                id: resp.user.id || "",
+                email: resp.user.email || "",
+                username: resp.user.username || "",
+                roles: resp.user.roles || [],
+                permissions: perms,
+                accessAreas: resp.user.accessAreas || [],
+                isAuthenticated: true,
+                status: resp.user.status || "active"
+              };
+            }
+            this.isLoggedIn = true;
+            this.isCheckingAuth = false;
+            this.loginForm = { username: "", password: "" };
+            this.loginError = "";
+            this.loginErrorCode = "";
+            this.currentPage = "localCatalogue";
+            this.initDashboardData();
+            this.fetchSystemSettings();
+          } else if (resp.error === "account_disabled") {
+            this.loginErrorCode = "account_disabled";
+            this.loginError = "";
+          } else if (resp.error === "account_expired") {
+            this.loginErrorCode = "account_expired";
+            this.loginError = "Your account has expired. Contact an administrator.";
+          } else {
+            this.loginErrorCode = resp.error || "";
+            this.loginError = resp.message || "Login failed.";
+          }
+        }
+        if (resp?.action === "checkAuth") {
+          this.isCheckingAuth = false;
+          if (resp.status === "success" && resp.user) {
+            this.authToken = localStorage.getItem("authToken") || "";
+            const perms = resp.user.permissions || [];
+            const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0 ? resp.user.access : ["local_catalogue"];
+            this.userAccess = rawAccess;
+            this.userProfile.name = resp.user.username || this.userProfile.name;
+            this.userProfile.email = resp.user.email || this.userProfile.email;
+            this.userProfile.role = resp.user.role || this.userProfile.role;
+            this.currentUser = {
+              id: resp.user.id || "",
+              email: resp.user.email || "",
+              username: resp.user.username || "",
+              roles: resp.user.roles || [],
+              permissions: perms,
+              accessAreas: resp.user.accessAreas || [],
+              isAuthenticated: true,
+              status: resp.user.status || "active"
+            };
+            this.isLoggedIn = true;
+            this.currentPage = "localCatalogue";
+            this.initDashboardData();
+            this.fetchSystemSettings();
+          } else {
+            localStorage.removeItem("authToken");
+            this.isLoggedIn = false;
+          }
+        }
+        if (resp?.action === "hydrateSession") {
+          if (resp.error === "account_disabled") {
+            localStorage.removeItem("authToken");
+            document.cookie = "userToken=; path=/; max-age=0";
+            this.isLoggedIn = false;
+            this.authToken = "";
+            this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+            this.loginErrorCode = "account_disabled";
+            this.loginError = "";
+          } else if (resp.status === "success" && resp.user) {
+            const perms = resp.user.permissions || [];
+            const rawAccess = Array.isArray(resp.user.access) && resp.user.access.length > 0 ? resp.user.access : ["local_catalogue"];
+            this.currentUser = {
+              id: resp.user.id || "",
+              email: resp.user.email || "",
+              username: resp.user.username || "",
+              roles: resp.user.roles || [],
+              permissions: perms,
+              accessAreas: resp.user.accessAreas || [],
+              isAuthenticated: true,
+              status: resp.user.status || "active"
+            };
+            this.userAccess = rawAccess;
+            const aa = resp.user.accessAreas || [];
+            if (aa.includes("adminTools")) {
+              const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+              uibuilderService.send({ type: "listUsers", auth });
+              uibuilderService.send({ type: "listRoles", auth });
+            }
+          }
+        }
+        if (resp?.error === "permission_denied" && !msg?._silent) {
+          this.addToast("error", resp.message || "Permission denied for " + (resp.action || "this operation"));
+        }
+        if (resp?.error === "not_authenticated" || resp?.error === "account_disabled") {
+          localStorage.removeItem("authToken");
           document.cookie = "userToken=; path=/; max-age=0";
+          this.isLoggedIn = false;
+          this.authToken = "";
+          this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
+          if (resp?.error === "account_disabled") {
+            this.loginErrorCode = "account_disabled";
+            this.loginError = "";
+          }
+        }
+        if (resp?.action === "logOut" && resp?.status === "success") {
+          localStorage.removeItem("authToken");
+          document.cookie = "userToken=; path=/; max-age=0";
+          this.isLoggedIn = false;
+          this.authToken = "";
         }
         if (resp?.action === "enhancePrompt") {
           this.isEnhancingPrompt = false;
@@ -29465,6 +30878,7 @@ ex:publisher a ex:Property .`,
           } else {
             this.promptTestError = resp.message || "Dry run failed.";
           }
+          this.promptTestResolvedFromBackend = resp.resolvedPrompt || "";
           this.promptTestRunning = false;
         }
         if (resp?.action === "saveTestCase" && resp?.status === "success") {
@@ -29513,6 +30927,13 @@ ex:publisher a ex:Property .`,
           this.llmConfigs = this.llmConfigs.filter((c) => c.id !== resp.configId);
           this.addToast("success", "LLM configuration deleted.");
         }
+        if (resp?.action === "saveProvider" && resp?.ok === false) {
+          this.isSavingProvider = false;
+          const errMsg = resp.error || resp.code || "Failed to save provider.";
+          this.providerFormError = errMsg;
+          this.addToast("error", errMsg);
+          return;
+        }
         if (resp?.action === "saveProvider" && resp?.status === "success") {
           if (resp.provider) {
             const idx = this.llmProviders.findIndex((p) => p.id === resp.provider.id);
@@ -29527,7 +30948,17 @@ ex:publisher a ex:Property .`,
               });
             }
           }
+          this.isSavingProvider = false;
+          this.closeProviderModal();
           this.addToast("success", resp.isNew ? "Provider created." : "Provider updated.");
+          try {
+            uibuilderService.send({
+              type: "listProviders",
+              auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+              data: {}
+            });
+          } catch (e) {
+          }
         }
         if (resp?.action === "deleteProvider" && resp?.status === "success") {
           this.llmProviders = this.llmProviders.filter((p) => p.id !== resp.providerId);
@@ -29539,24 +30970,132 @@ ex:publisher a ex:Property .`,
           }
         }
         if (resp?.action === "listLocalSchemas" && resp?.status === "success") {
-          if (Array.isArray(resp.schemas) && resp.schemas.length > 0) {
+          if (Array.isArray(resp.schemas)) {
             this.schemaRegistry = resp.schemas;
           }
+          const names = new Set((this.schemaRegistry || []).map((s) => s.schema).filter(Boolean));
+          names.forEach((n) => {
+            if (!this.localSchemaVersionsCache[n]) this.fetchSchemaVersions(n);
+          });
         }
         if (resp?.action === "saveLocalSchema" && resp?.status === "success") {
           if (resp.schema) {
+            if (resp.newVersion) resp.schema.versioning = resp.newVersion;
             const idx = this.schemaRegistry.findIndex((s) => s.id === resp.schema.id);
             if (idx !== -1) {
               this.schemaRegistry.splice(idx, 1, resp.schema);
             } else {
               this.schemaRegistry.push(resp.schema);
             }
+            if (resp.schema.schema) {
+              delete this.localSchemaVersionsCache[resp.schema.schema];
+              this.fetchSchemaVersions(resp.schema.schema);
+            }
           }
           this.addToast("success", resp.isNew ? "Schema created." : "Schema updated.");
         }
-        if (resp?.action === "deleteLocalSchema" && resp?.status === "success") {
+        if (resp?.action === "deleteLocalSchema" && (resp?.status === "success" || resp?.ok === true)) {
           this.schemaRegistry = this.schemaRegistry.filter((s) => s.id !== resp.schemaId);
           this.addToast("success", "Schema deleted.");
+        }
+        if (resp?.action === "deleteLocalSchema" && resp?.ok === false) {
+          if (resp.code === "referenced") {
+            const prompts = (resp.by?.prompts || []).map((p) => ({ id: p.id, remoteSchema: p.name || p.id, remoteCatalogue: "prompt" }));
+            const mappings = (resp.by?.mappings || []).map((m) => ({ id: m.id, remoteSchema: "mapping " + m.id, remoteCatalogue: m.remoteCatalogue || "" }));
+            const all = [...prompts, ...mappings];
+            this.deleteBlockedModal = {
+              visible: true,
+              title: "Cannot delete Local Schema",
+              message: `This schema is referenced by ${all.length} object(s). Remove those references first.`,
+              mappings: all
+            };
+          } else {
+            this.addToast("error", resp.error || "Failed to delete schema.");
+          }
+        }
+        if (resp?.action === "listLocalSchemaVersions" && resp?.ok) {
+          this.localSchemaVersionsCache[resp.schemaName] = Array.isArray(resp.versions) ? resp.versions : [];
+          if (this.schemaVersionPanelName === resp.schemaName) {
+            this.schemaVersionPanelLoading = false;
+          }
+        }
+        if (resp?.action === "listLocalSchemaVersions" && resp?.ok === false) {
+          this.schemaVersionPanelLoading = false;
+          this.addToast("error", resp.error || "Failed to load schema versions.");
+        }
+        if (resp?.action === "activateLocalSchemaVersion" && resp?.ok) {
+          const cache2 = this.localSchemaVersionsCache[resp.schemaName];
+          if (Array.isArray(cache2)) {
+            cache2.forEach((v) => {
+              if (v.status === "active") v.status = "deprecated";
+              if (v.version === resp.version) v.status = "active";
+            });
+          }
+          const row = this.schemaRegistry.find((s) => s.schema === resp.schemaName);
+          if (row) row.versioning = resp.version;
+          this.addToast("success", "Version " + resp.version + " activated.");
+        }
+        if (resp?.action === "activateLocalSchemaVersion" && resp?.ok === false) {
+          this.addToast("error", resp.error || "Failed to activate version.");
+        }
+        if (resp?.action === "validateSampleAsset") {
+          this.validateSampleForm.loading = false;
+          this.validateSampleForm.result = resp;
+        }
+        if (resp?.action === "listPromptVersions" && resp?.ok) {
+          this.promptVersions = Array.isArray(resp.versions) ? resp.versions : [];
+          this.promptVersionPanelLoading = false;
+        }
+        if (resp?.action === "getSystemSettings" && resp?.ok) {
+          this.systemSettings = resp.settings || {};
+        }
+        if (resp?.action === "setSystemSetting" && resp?.ok) {
+          this.systemSettings[resp.key] = resp.value;
+          this.showToast("System setting updated", "success");
+        }
+        if (resp?.action === "listRemoteSchemas" && resp?.status === "success") {
+          this.remoteSchemas = Array.isArray(resp.schemas) ? resp.schemas : [];
+          if (resp.catalogueIdToName) this.catalogueIdToName = resp.catalogueIdToName;
+          this.remoteSchemaLoading = false;
+        }
+        if (resp?.action === "saveRemoteSchema" && resp?.ok) {
+          if (resp.schema) {
+            const idx = this.remoteSchemas.findIndex((s) => s.id === resp.schema.id);
+            if (idx !== -1) {
+              this.remoteSchemas.splice(idx, 1, resp.schema);
+            } else {
+              this.remoteSchemas.push(resp.schema);
+            }
+          }
+          this.addToast("success", resp.isNew ? "Remote schema registered." : "Remote schema updated.");
+        }
+        if (resp?.action === "saveRemoteSchema" && resp?.ok === false) {
+          let msg2;
+          if (resp.code === "duplicate_version") {
+            msg2 = "A schema with that name and version already exists.";
+          } else if (resp.code === "validation_error") {
+            msg2 = resp.error || "Validation failed.";
+          } else {
+            msg2 = resp.error || "Failed to save remote schema.";
+          }
+          this.addToast("error", msg2);
+        }
+        if (resp?.action === "deleteRemoteSchema" && resp?.ok) {
+          this.remoteSchemas = this.remoteSchemas.filter((s) => s.id !== resp.schemaId);
+          this.addToast("success", "Remote schema deleted.");
+        }
+        if (resp?.action === "deleteRemoteSchema" && resp?.ok === false) {
+          console.log("[deleteRemoteSchema] raw server response:", JSON.stringify(resp));
+          if (resp.code === "referenced_by_mapping") {
+            this.deleteBlockedModal = {
+              visible: true,
+              title: "Cannot delete Remote Schema",
+              message: `This schema is referenced by ${resp.count || resp.mappings?.length || 0} mapping(s). Remove those mappings first.`,
+              mappings: resp.mappings || []
+            };
+          } else {
+            this.addToast("error", resp.error || "Failed to delete remote schema.");
+          }
         }
         if (resp?.action === "listMappings" && resp?.status === "success") {
           if (Array.isArray(resp.mappings) && resp.mappings.length > 0) {
@@ -29584,6 +31123,79 @@ ex:publisher a ex:Property .`,
             this.closeMappingDetail();
           }
           this.addToast("success", "Mapping deleted.");
+        }
+        if (resp?.action === "saveRdfMappingConfig") {
+          this.rdfConfigSaving = false;
+          if (resp.success) {
+            const idx = this.mappingRows.findIndex((r) => r.id === resp.mappingId);
+            if (idx > -1) {
+              this.mappingRows[idx].namespacesToPreserve = resp.namespacesToPreserve;
+              this.mappingRows[idx].shaclShapeSchemaId = resp.shaclShapeSchemaId;
+            }
+            this.addToast("success", "RDF mapping rules saved.");
+          } else {
+            this.addToast("error", resp.error || "Failed to save RDF rules.");
+          }
+        }
+        if (resp?.action === "testRdfMapping") {
+          this.rdfTestRunning = false;
+          if (resp.success) {
+            this.rdfTestResult = resp.result;
+          } else {
+            this.rdfTestResult = { output: "", retainedCount: 0, discardedCount: 0, error: resp.error || "Test failed" };
+          }
+        }
+        if (resp?.action === "executeHybridTransform") {
+          this.hybridTransformLoading = false;
+          this.hybridTransformResult = resp;
+          if (resp.ok) {
+            this.addToast && this.addToast(
+              resp.fallbackTriggered ? "warning" : "success",
+              resp.fallbackTriggered ? "Hybrid transform completed (AI fallback was triggered)" : "Hybrid transform completed (deterministic only)"
+            );
+          } else {
+            this.addToast && this.addToast("error", "Hybrid transform failed: " + (resp.error || "Unknown error"));
+          }
+        }
+        if (resp?.action === "listTransformationAudit") {
+          if (this._auditTimeout) {
+            clearTimeout(this._auditTimeout);
+            this._auditTimeout = null;
+          }
+          this.auditTrail.loading = false;
+          this.auditTrail.loaded = true;
+          if (resp.ok !== false) {
+            this.auditTrail.rows = Array.isArray(resp.rows) ? resp.rows : [];
+            this.auditTrail.pagination.total = resp.total ?? this.auditTrail.rows.length;
+            this.auditTrail.pagination.page = resp.page ?? 1;
+          } else {
+            this.auditTrail.error = resp.error || resp.code || "Failed to load audit trail.";
+          }
+        }
+        if (resp?.action === "exportTransformationAudit") {
+          if (resp.ok !== false && resp.base64Payload) {
+            try {
+              const bin = atob(resp.base64Payload);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const mime = resp.format === "json" ? "application/json" : "text/csv";
+              const blob = new Blob([bytes], { type: mime });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = resp.filename || "audit_export." + (resp.format || "csv");
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            } catch (e) {
+              this.addToast("error", "Failed to download export file.");
+            }
+          } else if (resp.ok === false) {
+            this.addToast("error", resp.error || "Export failed.");
+          } else {
+            this.addToast("info", "No data to export.");
+          }
         }
         if (resp?.action === "startBatchRetransform" && resp?.status === "success") {
           const b = this.batchRetransform;
@@ -29626,12 +31238,32 @@ ex:publisher a ex:Property .`,
     }
   });
   app.component("view-modal", ViewModal_default);
-  app.component("invite-modal", InviteModal_default);
+  app.component("create-user-modal", InviteModal_default);
   app.component("manage-user-modal", ManageUserModal_default);
   app.component("register-catalog-modal", RegisterCatalogModal_default);
   app.component("schema-modal", SchemaModal_default);
   app.component("harvest-wizard-modal", HarvestWizardModal_default);
   app.component("access-info-modal", AccessInfoModal_default);
   app.component("manage-menu", ManageMenu_default);
+  app.config.errorHandler = (err, instance, info) => {
+    const msg = err && err.message ? String(err.message) : String(err);
+    if (msg.includes("emitsOptions") || msg.includes("Cannot read properties of null") || msg.includes("Cannot read properties of undefined (reading 'filter')")) {
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn("[suppressed Vue emit/lifecycle error]", info, msg);
+      }
+      return;
+    }
+    if (typeof console !== "undefined" && console.error) {
+      console.error("[Vue errorHandler]", info, err);
+    }
+  };
+  app.config.warnHandler = (msg, instance, trace) => {
+    if (msg && (msg.includes("emitsOptions") || msg.includes("Unhandled error during execution"))) {
+      return;
+    }
+    if (typeof console !== "undefined" && console.warn) {
+      console.warn("[Vue warn]", msg, trace);
+    }
+  };
   app.mount("#app");
 })();

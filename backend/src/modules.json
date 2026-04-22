@@ -1,0 +1,68 @@
+{
+  "modules": {
+    "M1_DCM-SchemaRegistry": {
+      "file": "M1_DCM-SchemaRegistry_flow.json",
+      "tabLabel": "M1_DCM-SchemaRegistry",
+      "route": "schema-registry",
+      "tabId": "aa01000000000000",
+      "linkIn": "02e79a37e339b305",
+      "linkOut": "bb010000000000f0",
+      "dashboardLinkOut": "ff01000000000035",
+      "srsRequirements": ["FR-SR-01", "FR-SR-02", "FR-SR-03", "FR-SR-04", "FR-SR-05", "FR-SR-06", "FR-SR-07", "FR-SR-08", "FR-SR-09", "FR-SR-10", "FR-SR-11", "FR-SR-12", "FR-SR-13"]
+    },
+    "M2_DCM-CatalogueRegistry": {
+      "file": "M2_DCM-CatalogueRegistry_flow.json",
+      "tabLabel": "M2_DCM-CatalogueRegistry",
+      "route": "catalogue-registry",
+      "tabId": "52b819f7ec3ad8e1",
+      "linkIn": "e2f70557fca63bd2",
+      "linkOut": "f8063c93b0f6d90b",
+      "dashboardLinkOut": "ff01000000000032",
+      "srsRequirements": ["FR-CR-01", "FR-CR-02", "FR-CR-03"]
+    },
+    "M3_DCM-Harvester": {
+      "file": "M3_DCM-Harvester_flow.json",
+      "tabLabel": "M3_DCM-Harvester",
+      "route": "harvest",
+      "tabId": "bb03000000000000",
+      "linkIn": "bb03000000000002",
+      "linkOut": "bb03000000000099",
+      "dashboardLinkOut": "ff01000000000033",
+      "srsRequirements": ["FR-ACM-01", "FR-ACM-02", "FR-ACM-03", "FR-ACM-04", "FR-ACM-05"]
+    },
+    "M4_DCM-AdminTools": {
+      "file": "M4_DCM-AdminTools_flow.json",
+      "tabLabel": "M4_DCM-AdminTools",
+      "route": "admin-tools",
+      "tabId": "cc04000000000000",
+      "linkIn": "cc04000000000002",
+      "linkOut": "cc04000000000099",
+      "dashboardLinkOut": "ff01000000000034",
+      "srsRequirements": ["FR-AC-01"]
+    },
+    "M5_DCM-LocalCatalogue": {
+      "file": "M5_DCM-LocalCatalogue_flow.json",
+      "tabLabel": "M5_DCM-LocalCatalogue",
+      "route": "local-catalogue",
+      "tabId": "dd05000000000000",
+      "linkIn": "dd05000000000002",
+      "linkOut": "dd05000000000099",
+      "dashboardLinkOut": "ff01000000000036",
+      "srsRequirements": ["FR-ACM-04"]
+    },
+    "M6_DCM-Auth": {
+      "file": "M6_DCM-Auth_flow.json",
+      "tabLabel": "M6_DCM-Auth",
+      "route": "auth",
+      "tabId": "ee06000000000000",
+      "linkIn": "ee06000000000002",
+      "linkOut": "ee06000000000099",
+      "dashboardLinkOut": "ff01000000000037",
+      "srsRequirements": ["FR-AC-01"]
+    },
+    "GLOBAL_SHARED": {
+      "dashboardResponseIn": "c48570326bcd6b3d",
+      "mongoClient": "b991ffcd8f6c360a"
+    }
+  }
+}

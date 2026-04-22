@@ -4,15 +4,39 @@
         "type": "tab",
         "label": "M4_DCM-AdminTools",
         "disabled": false,
-        "info": "Backend flows for Access Control & Admin Tools.\n\nMongoDB collections:\n  - users\n  - roles\n\nOperations:\n  - getAdminTools: list all users\n  - inviteUser: create/invite a user\n  - updateUser: update user roles/access\n  - deleteUser: remove a user\n\nSRS Requirements covered:\n  FR-AC-01: User Roles - CRUD for Asset Crawler, Schema Registry, Catalogue Registry access",
+        "info": "Backend flows for Access Control & Admin Tools.\n\nMongoDB collections:\n  - dcm_users\n  - dcm_roles\n  - dcm_audit_log\n  - auth_users\n  - auth_sessions\n\nOperations:\n  - listUsers, getUserDetail, createUser, updateUser, deleteUser\n  - listRoles, createRole, updateRole, deleteRole\n  - listAudit\n  - getAdminTools (legacy compat)\n\nAll operations go through the permission gate.\n\nSRS Requirements covered:\n  FR-AC-01: User Roles - CRUD for all areas",
         "env": []
+    },
+    {
+        "id": "b991ffcd8f6c360a",
+        "type": "mongodb4-client",
+        "name": "",
+        "protocol": "mongodb+srv",
+        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "port": "",
+        "dbName": "PartnerOnboarding",
+        "appName": "",
+        "authSource": "",
+        "authMechanism": "DEFAULT",
+        "tls": true,
+        "tlsCAFile": "",
+        "tlsCertificateKeyFile": "",
+        "tlsInsecure": false,
+        "connectTimeoutMS": "30000",
+        "socketTimeoutMS": "0",
+        "minPoolSize": "0",
+        "maxPoolSize": "100",
+        "maxIdleTimeMS": "0",
+        "uri": "",
+        "advanced": "{}",
+        "uriTabActive": "tab-uri-simple"
     },
     {
         "id": "cc04000000000001",
         "type": "comment",
         "z": "cc04000000000000",
         "name": "══ Admin Tools & Access Control Backend (FR-AC-01) ══",
-        "info": "Handles user management and role-based access control.\nFR-AC-01: Define user roles that allow/deny accessing:\n  - Asset Crawler operations\n  - Schema Registry CRUD\n  - Catalogue Registry CRUD\n\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
+        "info": "Full user lifecycle, role management, and audit logging.\nAll operations are permission-gated via session token + dcm_users + dcm_roles.",
         "x": 320,
         "y": 40,
         "wires": []
@@ -29,7 +53,181 @@
         "y": 200,
         "wires": [
             [
+                "cc04000000000100"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000100",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "permission gate: prepare session lookup",
+        "func": "// Extract session token from msg\nconst token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || '';\nconst handlerType = msg.type || '';\n\n// Write operations table for this module\nmsg._writeOps = {\n    'listUsers':           ['users','read'],\n    'getUserDetail':       ['users','read'],\n    'getAdminTools':       ['users','read'],\n    'createUser':          ['users','create'],\n    'updateUser':          ['users','update'],\n    'deleteUser':          ['users','delete'],\n    'listRoles':           ['roles','read'],\n    'createRole':          ['roles','create'],\n    'updateRole':          ['roles','update'],\n    'deleteRole':          ['roles','delete'],\n    'listAudit':           ['audit','read'],\n    'getMonitoringOverview': ['audit','read']\n};\nmsg._handlerType = handlerType;\nmsg._sessionToken = token;\n\nif (!token) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Not authenticated' } };\n    return [null, msg];\n}\n\nmsg.collection = 'auth_sessions';\nmsg.operation = 'findOne';\nmsg.payload = { token: token };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 390,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000101"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000101",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find session",
+        "x": 640,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000102"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000102",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "permission gate: lookup caller",
+        "func": "const session = msg.payload;\nconst handlerType = msg._handlerType;\nif (!session || (session.expiresAt && new Date(session.expiresAt) < new Date())) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Session expired or invalid' } };\n    return [null, msg];\n}\nmsg._session = session;\nmsg._callerUsername = session.username || session.user?.username;\nmsg.collection = 'dcm_users';\nmsg.operation = 'findOne';\nmsg.payload = { username: msg._callerUsername };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 870,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000103"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000103",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find caller",
+        "x": 1100,
+        "y": 200,
+        "wires": [
+            [
+                "cc04000000000104"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000104",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "permission gate: find caller roles",
+        "func": "const caller = msg.payload;\nconst handlerType = msg._handlerType;\nif (!caller) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'permission_denied', status: 'error', message: 'User not found in dcm_users' } };\n    return [null, msg];\n}\nif (caller.status === 'disabled' || caller.status === 'deleted') {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'permission_denied', status: 'error', message: 'Account disabled' } };\n    return [null, msg];\n}\nmsg._caller = caller;\nmsg._callerRoleKeys = caller.roles || [];\nmsg.collection = 'dcm_roles';\nmsg.operation = 'find';\nmsg.payload = [{ key: { $in: msg._callerRoleKeys } }];\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 390,
+        "y": 300,
+        "wires": [
+            [
+                "cc04000000000105"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000105",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find caller roles",
+        "x": 640,
+        "y": 300,
+        "wires": [
+            [
+                "cc04000000000106"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000106",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "permission gate: check permission",
+        "func": "const roleDocs = Array.isArray(msg.payload) ? msg.payload : [];\nconst handlerType = msg._handlerType;\nconst writeOps = msg._writeOps;\n\n// Flatten permissions\nconst permSet = new Set();\nfor (const r of roleDocs) {\n    if (Array.isArray(r.permissions)) {\n        for (const p of r.permissions) permSet.add(p);\n    }\n}\nmsg._callerPermissions = permSet;\n\n// Check required permission\nconst required = writeOps[handlerType];\nif (!required) {\n    // Unknown handler type — deny\n    msg.payload = { response: { action: handlerType, ok: false, error: 'permission_denied', status: 'error', message: 'Unknown operation' } };\n    return [null, msg];\n}\n\nconst [area, action] = required;\nconst permString = area + '.' + action;\n\nif (!permSet.has('*') && !permSet.has(permString)) {\n    // Denied — write audit\n    msg._auditDenied = { area, action: handlerType, permString };\n    msg.collection = 'dcm_audit_log';\n    msg.operation = 'insertOne';\n    msg.payload = {\n        timestamp: new Date().toISOString(),\n        actor: msg._callerUsername,\n        area: area,\n        action: handlerType,\n        target: null,\n        payload: {},\n        result: 'denied'\n    };\n    return [null, msg];\n}\n\n// Allowed — route to handler\nmsg.payload = msg._originalPayload || {};\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 900,
+        "y": 300,
+        "wires": [
+            [
                 "cc04000000000003"
+            ],
+            [
+                "cc04000000000107"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000107",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "denied: audit + respond",
+        "func": "// If we came from audit insert, build denied response\nconst handlerType = msg._handlerType;\nconst denied = msg._auditDenied;\nif (denied) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'permission_denied', status: 'error', message: 'Permission denied for ' + denied.permString } };\n} \n// If already a denial response, just pass through\nreturn msg;",
+        "outputs": 1,
+        "x": 1160,
+        "y": 300,
+        "wires": [
+            [
+                "cc04000000000108"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000108",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "audit denied (if needed)",
+        "x": 650,
+        "y": 360,
+        "wires": [
+            [
+                "cc04000000000109"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000109",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "restore denied response",
+        "func": "const handlerType = msg._handlerType;\nconst denied = msg._auditDenied;\nmsg.payload = { response: { action: handlerType, ok: false, error: 'permission_denied', status: 'error', message: 'Permission denied' + (denied ? ' for ' + denied.permString : '') } };\nreturn msg;",
+        "outputs": 1,
+        "x": 920,
+        "y": 360,
+        "wires": [
+            [
+                "cc04000000000099"
             ]
         ]
     },
@@ -37,10 +235,15 @@
         "id": "cc04000000000003",
         "type": "switch",
         "z": "cc04000000000000",
-        "name": "route by msg.type",
-        "property": "type",
+        "name": "route by msg.type (post-gate)",
+        "property": "_handlerType",
         "propertyType": "msg",
         "rules": [
+            {
+                "t": "eq",
+                "v": "listUsers",
+                "vt": "str"
+            },
             {
                 "t": "eq",
                 "v": "getAdminTools",
@@ -48,7 +251,12 @@
             },
             {
                 "t": "eq",
-                "v": "inviteUser",
+                "v": "getUserDetail",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "createUser",
                 "vt": "str"
             },
             {
@@ -60,37 +268,124 @@
                 "t": "eq",
                 "v": "deleteUser",
                 "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listRoles",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "createRole",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateRole",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "deleteRole",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "listAudit",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "getMonitoringOverview",
+                "vt": "str"
             }
         ],
-        "checkall": "true",
+        "checkall": "false",
         "repair": false,
-        "outputs": 4,
-        "x": 330,
-        "y": 200,
+        "outputs": 12,
+        "x": 370,
+        "y": 500,
         "wires": [
             [
-                "cc04000000000010"
+                "cc04000000000200"
             ],
             [
-                "cc04000000000011"
+                "cc04000000000200"
             ],
             [
-                "cc04000000000012"
+                "cc04000000000210"
             ],
             [
-                "cc04000000000013"
+                "cc04000000000220"
+            ],
+            [
+                "cc04000000000230"
+            ],
+            [
+                "cc04000000000240"
+            ],
+            [
+                "cc04000000000300"
+            ],
+            [
+                "cc04000000000310"
+            ],
+            [
+                "cc04000000000320"
+            ],
+            [
+                "cc04000000000330"
+            ],
+            [
+                "cc04000000000400"
+            ],
+            [
+                "cc04000000000500"
             ]
         ]
     },
     {
-        "id": "cc04000000000010",
+        "id": "cc04000000000200",
         "type": "function",
         "z": "cc04000000000000",
-        "name": "getAdminTools",
-        "func": "// List all users with their roles and access permissions\n// FR-AC-01: Each user has roles controlling access to:\n//   - Asset Crawler: harvest initiation, scope CRUD, lifecycle, crawling\n//   - Schema Registry: CRUD operations (FR-SR-01, -03)\n//   - Catalogue Registry: CRUD operations (FR-CR-01, -02, -03)\nmsg.payload = {\n  response: {\n    action: 'getAdminTools',\n    status: 'success',\n    users: []\n  }\n};\nreturn msg;",
+        "name": "listUsers: query dcm_users",
+        "func": "msg.collection = 'dcm_users';\nmsg.operation = 'find';\nmsg.payload = [{ status: { $ne: 'deleted' } }];\nreturn msg;",
         "outputs": 1,
-        "x": 600,
-        "y": 140,
+        "x": 700,
+        "y": 460,
+        "wires": [
+            [
+                "cc04000000000201"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000201",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find dcm_users",
+        "x": 940,
+        "y": 460,
+        "wires": [
+            [
+                "cc04000000000202"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000202",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "listUsers: response",
+        "func": "function computeAccessLabel(accessAreas) {\n    var areas = Array.isArray(accessAreas) ? accessAreas : [];\n    var allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    if (allFive.every(function(a) { return areas.indexOf(a) >= 0; })) return \"Full Access\";\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var i = 0; i < order.length; i++) { if (areas.indexOf(order[i]) >= 0) labels.push(labelMap[order[i]]); }\n    return labels.join(\" + \") || \"No Access\";\n}\nvar docs = Array.isArray(msg.payload) ? msg.payload : [];\nvar action = msg._handlerType === \"getAdminTools\" ? \"getAdminTools\" : \"listUsers\";\nvar users = docs.map(function(u) {\n    return {\n        uniqueId: String(u._id),\n        _id: String(u._id),\n        username: u.username,\n        email: u.email || \"\",\n        name: u.username,\n        status: u.status || \"active\",\n        roles: u.roles || [],\n        accessAreas: u.accessAreas || [],\n        accessLabel: computeAccessLabel(u.accessAreas || []),\n        expiresAt: u.expiresAt || null,\n        createdAt: u.createdAt,\n        updatedAt: u.updatedAt,\n        invitedBy: u.invitedBy || null\n    };\n});\n\nif (action === \"getAdminTools\") {\n    msg.payload = { response: { action: \"getAdminTools\", status: \"success\", users: users } };\n    msg.type = \"getAdminTools\";\n    msg.response = { status: \"success\", users: users };\n} else {\n    msg.payload = { response: { action: \"listUsers\", ok: true, status: \"success\", users: users } };\n}\nreturn msg;",
+        "outputs": 1,
+        "x": 1150,
+        "y": 460,
         "wires": [
             [
                 "cc04000000000099"
@@ -98,14 +393,83 @@
         ]
     },
     {
-        "id": "cc04000000000011",
+        "id": "cc04000000000210",
         "type": "function",
         "z": "cc04000000000000",
-        "name": "inviteUser",
-        "func": "const d = msg.data || {};\nconst uid = 'user-' + Date.now().toString(36);\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'inviteUser',\n    status: 'success',\n    uniqueId: uid\n  }\n};\nreturn msg;",
+        "name": "getUserDetail: query",
+        "func": "var userId = msg.data && msg.data.userId || msg.data && msg.data.uniqueId || \"\";\nvar username = msg.data && msg.data.username || \"\";\nmsg._targetUserId = userId;\nmsg.collection = \"dcm_users\";\nmsg.operation = \"findOne\";\nif (username) {\n    msg.payload = { username: username };\n} else {\n    msg.payload = { username: userId };\n}\nreturn msg;",
         "outputs": 1,
-        "x": 590,
-        "y": 200,
+        "x": 700,
+        "y": 520,
+        "wires": [
+            [
+                "cc04000000000211"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000211",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find user",
+        "x": 940,
+        "y": 520,
+        "wires": [
+            [
+                "cc04000000000212"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000212",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getUserDetail: get audit",
+        "func": "const user = msg.payload;\nif (!user) {\n    msg.payload = { response: { action: 'getUserDetail', ok: false, error: 'user_not_found' } };\n    return [null, msg];\n}\nmsg._detailUser = user;\nmsg.collection = 'dcm_audit_log';\nmsg.operation = 'find';\nmsg.payload = [{ actor: user.username }, { sort: { timestamp: -1 }, limit: 20 }];\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1160,
+        "y": 520,
+        "wires": [
+            [
+                "cc04000000000213"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000213",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find audit rows",
+        "x": 700,
+        "y": 580,
+        "wires": [
+            [
+                "cc04000000000214"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000214",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getUserDetail: response",
+        "func": "function computeAccessLabel(accessAreas) {\n    var areas = Array.isArray(accessAreas) ? accessAreas : [];\n    var allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    if (allFive.every(function(a) { return areas.indexOf(a) >= 0; })) return \"Full Access\";\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var i = 0; i < order.length; i++) { if (areas.indexOf(order[i]) >= 0) labels.push(labelMap[order[i]]); }\n    return labels.join(\" + \") || \"No Access\";\n}\nvar auditRows = Array.isArray(msg.payload) ? msg.payload : [];\nvar user = msg._detailUser;\nmsg.payload = {\n    response: {\n        action: \"getUserDetail\",\n        ok: true,\n        status: \"success\",\n        user: {\n            uniqueId: String(user._id),\n            _id: String(user._id),\n            username: user.username,\n            email: user.email || \"\",\n            status: user.status || \"active\",\n            roles: user.roles || [],\n            accessAreas: user.accessAreas || [],\n            accessLabel: computeAccessLabel(user.accessAreas || []),\n            expiresAt: user.expiresAt || null,\n            createdAt: user.createdAt,\n            updatedAt: user.updatedAt,\n            invitedBy: user.invitedBy\n        },\n        recentAuditRows: auditRows.slice(0, 20)\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 940,
+        "y": 580,
         "wires": [
             [
                 "cc04000000000099"
@@ -113,14 +477,164 @@
         ]
     },
     {
-        "id": "cc04000000000012",
+        "id": "cc04000000000220",
         "type": "function",
         "z": "cc04000000000000",
-        "name": "updateUser",
-        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'updateUser',\n    status: 'success'\n  }\n};\nreturn msg;",
+        "name": "createUser: validate input",
+        "func": "var PERM_MAP = {\n    localCatalogue: [\"local.catalogue.read\"],\n    catalogueRegistry: [\"catalogue.registry.create\", \"catalogue.registry.read\", \"catalogue.registry.update\", \"catalogue.registry.delete\"],\n    schemaRegistry: [\"schema.registry.create\", \"schema.registry.read\", \"schema.registry.update\", \"schema.registry.delete\"],\n    adminTools: [\"users.create\", \"users.read\", \"users.update\", \"users.delete\", \"roles.read\", \"audit.read\"],\n    harvest: [\"harvest.run.execute\", \"harvest.scope.create\", \"harvest.scope.read\", \"harvest.scope.update\", \"harvest.scope.delete\", \"harvest.lifecycle.configure\", \"harvest.crawling.configure\"]\n};\nfunction buildPermissions(accessAreas) {\n    var permSet = {};\n    for (var i = 0; i < accessAreas.length; i++) {\n        var perms = PERM_MAP[accessAreas[i]];\n        if (perms) { for (var j = 0; j < perms.length; j++) permSet[perms[j]] = true; }\n    }\n    return Object.keys(permSet);\n}\nvar input = (msg.data && typeof msg.data === \"object\" && msg.data) || (msg.payload && typeof msg.payload === \"object\" && !(\"response\" in msg.payload) && msg.payload) || msg;\nvar email = (input.email || \"\").trim();\nvar username = (input.username || \"\").trim();\nvar password = (input.password || \"\");\nvar accessAreas = Array.isArray(input.accessAreas) ? input.accessAreas : [];\nvar expiresInDays = input.expiresInDays;\n\nfunction denyValidation(field, reason) {\n    msg.payload = { response: { action: \"createUser\", ok: false, error: \"validation\", field: field, reason: reason } };\n    return [null, msg];\n}\n\nif (!username) return denyValidation(\"username\", \"Username is required\");\nif (password.length < 8) return denyValidation(\"password\", \"Password must be at least 8 characters\");\nvar EMAIL_RE = /^[^\\s@]+@[^\\s@]+[.][^\\s@]+$/;\nif (email && !EMAIL_RE.test(email)) return denyValidation(\"email\", \"Valid email address is required\");\nif (!accessAreas.includes(\"localCatalogue\")) {\n    accessAreas.unshift(\"localCatalogue\");\n}\nvar validExpires = [null, 7, 14, 30, 90];\nif (expiresInDays !== null && expiresInDays !== undefined && validExpires.indexOf(Number(expiresInDays)) < 0) {\n    return denyValidation(\"expiresInDays\", \"Invalid expiration period\");\n}\nvar expiresAt = null;\nif (expiresInDays && Number(expiresInDays) > 0) {\n    expiresAt = new Date(Date.now() + Number(expiresInDays) * 86400000);\n}\n\n// Rebuild permissions strictly from accessAreas (ignore frontend permissions)\nvar permissions = buildPermissions(accessAreas);\n\nvar sortedPerms = permissions.slice().sort();\nvar permissionsHash = crypto.createHash(\"sha256\").update(sortedPerms.join(\"|\")).digest(\"hex\");\n\nmsg._createUserData = {\n    email: email || null,\n    username: username,\n    password: password,\n    accessAreas: accessAreas,\n    permissions: permissions,\n    permissionsHash: permissionsHash,\n    expiresAt: expiresAt,\n    expiresInDays: expiresInDays\n};\n\nmsg.collection = \"auth_users\";\nmsg.operation = \"findOne\";\nmsg.payload = { username: { $regex: new RegExp(\"^\" + username.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\") + \"$\", \"i\") } };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 730,
+        "y": 640,
+        "wires": [
+            [
+                "cc04000000000221"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ],
+        "libs": [
+            {
+                "var": "crypto",
+                "module": "crypto"
+            }
+        ]
+    },
+    {
+        "id": "cc04000000000221",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "check auth_users uniqueness",
+        "x": 980,
+        "y": 640,
+        "wires": [
+            [
+                "cc04000000000222"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000222",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: check username + email uniqueness",
+        "func": "var existing = msg.payload;\nvar d = msg._createUserData;\n\nif (existing) {\n    msg.payload = { response: { action: 'createUser', ok: false, error: 'validation', field: 'username', reason: 'Username already exists' } };\n    return [null, msg];\n}\n\n// If no email, skip email uniqueness check\nif (!d.email) {\n    msg.payload = null;\n    return [msg, null];\n}\n\n// Check email uniqueness in dcm_users\nmsg.collection = 'dcm_users';\nmsg.operation = 'findOne';\nmsg.payload = { email: d.email };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 750,
+        "y": 700,
+        "wires": [
+            [
+                "cc04000000000223"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000223",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "check email uniqueness",
+        "x": 1030,
+        "y": 700,
+        "wires": [
+            [
+                "cc04000000000290"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000224",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: hash password + insert auth_users",
+        "func": "var d = msg._createUserData;\nvar now = new Date().toISOString();\nvar hash = bcrypt.hashSync(d.password, 10);\nd.passwordHash = hash;\nmsg._createUserData = d;\n\nmsg.collection = 'auth_users';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    username: d.username,\n    passwordHash: hash,\n    createdAt: now\n};\nreturn msg;",
         "outputs": 1,
-        "x": 590,
-        "y": 260,
+        "x": 710,
+        "y": 840,
+        "wires": [
+            [
+                "cc04000000000225"
+            ]
+        ],
+        "libs": [
+            {
+                "var": "bcrypt",
+                "module": "bcryptjs"
+            }
+        ]
+    },
+    {
+        "id": "cc04000000000225",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert auth_user",
+        "x": 950,
+        "y": 760,
+        "wires": [
+            [
+                "cc04000000000226"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000226",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: insert dcm_users",
+        "func": "var d = msg._createUserData;\nvar now = new Date().toISOString();\n\nmsg.collection = 'dcm_users';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    email: d.email,\n    username: d.username,\n    status: 'active',\n    roles: [d.roleKey],\n    accessAreas: d.accessAreas,\n    expiresAt: d.expiresAt ? d.expiresAt.toISOString ? d.expiresAt.toISOString() : d.expiresAt : null,\n    createdAt: now,\n    updatedAt: now,\n    invitedBy: msg._callerUsername\n};\nmsg._newUserDoc = msg.payload;\nreturn msg;",
+        "outputs": 1,
+        "x": 1170,
+        "y": 760,
+        "wires": [
+            [
+                "cc04000000000227"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000227",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert dcm_user",
+        "x": 700,
+        "y": 820,
+        "wires": [
+            [
+                "cc04000000000226b"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000228",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: final response",
+        "func": "msg.payload = msg._createUserResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 940,
+        "y": 820,
         "wires": [
             [
                 "cc04000000000099"
@@ -128,14 +642,600 @@
         ]
     },
     {
-        "id": "cc04000000000013",
+        "id": "cc04000000000230",
         "type": "function",
         "z": "cc04000000000000",
-        "name": "deleteUser",
-        "func": "const d = msg.data || {};\nmsg.payload = {\n  data: d,\n  response: {\n    action: 'deleteUser',\n    status: 'success',\n    uniqueId: d.uniqueId\n  }\n};\nreturn msg;",
+        "name": "updateUser: apply update",
+        "func": "var input = (msg.data && typeof msg.data === \"object\" && msg.data) || (msg.payload && typeof msg.payload === \"object\" && !(\"response\" in msg.payload) && msg.payload) || msg;\nvar userId = input.userId || input.uniqueId;\nvar username = input.username;\nif (!userId && !username) {\n    msg.payload = { response: { action: \"updateUser\", ok: false, error: \"missing_userId\" } };\n    return [null, msg];\n}\nmsg._updateUserId = userId;\nmsg._updateUsername = username;\nmsg._updateInput = input;\nmsg.collection = \"dcm_users\";\nmsg.operation = \"findOne\";\nmsg.payload = username ? { username: username } : { _id: userId };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 710,
+        "y": 880,
+        "wires": [
+            [
+                "cc04000000000231"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ],
+        "libs": [
+            {
+                "var": "crypto",
+                "module": "crypto"
+            }
+        ]
+    },
+    {
+        "id": "cc04000000000231",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "update dcm_user",
+        "x": 960,
+        "y": 880,
+        "wires": [
+            [
+                "cc04000000000232"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000232",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUser: build $set + no-op check",
+        "func": "function computeAccessLabel(accessAreas) {\n    var areas = Array.isArray(accessAreas) ? accessAreas : [];\n    var allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    if (allFive.every(function(a) { return areas.indexOf(a) >= 0; })) return \"Full Access\";\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var i = 0; i < order.length; i++) { if (areas.indexOf(order[i]) >= 0) labels.push(labelMap[order[i]]); }\n    return labels.join(\" + \") || \"No Access\";\n}\n\n// ── Step 4: re-read complete, build response ──\nif (msg._updateStep === 4) {\n    var user = msg.payload;\n    var userObj = user ? {\n        uniqueId: String(user._id), _id: String(user._id),\n        username: user.username, email: user.email || \"\",\n        status: user.status || \"active\", roles: user.roles || [],\n        accessAreas: user.accessAreas || [],\n        accessLabel: computeAccessLabel(user.accessAreas || []),\n        expiresAt: user.expiresAt || null,\n        createdAt: user.createdAt, updatedAt: user.updatedAt,\n        invitedBy: user.invitedBy\n    } : null;\n    msg.payload = { response: { action: \"updateUser\", ok: true, status: \"success\", user: userObj } };\n    return [null, msg];\n}\n\n// ── Step 3: audit done → re-read user ──\nif (msg._updateStep === 3) {\n    msg._updateStep = 4;\n    msg.collection = \"dcm_users\";\n    msg.operation = \"findOne\";\n    msg.payload = { _id: msg._existingUser._id };\n    return [msg, null];\n}\n\n// ── Step 2: audit insert ──\nif (msg._updateStep === 2) {\n    msg._updateStep = 3;\n    msg.collection = \"dcm_audit_log\";\n    msg.operation = \"insertOne\";\n    msg.payload = {\n        timestamp: new Date().toISOString(),\n        actor: msg._callerUsername,\n        area: \"users\",\n        action: \"updateUser\",\n        target: msg._existingUser.username,\n        payload: msg._updateSet,\n        result: \"ok\"\n    };\n    return [msg, null];\n}\n\n// ── Step 1.5: sessions deleted after disable → proceed to audit ──\nif (msg._updateStep === 1.5) {\n    msg._updateStep = 2;\n    msg.collection = \"dcm_audit_log\";\n    msg.operation = \"insertOne\";\n    msg.payload = {\n        timestamp: new Date().toISOString(),\n        actor: msg._callerUsername,\n        area: \"users\",\n        action: \"updateUser\",\n        target: msg._existingUser.username,\n        payload: msg._updateSet,\n        result: \"ok\"\n    };\n    return [msg, null];\n}\n\n// ── Step 1: updateOne done → cascade session delete if disabled, else audit ──\nif (msg._updateStep === 1) {\n    // If status was set to \"disabled\", invalidate all sessions for this user\n    if (msg._updateSet && msg._updateSet.status === \"disabled\") {\n        msg._updateStep = 1.5;\n        msg.collection = \"auth_sessions\";\n        msg.operation = \"deleteMany\";\n        msg.payload = { $or: [{ userId: String(msg._existingUser._id) }, { username: msg._existingUser.username }] };\n        return [msg, null];\n    }\n    // Otherwise go straight to audit\n    msg._updateStep = 2;\n    msg.collection = \"dcm_audit_log\";\n    msg.operation = \"insertOne\";\n    msg.payload = {\n        timestamp: new Date().toISOString(),\n        actor: msg._callerUsername,\n        area: \"users\",\n        action: \"updateUser\",\n        target: msg._existingUser.username,\n        payload: msg._updateSet,\n        result: \"ok\"\n    };\n    return [msg, null];\n}\n\n// ── First entry: process findOne result ──\nvar existing = msg.payload;\nvar input = msg._updateInput;\n\nif (!existing) {\n    msg.payload = { response: { action: \"updateUser\", ok: false, error: \"user_not_found\" } };\n    return [null, msg];\n}\nmsg._existingUser = existing;\n\nvar $set = {};\nvar hasChange = false;\n\nif (input && \"email\" in input) {\n    var newEmail = (input.email || \"\").trim().toLowerCase() || null;\n    if (newEmail !== (existing.email || null)) { $set.email = newEmail; hasChange = true; }\n}\nif (input && \"status\" in input && (input.status === \"active\" || input.status === \"disabled\")) {\n    if (input.status !== existing.status) { $set.status = input.status; hasChange = true; }\n}\nif (input && \"expiresAt\" in input) {\n    var newExp = input.expiresAt ? new Date(input.expiresAt).toISOString() : null;\n    var oldExp = existing.expiresAt ? new Date(existing.expiresAt).toISOString() : null;\n    if (newExp !== oldExp) { $set.expiresAt = newExp; hasChange = true; }\n}\nif (input && \"accessAreas\" in input) {\n    var newAreas = Array.isArray(input.accessAreas) ? input.accessAreas : [];\n    if (!newAreas.includes(\"localCatalogue\")) newAreas.unshift(\"localCatalogue\");\n    var oldAreas = existing.accessAreas || [];\n    if (JSON.stringify(newAreas.slice().sort()) !== JSON.stringify(oldAreas.slice().sort())) {\n        $set.accessAreas = newAreas;\n        hasChange = true;\n    }\n}\n\nif (!hasChange) {\n    msg.payload = { response: { action: \"updateUser\", ok: true, status: \"success\", noop: true, user: {\n        uniqueId: String(existing._id), _id: String(existing._id),\n        username: existing.username, email: existing.email || \"\",\n        status: existing.status || \"active\", roles: existing.roles || [],\n        accessAreas: existing.accessAreas || [],\n        accessLabel: computeAccessLabel(existing.accessAreas || []),\n        expiresAt: existing.expiresAt || null,\n        createdAt: existing.createdAt, updatedAt: existing.updatedAt,\n        invitedBy: existing.invitedBy\n    } } };\n    return [null, msg];\n}\n\n$set.updatedAt = new Date().toISOString();\nmsg._updateSet = $set;\nmsg._updateStep = 1;\nmsg.collection = \"dcm_users\";\nmsg.operation = \"updateOne\";\nmsg.payload = [{ _id: existing._id }, { $set: $set }];\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1190,
+        "y": 880,
+        "wires": [
+            [
+                "cc04000000000233"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ],
+        "libs": []
+    },
+    {
+        "id": "cc04000000000233",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "audit",
+        "x": 690,
+        "y": 940,
+        "wires": [
+            [
+                "cc04000000000232"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000234",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUser: fetch updated user",
+        "func": "function computeAccessLabel(accessAreas) {\n    var areas = Array.isArray(accessAreas) ? accessAreas : [];\n    var allFive = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    if (allFive.every(function(a) { return areas.indexOf(a) >= 0; })) return \"Full Access\";\n    var labelMap = { localCatalogue: \"Local Catalogue\", catalogueRegistry: \"Catalogue Registry\", schemaRegistry: \"Schema Registry\", adminTools: \"Admin Tools\", harvest: \"Harvest\" };\n    var order = [\"localCatalogue\",\"catalogueRegistry\",\"schemaRegistry\",\"adminTools\",\"harvest\"];\n    var labels = [];\n    for (var i = 0; i < order.length; i++) { if (areas.indexOf(order[i]) >= 0) labels.push(labelMap[order[i]]); }\n    return labels.join(\" + \") || \"No Access\";\n}\nvar user = msg.payload;\nif (!user || msg._updateState !== \"fetching\") {\n    msg.payload = { response: { action: \"updateUser\", ok: true, status: \"success\" } };\n    return msg;\n}\nvar userObj = {\n    uniqueId: String(user._id),\n    _id: String(user._id),\n    username: user.username,\n    email: user.email || \"\",\n    status: user.status || \"active\",\n    roles: user.roles || [],\n    accessAreas: user.accessAreas || [],\n    accessLabel: computeAccessLabel(user.accessAreas || []),\n    expiresAt: user.expiresAt || null,\n    createdAt: user.createdAt,\n    updatedAt: user.updatedAt,\n    invitedBy: user.invitedBy\n};\nmsg.payload = { response: { action: \"updateUser\", ok: true, status: \"success\", user: userObj } };\nreturn msg;",
         "outputs": 1,
-        "x": 590,
-        "y": 320,
+        "x": 900,
+        "y": 940,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000240",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: soft delete",
+        "func": "var d = msg.data || {};\nvar userId = d.userId || d.uniqueId;\nvar username = d.username;\nif (!userId && !username) {\n    msg.payload = { response: { action: \"deleteUser\", ok: false, error: \"missing_userId\" } };\n    return [null, msg];\n}\nmsg._deleteUserId = userId;\nmsg._deleteUsername = username;\nmsg.collection = \"dcm_users\";\nmsg.operation = \"findOne\";\nmsg.payload = username ? { username: username } : { _id: userId };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 710,
+        "y": 1000,
+        "wires": [
+            [
+                "cc04000000000241"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000241",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find user",
+        "x": 940,
+        "y": 1000,
+        "wires": [
+            [
+                "cc04000000000242"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000242",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: check admin/self + hard delete",
+        "func": "var user = msg.payload;\nif (!user) {\n    msg.payload = { response: { action: \"deleteUser\", ok: false, error: \"user_not_found\" } };\n    return [null, msg];\n}\nif (user.username === \"admin\") {\n    msg.payload = { response: { action: \"deleteUser\", ok: false, error: \"forbidden\", status: \"error\", message: \"Cannot delete the seeded admin account\" } };\n    return [null, msg];\n}\nif (msg._callerUsername && user.username === msg._callerUsername) {\n    msg.payload = { response: { action: \"deleteUser\", ok: false, error: \"forbidden\", status: \"error\", message: \"Cannot delete your own account\" } };\n    return [null, msg];\n}\nmsg._deletedUsername = user.username;\nmsg._deleteUserId = String(user._id);\nmsg.collection = \"dcm_users\";\nmsg.operation = \"deleteOne\";\nmsg.payload = { _id: user._id };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1210,
+        "y": 1000,
+        "wires": [
+            [
+                "cc04000000000243"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000243",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "hard delete dcm_user",
+        "x": 710,
+        "y": 1060,
+        "wires": [
+            [
+                "cc04000000000244"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000244",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: remove from auth_users + invalidate sessions",
+        "func": "const username = msg._deletedUsername;\nmsg.collection = 'auth_users';\nmsg.operation = 'deleteOne';\nmsg.payload = { username: username };\nreturn msg;",
+        "outputs": 1,
+        "x": 810,
+        "y": 1110,
+        "wires": [
+            [
+                "cc04000000000245"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000245",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "delete auth_user",
+        "x": 1080,
+        "y": 1110,
+        "wires": [
+            [
+                "cc04000000000246"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000246",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: invalidate sessions",
+        "func": "msg.collection = 'auth_sessions';\nmsg.operation = 'deleteMany';\nmsg.payload = { username: msg._deletedUsername };\nreturn msg;",
+        "outputs": 1,
+        "x": 730,
+        "y": 1170,
+        "wires": [
+            [
+                "cc04000000000247"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000247",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "delete sessions",
+        "x": 960,
+        "y": 1170,
+        "wires": [
+            [
+                "cc04000000000248"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000248",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: audit + respond",
+        "func": "msg.collection = 'dcm_audit_log';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    timestamp: new Date().toISOString(),\n    actor: msg._callerUsername,\n    area: 'users',\n    action: 'deleteUser',\n    target: msg._deletedUsername,\n    payload: {},\n    result: 'ok'\n};\nmsg._deleteResponse = { response: { action: 'deleteUser', ok: true, status: 'success', uniqueId: msg._deleteUserId } };\nreturn msg;",
+        "outputs": 1,
+        "x": 1190,
+        "y": 1170,
+        "wires": [
+            [
+                "cc04000000000249"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000249",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "audit",
+        "x": 690,
+        "y": 1230,
+        "wires": [
+            [
+                "cc04000000000249b"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000249b",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteUser: final",
+        "func": "msg.payload = msg._deleteResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 900,
+        "y": 1230,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000300",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "listRoles: query dcm_roles",
+        "func": "msg.collection = 'dcm_roles';\nmsg.operation = 'find';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "x": 710,
+        "y": 1440,
+        "wires": [
+            [
+                "cc04000000000301"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000301",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find roles",
+        "x": 940,
+        "y": 1440,
+        "wires": [
+            [
+                "cc04000000000302"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000302",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "listRoles: response",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nmsg.payload = {\n    response: {\n        action: 'listRoles',\n        ok: true,\n        status: 'success',\n        roles: docs.map(r => ({\n            id: String(r._id),\n            key: r.key,\n            name: r.name,\n            description: r.description || '',\n            permissions: r.permissions || [],\n            system: !!r.system,\n            createdAt: r.createdAt,\n            updatedAt: r.updatedAt\n        }))\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 1150,
+        "y": 1440,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000310",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createRole: insert",
+        "func": "const d = msg.data || {};\nconst key = (d.key || '').trim();\nconst name = (d.name || '').trim();\nif (!key || !name) {\n    msg.payload = { response: { action: 'createRole', ok: false, error: 'missing_fields' } };\n    return [null, msg];\n}\nconst now = new Date().toISOString();\nmsg.collection = 'dcm_roles';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    key: key,\n    name: name,\n    description: d.description || '',\n    permissions: d.permissions || [],\n    system: false,\n    createdAt: now,\n    updatedAt: now\n};\nmsg._createRoleResponse = { response: { action: 'createRole', ok: true, status: 'success' } };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 700,
+        "y": 1500,
+        "wires": [
+            [
+                "cc04000000000311"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000311",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert role",
+        "x": 940,
+        "y": 1500,
+        "wires": [
+            [
+                "cc04000000000312"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000312",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createRole: respond",
+        "func": "msg.payload = msg._createRoleResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 1150,
+        "y": 1500,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000320",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateRole: check system + update",
+        "func": "const d = msg.data || {};\nconst roleKey = d.key || d.roleKey || '';\nif (!roleKey) {\n    msg.payload = { response: { action: 'updateRole', ok: false, error: 'missing_key' } };\n    return [null, msg];\n}\n// First check if system role\nmsg._updateRoleKey = roleKey;\nmsg._updateRoleData = d;\nmsg.collection = 'dcm_roles';\nmsg.operation = 'findOne';\nmsg.payload = { key: roleKey };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 730,
+        "y": 1560,
+        "wires": [
+            [
+                "cc04000000000321"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000321",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find role",
+        "x": 940,
+        "y": 1560,
+        "wires": [
+            [
+                "cc04000000000322"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000322",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateRole: apply",
+        "func": "const role = msg.payload;\nconst d = msg._updateRoleData;\nif (!role) {\n    msg.payload = { response: { action: 'updateRole', ok: false, error: 'role_not_found' } };\n    return [null, msg];\n}\nif (role.system) {\n    msg.payload = { response: { action: 'updateRole', ok: false, error: 'forbidden', status: 'error', message: 'Cannot modify system roles' } };\n    return [null, msg];\n}\nconst update = { updatedAt: new Date().toISOString() };\nif (d.name !== undefined) update.name = d.name;\nif (d.description !== undefined) update.description = d.description;\nif (d.permissions !== undefined) update.permissions = d.permissions;\n\nmsg.collection = 'dcm_roles';\nmsg.operation = 'updateOne';\nmsg.payload = [{ key: msg._updateRoleKey }, { $set: update }];\nmsg._updateRoleResponse = { response: { action: 'updateRole', ok: true, status: 'success' } };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1150,
+        "y": 1560,
+        "wires": [
+            [
+                "cc04000000000323"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000323",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "update role",
+        "x": 700,
+        "y": 1620,
+        "wires": [
+            [
+                "cc04000000000324"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000324",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateRole: respond",
+        "func": "msg.payload = msg._updateRoleResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 920,
+        "y": 1620,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000330",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteRole: check system",
+        "func": "const d = msg.data || {};\nconst roleKey = d.key || d.roleKey || '';\nif (!roleKey) {\n    msg.payload = { response: { action: 'deleteRole', ok: false, error: 'missing_key' } };\n    return [null, msg];\n}\nmsg._deleteRoleKey = roleKey;\nmsg.collection = 'dcm_roles';\nmsg.operation = 'findOne';\nmsg.payload = { key: roleKey };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 710,
+        "y": 1680,
+        "wires": [
+            [
+                "cc04000000000331"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000331",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find role",
+        "x": 940,
+        "y": 1680,
+        "wires": [
+            [
+                "cc04000000000332"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000332",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteRole: delete if not system",
+        "func": "const role = msg.payload;\nif (!role) {\n    msg.payload = { response: { action: 'deleteRole', ok: false, error: 'role_not_found' } };\n    return [null, msg];\n}\nif (role.system) {\n    msg.payload = { response: { action: 'deleteRole', ok: false, error: 'forbidden', status: 'error', message: 'Cannot delete system roles' } };\n    return [null, msg];\n}\nmsg.collection = 'dcm_roles';\nmsg.operation = 'deleteOne';\nmsg.payload = { key: msg._deleteRoleKey };\nmsg._deleteRoleResponse = { response: { action: 'deleteRole', ok: true, status: 'success' } };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 1180,
+        "y": 1680,
+        "wires": [
+            [
+                "cc04000000000333"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000333",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "delete role",
+        "x": 700,
+        "y": 1740,
+        "wires": [
+            [
+                "cc04000000000334"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000334",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "deleteRole: respond",
+        "func": "msg.payload = msg._deleteRoleResponse;\nreturn msg;",
+        "outputs": 1,
+        "x": 920,
+        "y": 1740,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000400",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "listAudit: query",
+        "func": "msg.collection = 'dcm_audit_log';\nmsg.operation = 'find';\nmsg.payload = [{}];\nreturn msg;",
+        "outputs": 1,
+        "x": 700,
+        "y": 1800,
+        "wires": [
+            [
+                "cc04000000000401"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000401",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find audit_log",
+        "x": 940,
+        "y": 1800,
+        "wires": [
+            [
+                "cc04000000000402"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000402",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "listAudit: response",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\ndocs.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));\nmsg.payload = {\n    response: {\n        action: 'listAudit',\n        ok: true,\n        status: 'success',\n        auditRows: docs.slice(0, 500)\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 1150,
+        "y": 1800,
         "wires": [
             [
                 "cc04000000000099"
@@ -151,8 +1251,292 @@
         "links": [
             "c48570326bcd6b3d"
         ],
-        "x": 900,
-        "y": 230,
+        "x": 1435,
+        "y": 500,
         "wires": []
+    },
+    {
+        "id": "cc04000000000290",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: check email conflict + find role",
+        "func": "var existingEmail = msg.payload;\nvar d = msg._createUserData;\n\nif (d.email && existingEmail) {\n    msg.payload = { response: { action: 'createUser', ok: false, error: 'validation', field: 'email', reason: 'A user with this email already exists' } };\n    return [null, msg];\n}\n\nmsg.collection = 'dcm_roles';\nmsg.operation = 'findOne';\nmsg.payload = { permissionsHash: d.permissionsHash, system: false };\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 730,
+        "y": 730,
+        "wires": [
+            [
+                "cc04000000000291"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000291",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "find role by hash",
+        "x": 1000,
+        "y": 730,
+        "wires": [
+            [
+                "cc04000000000292"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000292",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: ensure custom role",
+        "func": "var existingRole = msg.payload;\nvar d = msg._createUserData;\n\nif (existingRole) {\n    d.roleKey = existingRole.key;\n    msg._createUserData = d;\n    msg.payload = {};\n    return [null, msg];\n}\n\nvar roleKey = 'custom:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nd.roleKey = roleKey;\nmsg._createUserData = d;\n\nvar now = new Date().toISOString();\nmsg.collection = 'dcm_roles';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    key: roleKey,\n    name: 'Custom (' + d.username + ')',\n    description: 'Auto-created for user',\n    permissions: d.permissions,\n    permissionsHash: d.permissionsHash,\n    system: false,\n    createdAt: now,\n    updatedAt: now\n};\nreturn [msg, null];",
+        "outputs": 2,
+        "x": 730,
+        "y": 780,
+        "wires": [
+            [
+                "cc04000000000293"
+            ],
+            [
+                "cc04000000000224"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000293",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert custom role",
+        "x": 1000,
+        "y": 780,
+        "wires": [
+            [
+                "cc04000000000224"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000226b",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "createUser: audit + respond",
+        "func": "function computeAccessLabel(accessAreas) {\n    var areas = Array.isArray(accessAreas) ? accessAreas : [];\n    var allFive = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'];\n    if (allFive.every(function(a) { return areas.indexOf(a) >= 0; })) return 'Full Access';\n    var labelMap = { localCatalogue: 'Local Catalogue', catalogueRegistry: 'Catalogue Registry', schemaRegistry: 'Schema Registry', adminTools: 'Admin Tools', harvest: 'Harvest' };\n    var order = ['localCatalogue','catalogueRegistry','schemaRegistry','adminTools','harvest'];\n    var labels = [];\n    for (var i = 0; i < order.length; i++) { if (areas.indexOf(order[i]) >= 0) labels.push(labelMap[order[i]]); }\n    return labels.join(' + ') || 'No Access';\n}\n\nvar d = msg._createUserData;\nvar now = new Date().toISOString();\nvar userDoc = msg._newUserDoc;\nuserDoc.accessLabel = computeAccessLabel(userDoc.accessAreas);\n\nmsg.collection = 'dcm_audit_log';\nmsg.operation = 'insertOne';\nmsg.payload = {\n    timestamp: now,\n    actor: msg._callerUsername,\n    area: 'users',\n    action: 'createUser',\n    target: d.username,\n    payload: { email: d.email, accessAreas: d.accessAreas },\n    result: 'ok'\n};\nmsg._createUserResponse = {\n    response: {\n        action: 'createUser',\n        ok: true,\n        status: 'success',\n        user: userDoc\n    }\n};\nreturn msg;",
+        "outputs": 1,
+        "x": 940,
+        "y": 900,
+        "wires": [
+            [
+                "cc04000000000228a"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000228a",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "insert audit",
+        "x": 1170,
+        "y": 900,
+        "wires": [
+            [
+                "cc04000000000228"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000503",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "expireSweep: update expired + invalidate sessions",
+        "func": "var expiredUsers = Array.isArray(msg.payload) ? msg.payload : [];\nif (expiredUsers.length === 0) {\n    node.status({ fill: 'green', shape: 'dot', text: 'No expired users' });\n    return null;\n}\n\nvar usernames = expiredUsers.map(function(u) { return u.username; });\nnode.status({ fill: 'yellow', shape: 'dot', text: 'Expiring ' + usernames.length + ' users' });\n\nmsg._expiredUsernames = usernames;\nmsg.collection = 'dcm_users';\nmsg.operation = 'updateMany';\nmsg.payload = [\n    { username: { $in: usernames } },\n    { $set: { status: 'expired', accessAreas: [], updatedAt: new Date().toISOString() } }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 650,
+        "y": 1960,
+        "wires": [
+            [
+                "cc04000000000504"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000504",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "update expired users",
+        "x": 940,
+        "y": 1960,
+        "wires": [
+            [
+                "cc04000000000505"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000505",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "expireSweep: invalidate sessions",
+        "func": "var usernames = msg._expiredUsernames || [];\nif (usernames.length === 0) return null;\nmsg.collection = 'auth_sessions';\nmsg.operation = 'deleteMany';\nmsg.payload = { username: { $in: usernames } };\nreturn msg;",
+        "outputs": 1,
+        "x": 650,
+        "y": 2020,
+        "wires": [
+            [
+                "cc04000000000506"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000506",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "delete sessions",
+        "x": 940,
+        "y": 2020,
+        "wires": [
+            [
+                "cc04000000000507"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000507",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "expireSweep: done",
+        "func": "var usernames = msg._expiredUsernames || [];\nnode.status({ fill: 'green', shape: 'dot', text: 'Expired ' + usernames.length + ' users at ' + new Date().toISOString().slice(11,19) });\nreturn null;",
+        "outputs": 1,
+        "x": 1200,
+        "y": 2020,
+        "wires": []
+    },
+    {
+        "id": "cc04000000000500",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getMonitoringOverview: prepare",
+        "func": "// Initialize monitoring state machine\nmsg._monStep = 0;\nmsg._monData = {};\n// Step 0: count total users\nmsg.collection = \"dcm_users\";\nmsg.operation = \"aggregate\";\nmsg.payload = [[\n  { $match: { status: { $ne: \"deleted\" } } },\n  { $facet: {\n      total: [{ $count: \"n\" }],\n      active: [{ $match: { status: \"active\" } }, { $count: \"n\" }],\n      disabled: [{ $match: { status: \"disabled\" } }, { $count: \"n\" }],\n      expired: [{ $match: { expiresAt: { $lte: new Date() } } }, { $count: \"n\" }]\n  }}\n]];\nreturn msg;",
+        "outputs": 1,
+        "x": 660,
+        "y": 1200,
+        "wires": [
+            [
+                "cc04000000000501"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000501",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "monitoring query",
+        "x": 900,
+        "y": 1200,
+        "wires": [
+            [
+                "cc04000000000502"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000502",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "getMonitoringOverview: process",
+        "func": "var step = msg._monStep || 0;\nvar data = msg._monData || {};\nvar result = msg.payload;\nvar now = new Date();\n\nfunction cnt(facetArr) {\n  return (Array.isArray(facetArr) && facetArr[0] && facetArr[0].n) ? facetArr[0].n : 0;\n}\n\nif (step === 0) {\n  // Process user facet counts\n  var facet = (Array.isArray(result) && result[0]) || {};\n  data.users = {\n    total: cnt(facet.total),\n    active: cnt(facet.active),\n    disabled: cnt(facet.disabled),\n    expired: cnt(facet.expired)\n  };\n  // Step 1: count active sessions\n  msg._monStep = 1;\n  msg._monData = data;\n  msg.collection = \"auth_sessions\";\n  msg.operation = \"countDocuments\";\n  msg.payload = { expiresAt: { $gt: now.toISOString() } };\n  return [msg, null];\n}\n\nif (step === 1) {\n  // Process session count\n  data.sessions = { active: (typeof result === \"number\") ? result : 0 };\n  // Step 2: audit activity last 24h — use facet\n  var oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n  msg._monStep = 2;\n  msg._monData = data;\n  msg.collection = \"dcm_audit_log\";\n  msg.operation = \"aggregate\";\n  msg.payload = [[\n    { $match: { timestamp: { $gte: oneDayAgo.toISOString() } } },\n    { $facet: {\n        loginSuccess: [{ $match: { action: \"login.success\" } }, { $count: \"n\" }],\n        loginFailed: [{ $match: { action: \"login.failed\" } }, { $count: \"n\" }],\n        loginBlocked: [{ $match: { action: \"login.blocked.disabled\" } }, { $count: \"n\" }],\n        userUpdated: [{ $match: { action: \"updateUser\" } }, { $count: \"n\" }],\n        userDeleted: [{ $match: { action: \"deleteUser\" } }, { $count: \"n\" }]\n    }}\n  ]];\n  return [msg, null];\n}\n\nif (step === 2) {\n  // Process activity facet\n  var facet = (Array.isArray(result) && result[0]) || {};\n  data.activity24h = {\n    logins: cnt(facet.loginSuccess),\n    loginsFailed: cnt(facet.loginFailed),\n    loginsBlockedDisabled: cnt(facet.loginBlocked),\n    userUpdates: cnt(facet.userUpdated),\n    userDeletions: cnt(facet.userDeleted)\n  };\n  // Step 3: count audit events last 7 days\n  var sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\n  msg._monStep = 3;\n  msg._monData = data;\n  msg.collection = \"dcm_audit_log\";\n  msg.operation = \"countDocuments\";\n  msg.payload = { timestamp: { $gte: sevenDaysAgo.toISOString() } };\n  return [msg, null];\n}\n\nif (step === 3) {\n  data.audit7dCount = (typeof result === \"number\") ? result : 0;\n  // Step 4: recent audit log (last 20)\n  msg._monStep = 4;\n  msg._monData = data;\n  msg.collection = \"dcm_audit_log\";\n  msg.operation = \"find\";\n  msg.payload = [{}];\n  return [msg, null];\n}\n\nif (step === 4) {\n  var docs = Array.isArray(result) ? result : [];\n  docs.sort(function(a, b) { return (b.timestamp || \"\").localeCompare(a.timestamp || \"\"); });\n  data.recentAudit = docs.slice(0, 20).map(function(r) {\n    return {\n      at: r.timestamp || r.at || null,\n      action: r.action || \"\",\n      actor: r.actor || r.actorUsername || r.actorId || \"system\",\n      target: r.target || r.targetUsername || r.targetUserId || null,\n      meta: r.payload ? JSON.stringify(r.payload).substring(0, 200) : (r.message || null)\n    };\n  });\n  // Step 5: heartbeats\n  msg._monStep = 5;\n  msg._monData = data;\n  msg.collection = \"dcm_heartbeats\";\n  msg.operation = \"find\";\n  msg.payload = [{}];\n  return [msg, null];\n}\n\nif (step === 5) {\n  var heartbeats = Array.isArray(result) ? result : [];\n  var moduleNames = [\"SchemaRegistry\",\"CatalogueRegistry\",\"Harvester\",\"AdminTools\",\"Auth\",\"LocalCatalogue\"];\n  data.modules = moduleNames.map(function(name) {\n    var hb = null;\n    for (var i = 0; i < heartbeats.length; i++) {\n      if (heartbeats[i].module === name) { hb = heartbeats[i]; break; }\n    }\n    if (!hb) return { module: name, status: \"unknown\", lastSeen: null };\n    var ageSec = (now - new Date(hb.at)) / 1000;\n    var status = ageSec < 90 ? \"up\" : ageSec < 300 ? \"degraded\" : \"down\";\n    return { module: name, status: status, lastSeen: hb.at };\n  });\n  data.generatedAt = now.toISOString();\n\n  msg.payload = {\n    response: {\n      action: \"getMonitoringOverview\",\n      ok: true,\n      status: \"success\",\n      data: data\n    }\n  };\n  return [null, msg];\n}\n\n// Fallback\nmsg.payload = { response: { action: \"getMonitoringOverview\", ok: false, error: \"internal_error\" } };\nreturn [null, msg];",
+        "outputs": 2,
+        "x": 660,
+        "y": 1260,
+        "wires": [
+            [
+                "cc04000000000501"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ],
+        "libs": []
+    },
+    {
+        "id": "cc04000000000h01",
+        "type": "inject",
+        "z": "cc04000000000000",
+        "name": "heartbeat: AdminTools",
+        "props": [],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 200,
+        "y": 1900,
+        "wires": [
+            [
+                "cc04000000000h02"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000h02",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "write heartbeat",
+        "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"AdminTools\" },\n  { $set: { module: \"AdminTools\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 420,
+        "y": 1900,
+        "wires": [
+            [
+                "cc04000000000h03"
+            ]
+        ]
+    },
+    {
+        "id": "cc04000000000h03",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert heartbeat",
+        "x": 640,
+        "y": 1900,
+        "wires": [
+            []
+        ]
     }
 ]

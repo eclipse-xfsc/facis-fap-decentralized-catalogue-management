@@ -5,7 +5,28 @@
 
 export function createStoreData() {
   return {
-    currentPage: "schemaRegistry",
+    // Auth state
+    isLoggedIn: false,
+    isCheckingAuth: true,
+    isLoggingIn: false,
+    loginError: "",
+    loginErrorCode: "",
+    loginForm: { username: "", password: "" },
+    authToken: "",
+
+    // Current user with RBAC permissions (populated from hydrateSession)
+    currentUser: {
+      id: "",
+      email: "",
+      username: "",
+      roles: [],
+      permissions: [],  // flattened permission strings from all roles
+      accessAreas: [],  // canonical source of truth for sidebar visibility
+      isAuthenticated: false,
+      status: ""
+    },
+
+    currentPage: "localCatalogue",
     currentTab: "localCatalogue",
     currentSchemaTab: "localSchema",
     currentAdminTab: "accessControl",
@@ -14,24 +35,38 @@ export function createStoreData() {
     isViewModal: false,
     manageUserModal: false,
     currentViewTab: "Overview",
-    isInviteModal: false,
+    isCreateUserModal: false,
     showRegisterRemoteCatalogModal: false,
     isRegisterSchemaEditModal: false,
     isRegisterSchemaNewModal: false,
     showHarvestWizard: false,
     showAccessInformation: false,
 
-    // Invite form
-    inviteForm: {
-      firstName: "",
-      lastName: "",
+    isCreatingUser: false,
+    // Create user form
+    createUserForm: {
+      username: "",
       email: "",
-      role: "Searcher",
-      expiresIn: "30 Days",
-      altRole: "",
-      message: "You have been invited to join the federated catalogue system.",
-      selectedAccess: ["Local Catalogue"]
+      password: "",
+      showPassword: false,
+      accessAreas: ["localCatalogue"],
+      expiresInDays: null,
+      validationError: null,
     },
+
+    // Edit user modal
+    isEditUserModal: false,
+    isSavingUser: false,
+    editUserForm: {
+      userId: "",
+      username: "",
+      email: "",
+      status: "active",
+      accessAreas: ["localCatalogue"],
+      expiresAt: null,
+      validationError: null,
+    },
+    editUserBaseline: null,
 
     // Manage user form
     manageForm: {
@@ -86,6 +121,8 @@ export function createStoreData() {
       responseAssetIdField: "",
       responseAssetNameField: "",
       responseAssetTypeField: "",
+      // FR-CR-02 remote → local asset type mapping
+      typeMapping: [],
       trustAnchor: "",
       enabled: true,
     },
@@ -203,6 +240,7 @@ ex:publisher a ex:Property .`,
     // Asset Detail Panel (Milestone 1)
     showAssetDetailPanel: false,
     assetDetailRow: null,
+    viewingForm: 'both',  // FR-ACM-04: which form is shown in the View modal ('transformed' | 'original' | 'both')
     isEditingAsset: false,
     assetEditForm: {
       assets: "",
@@ -327,37 +365,40 @@ ex:publisher a ex:Property .`,
     allCatalogsRaw: [],
     tableRows: [],
     localCatalogueStats: { totalAssets: 0, totalRuns: 0 },
-    schemaRegistry: [
-      { id: 1, schema: "DCAT-AP.de", catalogs: 3, localMapping: "Service, Data Product", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 2, schema: "Data Specifications", catalogs: 2, localMapping: "Dataset (1)", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 3, schema: "OGC SensorML", catalogs: 1, localMapping: "Asset + Safety", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 4, schema: "Xxx Taxonomy", catalogs: 1, localMapping: null, versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Untrusted" }
-    ],
-    remoteSchema: [
-      { id: 1, schema: "ISO 19115-1", catalogs: 5, localMapping: "Dataset (2)", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 2, schema: "schema.org Dataset", catalogs: 7, localMapping: "Dataset (5)", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 3, schema: "OpenAPI Specification", catalogs: 3, localMapping: "Service, Data Product", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 4, schema: "W3C PROV-O", catalogs: 2, localMapping: "Asset + Safety", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 5, schema: "SKOS Concept Scheme", catalogs: 1, localMapping: null, versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Untrusted" },
-      { id: 6, schema: "INSPIRE Metadata", catalogs: 4, localMapping: "Dataset (4)", versioning: "v1.1", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 7, schema: "DCAT", catalogs: 8, localMapping: "Service, Data Product", versioning: "v2.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" },
-      { id: 8, schema: "OGC Observations & Measurements", catalogs: 2, localMapping: "Asset + Safety", versioning: "v1.0", versionOptions: ["v1.0", "v1.1", "v2.0"], trustLevel: "Federated" }
-    ],
+    schemaRegistry: [],
+    remoteSchemas: [],
+    remoteSchemaLoading: false,
+    catalogueIdToName: {},
 
     catalogsTable: [],
 
-    // Asset Type Registry
-    assetTypes: [
-      { id: 1, name: "Dataset", description: "A collection of related data records", icon: "dataset" },
-      { id: 2, name: "Service", description: "An API or web service endpoint", icon: "service" },
-      { id: 3, name: "Document", description: "A document or report artifact", icon: "document" },
-      { id: 4, name: "Software Release", description: "A versioned software package or release", icon: "software" },
-      { id: 5, name: "Compliance Artifact", description: "A regulatory or compliance record", icon: "compliance" },
-    ],
+    // Asset Type Registry (FR-CR-02) — loaded from backend on mount
+    assetTypes: [],
+    isLoadingAssetTypes: false,
+    isSavingAssetType: false,
+    assetTypeError: "",
     assetTypeForm: { id: null, name: "", description: "", icon: "dataset" },
     isEditingAssetType: false,
     showAssetTypeForm: false,
     currentCatalogRegistryTab: "catalogues",
+
+    // FR-CR-03 Catalogue API Mappings
+    apiMappings: [],
+    apiMappingPrompts: [],
+    showApiMappingModal: false,
+    apiMappingForm: {
+      uniqueId: null,
+      catalogueId: "",
+      localTypeId: "",
+      remoteType: "",
+      promptId: "",
+      apiRequest: { method: "GET", pathTemplate: "", queryParams: {}, headers: {}, bodyTemplate: null, notes: "" },
+      queryParamsRaw: "{}",
+      headersRaw: "{}",
+    },
+    isGeneratingApiMapping: false,
+    isSavingApiMapping: false,
+    apiMappingError: "",
 
     // Prompt Management (FR-SR-03, FR-SR-04)
     // Prompts are loaded from MongoDB on mount
@@ -413,6 +454,8 @@ ex:publisher a ex:Property .`,
     promptTestResult: "",
     promptTestError: "",
     promptTestShowResolved: false,
+    promptTestResolvedFromBackend: "",
+    showBackendResolved: false,
     // Test cases are loaded from MongoDB on mount
     promptTestCases: [],
     showTestCaseModal: false,
@@ -427,15 +470,11 @@ ex:publisher a ex:Property .`,
     },
 
     users: [],
+    dcmRoles: [],  // Role definitions from dcm_roles collection
 
     harvestRecords: [],
 
-    mappingRows: [
-      { id: 1, remoteCatalogue: "DCAT-AP.de", remoteSchema: "Data Service Entity 1.0", remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF", promptsCount: 2, shaclCount: 3 },
-      { id: 2, remoteCatalogue: "DCAT-AP.de", remoteSchema: "Energy Product 1.0", remoteSchemaMeta: "5", transformationStrategy: " AI-driven", promptsCount: 1, shaclCount: 2 },
-      { id: 3, remoteCatalogue: "OGC SensorML", remoteSchema: "Dataset Schema", remoteSchemaMeta: "v1", transformationStrategy: "Deterministic RDF", promptsCount: 2, shaclCount: 3 },
-      { id: 4, remoteCatalogue: "OGC SensorML", remoteSchema: "Mobility Data", remoteSchemaMeta: "Mobility 0.3 Data Service", transformationStrategy: "Hybrid AI Mapping", promptsCount: 0, shaclCount: 0 }
-    ],
+    mappingRows: [],
 
     // Resize
     resizeTimer: null,
@@ -531,6 +570,16 @@ ex:publisher a ex:Property .`,
       { id: "br-002", trigger: "LLM config changed (llm-001)", scope: "Catalogue: SensorML", dryRun: true, total: 120, success: 118, errors: 2, skipped: 0, startedAt: "2026-02-18 09:15", completedAt: "2026-02-18 09:22", status: "completed" },
     ],
 
+    // Transformation Audit Trail (Section B)
+    auditTrail: {
+      rows: [],
+      filters: { assetId: "", catalogueId: "", promptVersion: "", status: "", dateFrom: "", dateTo: "" },
+      pagination: { page: 1, perPage: 20, total: 0 },
+      loading: false,
+      error: "",
+      loaded: false,
+    },
+
     // Multi-Model Provider Support (FR-SR-12)
     // Providers are loaded from MongoDB on mount
     llmProviders: [],
@@ -549,12 +598,31 @@ ex:publisher a ex:Property .`,
       status: "active",
     },
     providerFormError: "",
+    isSavingProvider: false,
+    showProviderApiKey: false,
     providerSearch: "",
 
     // ── Milestone 2: Schema & Mapping Workflows ─────────────
     localSchemaSearch: "",
     remoteSchemaSearch: "",
     mappingSearch: "",
+    mappingFilterCatalogue: "",
+    mappingFilterRemoteSchema: "",
+    mappingFilterLocalSchema: "",
+
+    // RDF Mapping Config (FR-SR-06 / FR-SR-07)
+    showRdfConfigPanel: false,
+    rdfConfigMapping: null,
+    rdfConfigSaving: false,
+    rdfConfigForm: { namespacesToPreserve: [], shaclShapeSchemaId: "" },
+    rdfConfigNewNamespace: "",
+    rdfTestFormat: "turtle",
+    rdfTestInput: "",
+    rdfTestRunning: false,
+    rdfTestResult: null,
+    // FR-SR-08: Hybrid Fallback
+    hybridTransformLoading: false,
+    hybridTransformResult: null,
 
     // Local Schema create modal
     showCreateLocalSchemaModal: false,
@@ -563,11 +631,24 @@ ex:publisher a ex:Property .`,
     localSchemaForm: {
       schema: "",
       format: "SHACL",
+      body: "",
+      namespaces: "",
+      status: "draft",
       catalogs: 1,
       localMapping: "",
-      versioning: "v1.0",
+      versioning: "1.0.0",
       trustLevel: "Federated",
     },
+    localSchemaVersionsCache: {},
+    showSchemaVersionPanel: false,
+    schemaVersionPanelName: "",
+    schemaVersionPanelLoading: false,
+    validateSampleForm: { assetBody: "", result: null, loading: false },
+    showPromptVersionPanel: false,
+    promptVersionPanelName: "",
+    promptVersionPanelLoading: false,
+    promptVersions: [],
+    systemSettings: {},
     showDeleteSchemaConfirm: false,
     deleteSchemaTargetId: null,
 
@@ -582,6 +663,8 @@ ex:publisher a ex:Property .`,
     isEditingMapping: false,
     editingMappingId: null,
     addMappingForm: {
+      remoteCatalogueId: "",
+      remoteSchemaId: "",
       remoteCatalogue: "",
       remoteSchema: "",
       remoteSchemaMeta: "",
@@ -643,39 +726,20 @@ ex:publisher a ex:Property .`,
     showDeleteRemoteCatalogConfirm: false,
     deleteRemoteCatalogTargetId: null,
 
-    // ── Milestone 4: Admin Tools & Monitoring ──────────────────
-    // Monitoring dashboard
-    monitoringMetrics: {
-      systemUptime: "99.7%",
-      avgResponseTime: "245ms",
-      totalHarvestsToday: 12,
-      failedHarvestsToday: 1,
-      activeConnections: 8,
-      queuedJobs: 3,
-      diskUsage: "42%",
-      memoryUsage: "67%",
+    // Blocking modal for delete-blocked-by-mapping
+    deleteBlockedModal: {
+      visible: false,
+      title: "",
+      message: "",
+      mappings: [],
     },
-    monitoringEvents: [
-      { id: 1, type: "info", source: "Harvester", message: "Scheduled harvest completed for SensorML", timestamp: "2026-03-05 12:58 (UTC)" },
-      { id: 2, type: "warning", source: "Schema Mapper", message: "SHACL validation returned 3 minor warnings for DCAT-AP.de batch", timestamp: "2026-03-05 12:45 (UTC)" },
-      { id: 3, type: "error", source: "Remote Catalogue", message: "Connection to OGC SensorML endpoint timed out after 30s", timestamp: "2026-03-05 12:30 (UTC)" },
-      { id: 4, type: "info", source: "System", message: "Automatic backup completed successfully", timestamp: "2026-03-05 12:00 (UTC)" },
-      { id: 5, type: "info", source: "Auth", message: "User 'admin@facis.eu' logged in", timestamp: "2026-03-05 11:45 (UTC)" },
-      { id: 6, type: "warning", source: "LLM Provider", message: "OpenAI rate limit approached — 85% of quota used", timestamp: "2026-03-05 11:30 (UTC)" },
-      { id: 7, type: "info", source: "Harvester", message: "275 assets imported from DCAT-AP.de", timestamp: "2026-03-05 11:00 (UTC)" },
-      { id: 8, type: "error", source: "Schema Mapper", message: "LLM transformation failed for 2 assets — timeout exceeded", timestamp: "2026-03-05 10:30 (UTC)" },
-    ],
+
+    // ── Milestone 4: Admin Tools & Monitoring ──────────────────
+    // Monitoring dashboard (live data from backend)
+    monitoring: null,
+    monitoringError: false,
     monitoringEventFilter: "all",
     monitoringAuditSearch: "",
-
-    // Service status
-    serviceStatus: [
-      { name: "Harvest Engine", status: "operational", lastCheck: "2 min ago" },
-      { name: "Schema Mapper", status: "operational", lastCheck: "1 min ago" },
-      { name: "LLM Gateway", status: "degraded", lastCheck: "5 min ago" },
-      { name: "SPARQL Endpoint", status: "operational", lastCheck: "3 min ago" },
-      { name: "Remote Catalogue Proxy", status: "operational", lastCheck: "1 min ago" },
-    ],
 
     // User profile
     showUserProfile: false,

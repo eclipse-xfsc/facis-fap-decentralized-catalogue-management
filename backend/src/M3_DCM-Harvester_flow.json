@@ -8,6 +8,44 @@
         "env": []
     },
     {
+        "id": "b991ffcd8f6c360a",
+        "type": "mongodb4-client",
+        "name": "",
+        "protocol": "mongodb+srv",
+        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "port": "",
+        "dbName": "PartnerOnboarding",
+        "appName": "",
+        "authSource": "",
+        "authMechanism": "DEFAULT",
+        "tls": true,
+        "tlsCAFile": "",
+        "tlsCertificateKeyFile": "",
+        "tlsInsecure": false,
+        "connectTimeoutMS": "30000",
+        "socketTimeoutMS": "0",
+        "minPoolSize": "0",
+        "maxPoolSize": "100",
+        "maxIdleTimeMS": "0",
+        "uri": "",
+        "advanced": "{}",
+        "uriTabActive": "tab-uri-simple"
+    },
+    {
+        "id": "bb03000000000100",
+        "type": "tls-config",
+        "name": "Allow self-signed certs",
+        "cert": "",
+        "key": "",
+        "ca": "",
+        "certname": "",
+        "keyname": "",
+        "caname": "",
+        "servername": "",
+        "verifyservercert": false,
+        "alpnprotocol": ""
+    },
+    {
         "id": "bb03000000000001",
         "type": "comment",
         "z": "bb03000000000000",
@@ -97,7 +135,7 @@
                 "bb03000000000010"
             ],
             [
-                "bb03000000000024"
+                "cr03m3000010"
             ],
             [
                 "bb03000000000030"
@@ -180,7 +218,7 @@
         "type": "function",
         "z": "bb03000000000000",
         "name": "response: getHarvestCatalogues",
-        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst catalogs = docs.map(d => {\n    const c = d.catalog || d;\n    return {\n        uniqueId: d.uniqueId || c.catalogId || d._id,\n        catalogId: c.catalogId || d.uniqueId,\n        catalogName: c.catalogName || c.catalogId || '-',\n        owner: c.owner || '-',\n        strategy: c.strategy || 'none',\n        baseEndpoint: c.baseEndpoint || '',\n        enabled: c.enabled !== false,\n        protocol: c.protocol || 'Query interface',\n        updatedAt: c.updatedAt || '',\n        auth: c.auth || 'none',\n        authLoginEndpoint: c.authLoginEndpoint || '',\n        authUsername: c.authUsername || '',\n        authPassword: c.authPassword || '',\n        authPayloadTemplate: c.authPayloadTemplate || '',\n        authTokenPath: c.authTokenPath || 'token',\n        authTokenInjection: c.authTokenInjection || 'body',\n        authTokenFieldName: c.authTokenFieldName || 'token',\n        authTokenPrefix: c.authTokenPrefix || '',\n        authStaticToken: c.authStaticToken || '',\n        authApiKey: c.authApiKey || '',\n        authApiKeyHeader: c.authApiKeyHeader || 'X-API-Key',\n        responseRootPath: c.responseRootPath || '',\n        responseAssetIdField: c.responseAssetIdField || '',\n        responseAssetNameField: c.responseAssetNameField || '',\n        responseAssetTypeField: c.responseAssetTypeField || '',\n        sourceData: c.sourceData || null,\n        sourceFileName: c.sourceFileName || '',\n        mimeType: c.mimeType || ''\n    };\n});\nmsg.response = {\n    action: \"getHarvestCatalogues\",\n    status: \"success\",\n    catalogs: catalogs\n};\ndelete msg.payload;\nreturn msg;",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst catalogs = docs.map(d => {\n    const c = d.catalog || d;\n    return {\n        uniqueId: d.uniqueId || c.catalogId || d._id,\n        catalogId: c.catalogId || d.uniqueId,\n        catalogName: c.catalogName || c.catalogId || '-',\n        owner: c.owner || '-',\n        strategy: c.strategy || 'none',\n        baseEndpoint: c.baseEndpoint || '',\n        enabled: c.enabled !== false,\n        protocol: c.protocol || 'Query interface',\n        updatedAt: c.updatedAt || '',\n        auth: c.auth || 'none',\n        authLoginEndpoint: c.authLoginEndpoint || '',\n        authUsername: c.authUsername || '',\n        authPassword: c.authPassword || '',\n        authPayloadTemplate: c.authPayloadTemplate || '',\n        authTokenPath: c.authTokenPath || 'token',\n        authTokenInjection: c.authTokenInjection || 'body',\n        authTokenFieldName: c.authTokenFieldName || 'token',\n        authTokenPrefix: c.authTokenPrefix || '',\n        authStaticToken: c.authStaticToken || '',\n        authApiKey: c.authApiKey || '',\n        authApiKeyHeader: c.authApiKeyHeader || 'X-API-Key',\n        responseRootPath: c.responseRootPath || '',\n        responseAssetIdField: c.responseAssetIdField || '',\n        responseAssetNameField: c.responseAssetNameField || '',\n        responseAssetTypeField: c.responseAssetTypeField || '',\n        typeMapping: Array.isArray(c.typeMapping) ? c.typeMapping : [],\n        sourceData: c.sourceData || null,\n        sourceFileName: c.sourceFileName || '',\n        mimeType: c.mimeType || ''\n    };\n});\nmsg.response = {\n    action: \"getHarvestCatalogues\",\n    status: \"success\",\n    catalogs: catalogs\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -200,7 +238,7 @@
         "type": "function",
         "z": "bb03000000000000",
         "name": "Start Harvest — build run + lc_assets",
-        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst runId = 'run-' + Date.now().toString(36) + rnd;\n\nconst catalogues = msg.data?.catalogues || [];\nconst catNames = catalogues.map(c => c.catalogName).filter(Boolean);\nconst now = new Date();\nconst nowISO = now.toISOString();\nconst nowShort = nowISO.replace('T', ' ').slice(0, 19);\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    const parts = path.split('.');\n    let cur = obj;\n    for (const p of parts) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[p];\n    }\n    return cur;\n}\n\nfunction extractEntries(data, rootPath) {\n    if (!data) return [];\n    if (rootPath) {\n        const resolved = resolvePath(data, rootPath);\n        if (Array.isArray(resolved)) return resolved;\n        if (resolved && typeof resolved === 'object') return [resolved];\n    }\n    if (Array.isArray(data)) return data;\n    if (data['dcat:dataset'] && Array.isArray(data['dcat:dataset'])) return data['dcat:dataset'];\n    if (data.dataset && Array.isArray(data.dataset)) return data.dataset;\n    if (data.datasets && Array.isArray(data.datasets)) return data.datasets;\n    if (data.data && Array.isArray(data.data)) return data.data;\n    if (data.results && Array.isArray(data.results)) return data.results;\n    if (data.result && data.result.results && Array.isArray(data.result.results)) return data.result.results;\n    if (data.items && Array.isArray(data.items)) return data.items;\n    if (data.records && Array.isArray(data.records)) return data.records;\n    if (data.entries && Array.isArray(data.entries)) return data.entries;\n    if (data.assets && Array.isArray(data.assets)) return data.assets;\n    if (data.catalogs && Array.isArray(data.catalogs)) return data.catalogs;\n    if (data.title || data.name || data.identifier || data['@type']) return [data];\n    if (data._id || data.requestId != null || data.companyDetails) return [data];\n    const skipKeys = ['auditInfo','approveInfo','decisionHistory','errors','warnings','logs'];\n    for (const key of Object.keys(data)) {\n        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object' && !skipKeys.includes(key)) return data[key];\n    }\n    return [data];\n}\n\nfunction extractName(entry, nameField) {\n    if (!entry || typeof entry !== 'object') return 'Unknown Asset';\n    if (nameField) { const v = resolvePath(entry, nameField); if (v && typeof v === 'string' && v.trim()) return v; }\n    const cands = ['title','name','catalogName','label','displayName','companyName','organisationName','organization','fullName','shortName','legalName','tradingName','firma'];\n    for (const f of cands) { if (entry[f] && typeof entry[f] === 'string' && entry[f].trim()) return entry[f]; }\n    const cd = entry.companyDetails;\n    if (cd && typeof cd === 'object') {\n        if (cd['A.1.1.1'] && typeof cd['A.1.1.1'] === 'string') return cd['A.1.1.1'];\n        if (cd['A.2.1.1'] && typeof cd['A.2.1.1'] === 'string') return cd['A.2.1.1'];\n        for (const f of cands) { if (cd[f] && typeof cd[f] === 'string' && cd[f].trim()) return cd[f]; }\n    }\n    if (entry.createdBy && entry.createdBy.fullName && typeof entry.createdBy.fullName === 'string') return entry.createdBy.fullName;\n    for (const key of Object.keys(entry)) {\n        const nested = entry[key];\n        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {\n            for (const f of cands) { if (nested[f] && typeof nested[f] === 'string' && nested[f].trim()) return nested[f]; }\n        }\n    }\n    for (const key of Object.keys(entry)) {\n        const val = entry[key];\n        if (typeof val === 'string' && val.length > 2 && val.length < 200 && !/^[\\d\\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !key.startsWith('_')) return val;\n    }\n    return 'Unknown Asset';\n}\n\nfunction extractId(entry, idField) {\n    if (idField) { const v = resolvePath(entry, idField); if (v) return String(v); }\n    return String(entry.identifier || entry.id || entry._id || entry.requestId || entry.uuid || ('remote-' + Math.random().toString(36).slice(2, 10)));\n}\n\nfunction extractType(entry, typeField) {\n    if (typeField) { const v = resolvePath(entry, typeField); if (v) return String(v); }\n    const cd = entry.companyDetails;\n    return String(entry['@type'] || entry.type || entry.assetType || (cd && cd['A.1.1.0']) || (cd && cd['A.2.1.4']) || 'dcat:Dataset');\n}\n\nconst provenance = [];\nconst logs = [];\nconst assetDetails = [];\nconst lcDocs = [];\nlet assetCounter = 0;\n\nfor (const cat of catalogues) {\n    const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n    const catId = cat.uniqueId || cat.catalogId || '';\n    const strategy = cat.strategy || 'none';\n    const rootPath = cat.responseRootPath || '';\n    const idField = cat.responseAssetIdField || '';\n    const nameField = cat.responseAssetNameField || '';\n    const typeField = cat.responseAssetTypeField || '';\n    const sourceData = cat.sourceData || null;\n    let entries = [];\n    if (sourceData) {\n        entries = extractEntries(sourceData, rootPath);\n        logs.push({ runId, assetId: '', level: 'info', message: 'Extracted ' + entries.length + ' entries from sourceData', catalogue: catName, timestamp: nowISO });\n    }\n\n    for (let i = 0; i < entries.length; i++) {\n        assetCounter++;\n        const entry = entries[i];\n        if (!entry || typeof entry !== 'object') continue;\n        const assetId = 'asset-' + runId + '-' + assetCounter;\n        const lcId = 'lc-' + runId + '-' + assetCounter;\n        const rawId = extractId(entry, idField);\n        const assetName = extractName(entry, nameField);\n        const assetType = extractType(entry, typeField);\n        const domain = entry.domain || entry.theme || entry.category || catName;\n\n        assetDetails.push({ assetId: assetId, title: assetName, catalogue: catName, status: 'success', strategy: strategy, sourceId: rawId });\n        lcDocs.push({\n            uniqueId: lcId,\n            id: lcId,\n            assets: assetName,\n            title: assetName,\n            type: assetType,\n            name: catName,\n            domain: domain,\n            updated: nowShort,\n            integrationStatus: 'Active',\n            sourceCatalogue: catName,\n            sourceCatalogueId: catId,\n            harvestRunId: runId,\n            remoteAssetId: rawId,\n            originalForm: entry,\n            transformedForm: null,\n            sourceAssetId: rawId,\n            harvestedAt: nowISO,\n            createdAt: nowISO\n        });\n        provenance.push({ runId: runId, assetId: assetId, title: assetName, catalogue: catName, action: 'imported', strategy: strategy, timestamp: nowISO, status: 'success', sourceId: rawId });\n        logs.push({ runId: runId, assetId: assetId, level: 'info', message: 'Imported: ' + assetName, catalogue: catName, timestamp: nowISO });\n    }\n\n    logs.push({ runId: runId, assetId: '', level: 'info', message: 'Harvest completed for ' + catName + ': ' + entries.length + ' entries processed', catalogue: catName, timestamp: nowISO });\n}\n\nconst successCount = assetDetails.filter(a => a.status === 'success').length;\nconst errorCount = assetDetails.filter(a => a.status === 'error').length;\n\nconst run = {\n    uniqueId: runId,\n    catalogueName: catNames.join(', ') || 'Harvest',\n    scope: msg.data?.scope || {},\n    lifecycle: msg.data?.lifecycle || {},\n    status: 'completed',\n    startedAt: nowShort,\n    totalAssets: assetCounter,\n    assetsAdded: successCount,\n    successCount: successCount,\n    errorCount: errorCount,\n    result: errorCount === 0 ? 'Success' : 'Partial',\n    tool: 'Harvester',\n    provenance: provenance,\n    logs: logs,\n    assetIds: lcDocs.map(a => a.id)\n};\n\nconst msg1 = { _harvestRun: run, _lcDocs: lcDocs, operation: 'insertOne', collection: 'hv_runs', payload: run, _msgid: msg._msgid, _uib: msg._uib, _socketId: msg._socketId };\nreturn msg1;",
+        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst runId = 'run-' + Date.now().toString(36) + rnd;\n\nconst catalogues = msg.data?.catalogues || [];\nconst catNames = catalogues.map(c => c.catalogName).filter(Boolean);\nconst now = new Date();\nconst nowISO = now.toISOString();\nconst nowShort = nowISO.replace('T', ' ').slice(0, 19);\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    const parts = path.split('.');\n    let cur = obj;\n    for (const p of parts) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[p];\n    }\n    return cur;\n}\n\nfunction extractEntries(data, rootPath) {\n    if (!data) return [];\n    if (rootPath) {\n        const resolved = resolvePath(data, rootPath);\n        if (Array.isArray(resolved)) return resolved;\n        if (resolved && typeof resolved === 'object') return [resolved];\n    }\n    if (Array.isArray(data)) return data;\n    if (data['dcat:dataset'] && Array.isArray(data['dcat:dataset'])) return data['dcat:dataset'];\n    if (data.dataset && Array.isArray(data.dataset)) return data.dataset;\n    if (data.datasets && Array.isArray(data.datasets)) return data.datasets;\n    if (data.data && Array.isArray(data.data)) return data.data;\n    if (data.results && Array.isArray(data.results)) return data.results;\n    if (data.result && data.result.results && Array.isArray(data.result.results)) return data.result.results;\n    if (data.items && Array.isArray(data.items)) return data.items;\n    if (data.records && Array.isArray(data.records)) return data.records;\n    if (data.entries && Array.isArray(data.entries)) return data.entries;\n    if (data.assets && Array.isArray(data.assets)) return data.assets;\n    if (data.catalogs && Array.isArray(data.catalogs)) return data.catalogs;\n    if (data.title || data.name || data.identifier || data['@type']) return [data];\n    if (data._id || data.requestId != null || data.companyDetails) return [data];\n    const skipKeys = ['auditInfo','approveInfo','decisionHistory','errors','warnings','logs'];\n    for (const key of Object.keys(data)) {\n        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object' && !skipKeys.includes(key)) return data[key];\n    }\n    return [data];\n}\n\nfunction extractName(entry, nameField) {\n    if (!entry || typeof entry !== 'object') return 'Unknown Asset';\n    if (nameField) { const v = resolvePath(entry, nameField); if (v && typeof v === 'string' && v.trim()) return v; }\n    const cands = ['title','name','catalogName','label','displayName','companyName','organisationName','organization','fullName','shortName','legalName','tradingName','firma'];\n    for (const f of cands) { if (entry[f] && typeof entry[f] === 'string' && entry[f].trim()) return entry[f]; }\n    const cd = entry.companyDetails;\n    if (cd && typeof cd === 'object') {\n        if (cd['A.1.1.1'] && typeof cd['A.1.1.1'] === 'string') return cd['A.1.1.1'];\n        if (cd['A.2.1.1'] && typeof cd['A.2.1.1'] === 'string') return cd['A.2.1.1'];\n        for (const f of cands) { if (cd[f] && typeof cd[f] === 'string' && cd[f].trim()) return cd[f]; }\n    }\n    if (entry.createdBy && entry.createdBy.fullName && typeof entry.createdBy.fullName === 'string') return entry.createdBy.fullName;\n    for (const key of Object.keys(entry)) {\n        const nested = entry[key];\n        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {\n            for (const f of cands) { if (nested[f] && typeof nested[f] === 'string' && nested[f].trim()) return nested[f]; }\n        }\n    }\n    for (const key of Object.keys(entry)) {\n        const val = entry[key];\n        if (typeof val === 'string' && val.length > 2 && val.length < 200 && !/^[\\d\\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !key.startsWith('_')) return val;\n    }\n    return 'Unknown Asset';\n}\n\nfunction extractId(entry, idField) {\n    if (idField) { const v = resolvePath(entry, idField); if (v) return String(v); }\n    return String(entry.identifier || entry.id || entry._id || entry.requestId || entry.uuid || ('remote-' + Math.random().toString(36).slice(2, 10)));\n}\n\nfunction extractType(entry, typeField) {\n    if (typeField) { const v = resolvePath(entry, typeField); if (v) return String(v); }\n    const cd = entry.companyDetails;\n    return String(entry['@type'] || entry.type || entry.assetType || (cd && cd['A.1.1.0']) || (cd && cd['A.2.1.4']) || 'dcat:Dataset');\n}\n\n// ── FR-ACM-05: Crawling Reference helpers ─────────────────────────────────────\nconst REFERENCE_FIELDS = [\n  'dcat:qualifiedRelation',\n  'dcat:Relationship',\n  'dcat:source',\n  'prov:wasDerivedFrom',\n  'dct:references',\n  'dct:relation',\n  'qualifiedRelation',\n  'relation',\n  'references',\n  'source'\n];\n\nfunction normalizeRefUri(v) {\n  if (v == null) return null;\n  if (typeof v === 'string') {\n    const s = v.trim();\n    if (!s) return null;\n    if (/^https?:\\/\\//i.test(s) || /^did:[a-z0-9]+:/i.test(s) || /^urn:/i.test(s)) return s;\n    return null;\n  }\n  if (typeof v === 'object') {\n    if (v['@id']) return normalizeRefUri(v['@id']);\n    if (v.href) return normalizeRefUri(v.href);\n    if (v.id && typeof v.id === 'string') return normalizeRefUri(v.id);\n    if (v.hasTarget) return normalizeRefUri(v.hasTarget);\n    if (v.target) return normalizeRefUri(v.target);\n  }\n  return null;\n}\n\nfunction extractReferencesFromEntry(entry) {\n  if (!entry || typeof entry !== 'object') return [];\n  const refs = [];\n  for (const field of REFERENCE_FIELDS) {\n    const v = entry[field];\n    if (v == null) continue;\n    const arr = Array.isArray(v) ? v : [v];\n    for (const item of arr) {\n      const uri = normalizeRefUri(item);\n      if (uri) refs.push({ field: field, uri: uri });\n    }\n  }\n  if (Array.isArray(entry.links)) {\n    for (const l of entry.links) {\n      if (l && typeof l.href === 'string') {\n        const uri = normalizeRefUri(l.href);\n        if (uri) refs.push({ field: 'links', uri: uri, rel: l.rel || '' });\n      }\n    }\n  }\n  return refs;\n}\n\nfunction entryMatchesUri(entry, uri) {\n  if (!entry || typeof entry !== 'object' || !uri) return false;\n  const candidates = [\n    entry['@id'], entry.id, entry.identifier, entry._id,\n    entry.uri, entry.url, entry.did, entry.canonicalUri\n  ].filter(Boolean).map(String);\n  return candidates.indexOf(uri) !== -1;\n}\n// ── /FR-ACM-05 helpers ────────────────────────────────────────────────────────\n\nconst provenance = [];\nconst logs = [];\nconst assetDetails = [];\nconst lcDocs = [];\nlet assetCounter = 0;\n\nfor (const cat of catalogues) {\n    const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n    const catId = cat.uniqueId || cat.catalogId || '';\n    const isCrawlOnly = cat._crawlOnly === true;\n    if (isCrawlOnly) {\n        logs.push({ runId, assetId: '', level: 'info', message: 'Catalogue tagged crawl-only, skipping full import: ' + catName, catalogue: catName, timestamp: nowISO });\n        continue;\n    }\n    const strategy = cat.strategy || 'none';\n    const rootPath = cat.responseRootPath || '';\n    const idField = cat.responseAssetIdField || '';\n    const nameField = cat.responseAssetNameField || '';\n    const typeField = cat.responseAssetTypeField || '';\n    const typeMapping = Array.isArray(cat.typeMapping) ? cat.typeMapping : [];\n    const sourceData = cat.sourceData || null;\n    let entries = [];\n    if (sourceData) {\n        entries = extractEntries(sourceData, rootPath);\n        logs.push({ runId, assetId: '', level: 'info', message: 'Extracted ' + entries.length + ' entries from sourceData', catalogue: catName, timestamp: nowISO });\n    }\n\n    for (let i = 0; i < entries.length; i++) {\n        assetCounter++;\n        const entry = entries[i];\n        if (!entry || typeof entry !== 'object') continue;\n        const assetId = 'asset-' + runId + '-' + assetCounter;\n        const lcId = 'lc-' + runId + '-' + assetCounter;\n        const rawId = extractId(entry, idField);\n        const assetName = extractName(entry, nameField);\n        const assetType = extractType(entry, typeField);\n        const mapRow = typeMapping.find(m => m && m.remoteType === assetType);\n        const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n        const domain = entry.domain || entry.theme || entry.category || catName;\n\n        assetDetails.push({ assetId: assetId, title: assetName, catalogue: catName, status: 'success', strategy: strategy, sourceId: rawId, localTypeId: localTypeId });\n        lcDocs.push({\n            uniqueId: lcId,\n            id: lcId,\n            assets: assetName,\n            title: assetName,\n            type: assetType,\n            localTypeId: localTypeId,\n            name: catName,\n            domain: domain,\n            updated: nowShort,\n            integrationStatus: 'Active',\n            sourceCatalogue: catName,\n            sourceCatalogueId: catId,\n            harvestRunId: runId,\n            remoteAssetId: rawId,\n            originalForm: entry,\n            transformedForm: null,\n            sourceAssetId: rawId,\n            harvestedAt: nowISO,\n            createdAt: nowISO\n        });\n        provenance.push({ runId: runId, assetId: assetId, title: assetName, catalogue: catName, action: 'imported', strategy: strategy, timestamp: nowISO, status: 'success', sourceId: rawId });\n        logs.push({ runId: runId, assetId: assetId, level: 'info', message: 'Imported: ' + assetName, catalogue: catName, timestamp: nowISO });\n    }\n\n    logs.push({ runId: runId, assetId: '', level: 'info', message: 'Harvest completed for ' + catName + ': ' + entries.length + ' entries processed', catalogue: catName, timestamp: nowISO });\n}\n\n// ── FR-ACM-05: Crawl references (BFS, max depth 3, cycle detection) ──────────\nconst resolveReferences = !!(msg.data?.scope && msg.data.scope.resolveReferences);\nlet crawlStats = { enabled: resolveReferences, referencesFound: 0, crawledAssets: 0, unresolved: 0, maxDepthReached: 0 };\n\nif (resolveReferences) {\n    const crawlIndex = [];\n    for (const cat of catalogues) {\n        const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n        const catId = cat.uniqueId || cat.catalogId || '';\n        const rootPath = cat.responseRootPath || '';\n        const entries = cat.sourceData ? extractEntries(cat.sourceData, rootPath) : [];\n        for (const entry of entries) {\n            crawlIndex.push({\n                entry,\n                catName, catId,\n                strategy: cat.strategy || 'none',\n                idField: cat.responseAssetIdField || '',\n                nameField: cat.responseAssetNameField || '',\n                typeField: cat.responseAssetTypeField || '',\n                typeMapping: Array.isArray(cat.typeMapping) ? cat.typeMapping : [],\n                crawlOnly: cat._crawlOnly === true\n            });\n        }\n    }\n\n    const MAX_DEPTH = 3;\n    const visitedUris = new Set();\n    const visitedAssetIds = new Set(lcDocs.map(d => d.id));\n\n    const queue = [];\n    for (const lcDoc of lcDocs) {\n        queue.push({ entry: lcDoc.originalForm, lcId: lcDoc.id, depth: 1 });\n    }\n\n    while (queue.length > 0) {\n        const { entry, lcId, depth } = queue.shift();\n        if (depth > MAX_DEPTH) continue;\n        crawlStats.maxDepthReached = Math.max(crawlStats.maxDepthReached, depth);\n\n        const refs = extractReferencesFromEntry(entry);\n        for (const ref of refs) {\n            crawlStats.referencesFound++;\n            if (visitedUris.has(ref.uri)) continue;\n            visitedUris.add(ref.uri);\n\n            const hit = crawlIndex.find(row => entryMatchesUri(row.entry, ref.uri));\n            if (!hit) {\n                crawlStats.unresolved++;\n                provenance.push({\n                    runId, assetId: lcId, action: 'crawl-unresolved',\n                    referenceUri: ref.uri, referenceField: ref.field,\n                    timestamp: nowISO, status: 'warning',\n                    message: 'Reference target not found in any supplied catalogue'\n                });\n                logs.push({\n                    runId, assetId: lcId, level: 'warn',\n                    message: 'Unresolved cross-catalogue reference: ' + ref.uri + ' (field=' + ref.field + ')',\n                    catalogue: '', timestamp: nowISO\n                });\n                continue;\n            }\n\n            assetCounter++;\n            const newAssetId = 'asset-' + runId + '-' + assetCounter;\n            const newLcId = 'lc-' + runId + '-' + assetCounter;\n            if (visitedAssetIds.has(newLcId)) continue;\n            visitedAssetIds.add(newLcId);\n\n            const rawId = extractId(hit.entry, hit.idField);\n            const assetName = extractName(hit.entry, hit.nameField);\n            const assetType = extractType(hit.entry, hit.typeField);\n            const mapRow = hit.typeMapping.find(m => m && m.remoteType === assetType);\n            const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n            const domain = hit.entry.domain || hit.entry.theme || hit.entry.category || hit.catName;\n\n            assetDetails.push({ assetId: newAssetId, title: assetName, catalogue: hit.catName, status: 'success', strategy: hit.strategy, sourceId: rawId, localTypeId: localTypeId, crawled: true });\n            const newLcDoc = {\n                uniqueId: newLcId,\n                id: newLcId,\n                assets: assetName,\n                title: assetName,\n                type: assetType,\n                localTypeId: localTypeId,\n                name: hit.catName,\n                domain: domain,\n                updated: nowShort,\n                integrationStatus: 'Active',\n                sourceCatalogue: hit.catName,\n                sourceCatalogueId: hit.catId,\n                harvestRunId: runId,\n                remoteAssetId: rawId,\n                originalForm: hit.entry,\n                transformedForm: null,\n                sourceAssetId: rawId,\n                harvestedAt: nowISO,\n                createdAt: nowISO,\n                crawledFrom: lcId,\n                crawlDepth: depth,\n                crawlReferenceUri: ref.uri,\n                crawlReferenceField: ref.field\n            };\n            lcDocs.push(newLcDoc);\n            provenance.push({ runId, assetId: newAssetId, title: assetName, catalogue: hit.catName, action: 'crawled', strategy: hit.strategy, timestamp: nowISO, status: 'success', sourceId: rawId, crawledFrom: lcId, crawlDepth: depth });\n            logs.push({ runId, assetId: newAssetId, level: 'info', message: 'Crawled (depth=' + depth + '): ' + assetName + ' from ' + hit.catName + ' (ref=' + ref.uri + ')', catalogue: hit.catName, timestamp: nowISO });\n            crawlStats.crawledAssets++;\n\n            if (depth + 1 <= MAX_DEPTH) {\n                queue.push({ entry: hit.entry, lcId: newLcId, depth: depth + 1 });\n            }\n        }\n    }\n\n    logs.push({ runId, assetId: '', level: 'info', message: 'Crawl complete: ' + crawlStats.crawledAssets + ' assets crawled, ' + crawlStats.unresolved + ' unresolved, max depth ' + crawlStats.maxDepthReached, catalogue: '', timestamp: nowISO });\n}\n// ── /FR-ACM-05 crawl block ───────────────────────────────────────────────────\n\nconst successCount = assetDetails.filter(a => a.status === 'success').length;\nconst errorCount = assetDetails.filter(a => a.status === 'error').length;\n\nconst run = {\n    uniqueId: runId,\n    catalogueName: catNames.filter(n => !catalogues.find(c => c.catalogName === n && c._crawlOnly)).join(', ') || 'Harvest',\n    scope: msg.data?.scope || {},\n    lifecycle: msg.data?.lifecycle || {},\n    status: 'completed',\n    startedAt: nowShort,\n    totalAssets: assetCounter,\n    assetsAdded: successCount,\n    successCount: successCount,\n    errorCount: errorCount,\n    result: errorCount === 0 ? 'Success' : 'Partial',\n    tool: 'Harvester',\n    provenance: provenance,\n    logs: logs,\n    assetIds: lcDocs.map(a => a.id),\n    crawlStats: crawlStats\n};\n\nconst msg1 = { _harvestRun: run, _lcDocs: lcDocs, operation: 'insertOne', collection: 'hv_runs', payload: run, _msgid: msg._msgid, _uib: msg._uib, _socketId: msg._socketId };\nreturn msg1;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -269,6 +307,49 @@
         "name": "insert lc_assets",
         "x": 1340,
         "y": 200,
+        "wires": [
+            [
+                "bb03000000000a10"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000a10",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Build transformation audit records",
+        "func": "const run = msg._harvestRun || {};\nconst docs = msg._lcDocs || [];\nconst now = new Date().toISOString();\nconst auditRows = docs.map(d => ({\n    id: 'ta-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),\n    runId: run.id || '',\n    catalogueId: run.catalogueId || d.catalogueId || '',\n    catalogueName: run.catalogueName || d.catalogueName || '',\n    assetIdRemote: d.remoteId || d.identifier || d.id || '',\n    assetIdLocal: d.id || '',\n    strategy: run.strategy || d.transformationStrategy || 'Deterministic RDF',\n    promptName: run.promptName || '',\n    promptVersion: run.promptVersion || '',\n    namespaces: d.namespaces || '',\n    status: 'success',\n    durationMs: 0,\n    validationResult: 'pass',\n    errorCount: 0,\n    startedAt: run.startedAt || now,\n    completedAt: now\n}));\nif (auditRows.length > 0) {\n    msg._auditRowsWritten = auditRows.length;\n    msg.collection = 'dcm_transformation_audit';\n    msg.operation = 'insertMany';\n    msg.payload = [auditRows];\n    return [msg, null];\n}\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1340,
+        "y": 260,
+        "wires": [
+            [
+                "bb03000000000a11"
+            ],
+            [
+                "bb03000000000026"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000a11",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Insert Transformation Audit",
+        "x": 1560,
+        "y": 260,
         "wires": [
             [
                 "bb03000000000026"
@@ -640,7 +721,7 @@
         "type": "function",
         "z": "bb03000000000000",
         "name": "Resolve API sources",
-        "func": "var catalogues = (msg.data && msg.data.catalogues) ? msg.data.catalogues : [];\nvar queue = [];\n\nfor (var i = 0; i < catalogues.length; i++) {\n    var cat = catalogues[i];\n    if (cat.sourceData) continue;\n\n    var endpoint = cat.baseEndpoint || '';\n    if (!endpoint) continue;\n\n    var authType = cat.auth || 'none';\n\n    if (authType === 'token-login' && cat.authLoginEndpoint) {\n        var body = (cat.authPayloadTemplate || '{\"email\":\"{{username}}\",\"password\":\"{{password}}\"}').replace('{{username}}', cat.authUsername || '').replace('{{password}}', cat.authPassword || '');\n        queue.push({ step: 'login', catIdx: i, url: cat.authLoginEndpoint, hdrs: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: body, tokenPath: cat.authTokenPath || 'token', tokenPrefix: cat.authTokenPrefix || 'Bearer' });\n    }\n\n    var hdrs = { 'Accept': 'application/json', 'Content-Type': 'application/json' };\n    if (authType === 'static-token' && cat.authStaticToken) {\n        hdrs['Authorization'] = (cat.authTokenPrefix || 'Bearer') + ' ' + cat.authStaticToken;\n    } else if (authType === 'api-key' && cat.authApiKey) {\n        hdrs[cat.authApiKeyHeader || 'X-API-Key'] = cat.authApiKey;\n    }\n    queue.push({ step: 'data', catIdx: i, url: endpoint, hdrs: hdrs, body: '', catName: cat.catalogName || '' });\n}\n\nif (queue.length === 0) {\n    return [null, msg];\n}\n\nmsg._fetchQueue = queue;\nmsg._fetchIdx = 0;\nvar first = queue[0];\nmsg.url = first.url;\nmsg.method = 'POST';\nmsg.headers = first.hdrs;\nmsg.payload = first.body || '';\nnode.warn('[harvest] Fetching API: ' + first.url);\nreturn [msg, null];",
+        "func": "// FR-CR-03: consult cr_api_mappings (loaded into msg._apiMappings by prefetch) for by-type harvests; fallback to existing logic if no mapping\nvar catalogues = (msg.data && msg.data.catalogues) ? msg.data.catalogues : [];\nvar queue = [];\n\nfor (var i = 0; i < catalogues.length; i++) {\n    var cat = catalogues[i];\n    if (cat.sourceData) continue;\n\n    var endpoint = cat.baseEndpoint || '';\n    if (!endpoint) continue;\n\n    var authType = cat.auth || 'none';\n\n    if (authType === 'token-login' && cat.authLoginEndpoint) {\n        var body = (cat.authPayloadTemplate || '{\"email\":\"{{username}}\",\"password\":\"{{password}}\"}').replace('{{username}}', cat.authUsername || '').replace('{{password}}', cat.authPassword || '');\n        queue.push({ step: 'login', catIdx: i, url: cat.authLoginEndpoint, hdrs: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: body, tokenPath: cat.authTokenPath || 'token', tokenPrefix: cat.authTokenPrefix || 'Bearer' });\n    }\n\n    var hdrs = { 'Accept': 'application/json', 'Content-Type': 'application/json' };\n    if (authType === 'static-token' && cat.authStaticToken) {\n        hdrs['Authorization'] = (cat.authTokenPrefix || 'Bearer') + ' ' + cat.authStaticToken;\n    } else if (authType === 'api-key' && cat.authApiKey) {\n        hdrs[cat.authApiKeyHeader || 'X-API-Key'] = cat.authApiKey;\n    }\n    // FR-CR-03: if scope is by-type and a mapping exists for (cat.uniqueId, type), use mapped request\n    var scope = (msg.data && msg.data.scope) || {};\n    var typeIds = Array.isArray(scope.types) ? scope.types : [];\n    var mappings = Array.isArray(msg._apiMappings) ? msg._apiMappings : [];\n    var catId = cat.uniqueId || cat.catalogId || cat.id || '';\n    var mapping = null;\n    if (typeIds.length > 0 && mappings.length > 0 && catId) {\n        for (var ti = 0; ti < typeIds.length && !mapping; ti++) {\n            mapping = mappings.find(function(m){ return m.catalogueId === catId && m.localTypeId === typeIds[ti] && (m.status === 'active' || !m.status); });\n        }\n    }\n    if (mapping && mapping.apiRequest) {\n        var apiReq = mapping.apiRequest || {};\n        var base = (endpoint || '').replace(/\\/$/, '');\n        var path = apiReq.pathTemplate || '';\n        var qparams = apiReq.queryParams || {};\n        var qsParts = [];\n        Object.keys(qparams).forEach(function(k){ qsParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(qparams[k])); });\n        var qs = qsParts.join('&');\n        var mappedUrl = base + path + (qs ? (path.indexOf('?') >= 0 ? '&' : '?') + qs : '');\n        var mappedHdrs = Object.assign({}, hdrs, apiReq.headers || {});\n        var mappedMethod = apiReq.method || 'GET';\n        var mappedBody = apiReq.bodyTemplate ? (typeof apiReq.bodyTemplate === 'string' ? apiReq.bodyTemplate : JSON.stringify(apiReq.bodyTemplate)) : '';\n        queue.push({ step: 'data', catIdx: i, url: mappedUrl, hdrs: mappedHdrs, body: mappedBody, method: mappedMethod, catName: cat.catalogName || '', apiMappingId: mapping.uniqueId });\n    } else {\n        queue.push({ step: 'data', catIdx: i, url: endpoint, hdrs: hdrs, body: '', catName: cat.catalogName || '' });\n    }\n}\n\nif (queue.length === 0) {\n    return [null, msg];\n}\n\nmsg._fetchQueue = queue;\nmsg._fetchIdx = 0;\nvar first = queue[0];\nmsg.url = first.url;\nmsg.method = first.method || 'POST';\nmsg.headers = first.hdrs;\nmsg.payload = first.body || '';\nnode.warn('[harvest] Fetching API: ' + first.url);\nreturn [msg, null];",
         "outputs": 2,
         "timeout": 0,
         "noerr": 0,
@@ -716,17 +797,123 @@
         "wires": []
     },
     {
-        "id": "bb03000000000100",
-        "type": "tls-config",
-        "name": "Allow self-signed certs",
-        "cert": "",
-        "key": "",
-        "ca": "",
-        "certname": "",
-        "keyname": "",
-        "caname": "",
-        "servername": "",
-        "verifyservercert": false,
-        "alpnprotocol": ""
+        "id": "bb03000000000h01",
+        "type": "inject",
+        "z": "bb03000000000000",
+        "name": "heartbeat: Harvester",
+        "props": [],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 200,
+        "y": 1900,
+        "wires": [
+            [
+                "bb03000000000h02"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000h02",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "write heartbeat",
+        "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"Harvester\" },\n  { $set: { module: \"Harvester\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
+        "outputs": 1,
+        "x": 420,
+        "y": 1900,
+        "wires": [
+            [
+                "bb03000000000h03"
+            ]
+        ]
+    },
+    {
+        "id": "bb03000000000h03",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "name": "upsert heartbeat",
+        "x": 640,
+        "y": 1900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "cr03m3hdr00001",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "── FR-CR-03: Prefetch cr_api_mappings before fetch loop ──",
+        "info": "",
+        "x": 200,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "cr03m3000010",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Prefetch cr_api_mappings",
+        "func": "// FR-CR-03: load active api mappings once per harvest run; downstream stash into msg._apiMappings\nmsg.collection = 'cr_api_mappings';\nmsg.operation  = 'find';\nmsg.payload    = [{ status: 'active' }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 400,
+        "wires": [
+            [
+                "cr03m3000011"
+            ]
+        ]
+    },
+    {
+        "id": "cr03m3000011",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find Api Mappings",
+        "x": 800,
+        "y": 400,
+        "wires": [
+            [
+                "cr03m3000012"
+            ]
+        ]
+    },
+    {
+        "id": "cr03m3000012",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Stash _apiMappings → Resolve API sources",
+        "func": "msg._apiMappings = Array.isArray(msg.payload) ? msg.payload : [];\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1080,
+        "y": 400,
+        "wires": [
+            [
+                "bb03000000000024"
+            ]
+        ]
     }
 ]

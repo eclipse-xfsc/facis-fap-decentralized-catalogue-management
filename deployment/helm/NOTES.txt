@@ -1,0 +1,13 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+  export APP_HOST=$(kubectl get ingress --namespace {{ include "dcm.namespace" . }} {{ include "dcm.fullname" . }} -o jsonpath='{.spec.rules[0].host}')
+  echo http://$APP_HOST/
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ include "dcm.namespace" . }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "dcm.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ include "dcm.namespace" . }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  echo "Wait for the load balancer IP to be assigned, then access the service on ports {{ .Values.service.ports.app.port }} and {{ .Values.service.ports.http.port }}."
+{{- else }}
+  echo "Use kubectl port-forward -n {{ include \"dcm.namespace\" . }} svc/{{ include \"dcm.fullname\" . }} 1880:{{ .Values.service.ports.app.port }} 8080:{{ .Values.service.ports.http.port }}"
+{{- end }}

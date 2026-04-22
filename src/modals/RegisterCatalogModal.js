@@ -10,8 +10,9 @@ export default {
     updateRemoteCatalogError: { type: String, default: "" },
     isTestingConnection: { type: Boolean, default: false },
     testConnectionResult: { type: Object, default: () => ({ status: "", message: "", latency: 0 }) },
+    assetTypes: { type: Array, default: () => [] },
   },
-  emits: ["close", "save", "test-connection"],
+  emits: ["close", "save", "test-connection", "add-type-mapping", "remove-type-mapping"],
   data() {
     return {
       uploadedJsonFile: null,

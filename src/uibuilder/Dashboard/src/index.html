@@ -1928,7 +1928,7 @@
                     </div>
 
                     <div class="note-section" style="margin-top:16px;">
-                      <strong>Multi-Model Provider Support (FR-SR-12):</strong>
+                      <strong>Multi-Model Provider Support</strong>
                       Configure multiple LLM providers (OpenAI, Anthropic, Ollama, custom). Providers can be assigned per-prompt, per-catalogue, or globally via precedence order.
                     </div>
 
@@ -1976,7 +1976,7 @@
                     </div>
 
                     <div class="note-section" style="margin-top:16px;">
-                      <strong>Batch Re-transformation (FR-SR-13):</strong>
+                      <strong>Batch Re-transformation</strong>
                       Trigger re-transformation when a strategy, prompt, or LLM configuration changes. Supports scoped execution, dry-run mode, progress tracking, and cancellation.
                     </div>
 
@@ -2424,7 +2424,7 @@
                                 
                                 </svg>
                                 <div class="content-status-right">
-                                    <span  class="status-number">54</span>
+                                    <span  class="status-number">{{ harvesterOverviewStats.remoteCataloguesCount }}</span>
                                     <span class="status-detail">Remote Catalogue</span>
                                 </div>
                             </div>
@@ -2439,7 +2439,7 @@
                                 
                                 </svg>
                                 <div class="content-status-right">
-                                    <span  class="status-number">243</span>
+                                    <span  class="status-number">{{ harvesterOverviewStats.newAssetsCount }}</span>
                                     <span class="status-detail">New Assets</span>
                                 </div>
                             </div>
@@ -2454,7 +2454,7 @@
                                 
                                 </svg>
                                 <div class="content-status-right">
-                                    <span  class="status-number">23</span>
+                                    <span  class="status-number">{{ harvesterOverviewStats.errorsCount }}</span>
                                     <span class="status-detail">Errors</span>
                                 </div>
                             </div>
@@ -4079,7 +4079,7 @@
       </teleport>
     </template>
 
-    <!-- uibuilder client library — auto-served by the uibuilder node in Node-RED.
+    <!-- uibuilder client library — auto-served by the uibuilder node in ORCE.
          In preview/dev mode this 404s harmlessly, and the mock adapter activates. -->
     <script src="../uibuilder/uibuilder.iife.min.js"></script>
     <script src="index.js"></script>
