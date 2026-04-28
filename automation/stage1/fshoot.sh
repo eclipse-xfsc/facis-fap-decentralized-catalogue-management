@@ -3,6 +3,14 @@ set -Eeuo pipefail
 
 export ENGINE="https://ionos.facis.cloud/enginedcm"
 
+ENGINE_TOKEN="$(
+  curl -sS -k --http1.1 -X POST "${ENGINE}/auth/token" \
+    -H "Content-Type: application/json" \
+    -d "{\"client_id\":\"node-red-admin\",\"grant_type\":\"password\",\"scope\":\"*\",\"username\":\"${ENGINE_USERNAME}\",\"password\":\"${ENGINE_PASSWORD}\"}" \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'
+)"
+test -n "${ENGINE_TOKEN}"
+
 export DEST_URL="${ENGINE}/backendtest"
 
 cd ../..
@@ -73,6 +81,7 @@ esac
 
 
 curl -k -X POST "${ENGINE}/flows" \
+    -H "Authorization: Bearer ${ENGINE_TOKEN}" \
     -H "Content-Type: application/json" \
     --data @backend/src/full_assembled_out_flow.json
 
