@@ -125,7 +125,7 @@
         "type": "mongodb4-client",
         "name": "",
         "protocol": "mongodb+srv",
-        "hostname": "db-mongodb-leanea-f9f0367b.mongo.ondigitalocean.com",
+        "hostname": "",
         "port": "",
         "dbName": "PartnerOnboarding",
         "appName": "",
