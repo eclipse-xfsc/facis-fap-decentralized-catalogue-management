@@ -142,6 +142,7 @@ http://localhost:8080  # FileBrowser
 ```
 
 The default username/password for the BackEnd management is `admin`/`xfsc-orce`.
+
 The default username/password for the UI is `admin`/`facis-dcm`.
 
 ---
