@@ -19,6 +19,9 @@ jobs:
       - name: Update Engine
         shell: bash
         working-directory: automation/stage1
+        env:
+          ENGINE_USERNAME: ${{ secrets.ENGINE_USERNAME }}
+          ENGINE_PASSWORD: ${{ secrets.ENGINE_PASSWORD }}
         run: |
           set -euo pipefail
           chmod +x fshoot.sh
