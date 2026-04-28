@@ -130,7 +130,7 @@ This is the recommended path for any new installation. The stack consists ORCE (
 For easy setup you have to run this command to bring up a docker container:
 
 ```bash
-docker run -d -p 1880:1880 -p 8080:8080 ecofacis/dcm:v1
+docker run -d -p 1880:1880 -p 8080:8080 ecofacis/dcm:v2.1
 ```
 
 Then your instance is ready at: 
@@ -142,6 +142,7 @@ http://localhost:8080  # FileBrowser
 ```
 
 The default username/password for the BackEnd management is `admin`/`xfsc-orce`.
+The default username/password for the UI is `admin`/`facis-dcm`.
 
 ---
 
