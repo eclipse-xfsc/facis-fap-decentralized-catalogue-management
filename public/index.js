@@ -148,6 +148,7 @@
     listUsers: "admin-tools",
     getUserDetail: "admin-tools",
     updateUser: "admin-tools",
+    updateUserPassword: "admin-tools",
     deleteUser: "admin-tools",
     listRoles: "admin-tools",
     createRole: "admin-tools",
@@ -191,6 +192,7 @@
     pauseHarvest: "harvest",
     resumeHarvest: "harvest",
     cancelHarvest: "harvest",
+    clearHarvestHistory: "harvest",
     // Schema Registry
     listPrompts: "schema-registry",
     createPrompt: "schema-registry",
@@ -1030,7 +1032,7 @@
       return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     }
     const schemaStubs = {
-      enhancePrompt: (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode \u2014 connect ORCE backend for real AI enhancement]" }),
+      enhancePrompt: (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode \u2014 connect Node-RED backend for real AI enhancement]" }),
       createPrompt: (d) => {
         const id2 = mockId("prompt-");
         const ts = now();
@@ -1127,8 +1129,8 @@
       getSystemSettings: () => ({ action: "getSystemSettings", ok: true, status: "success", settings: {} }),
       setSystemSetting: (d) => ({ action: "setSystemSetting", ok: true, status: "success", key: d.key, value: d.value }),
       saveRdfMappingConfig: (d) => ({ action: "saveRdfMappingConfig", success: true, mappingId: d.mappingId, namespacesToPreserve: d.namespacesToPreserve || [], shaclShapeSchemaId: d.shaclShapeSchemaId || "" }),
-      testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode \u2014 RDF execution runs in ORCE backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
-      executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode \u2014 Hybrid execution runs in ORCE backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: (/* @__PURE__ */ new Date()).toISOString(), completedAt: (/* @__PURE__ */ new Date()).toISOString() } }),
+      testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode \u2014 RDF execution runs in Node-RED backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
+      executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode \u2014 Hybrid execution runs in Node-RED backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: (/* @__PURE__ */ new Date()).toISOString(), completedAt: (/* @__PURE__ */ new Date()).toISOString() } }),
       listTransformationAudit: () => ({ action: "listTransformationAudit", ok: true, status: "success", rows: [], total: 0 }),
       exportTransformationAudit: (d) => ({ action: "exportTransformationAudit", ok: true, status: "success", format: d.format || "csv", base64Payload: "", filename: "audit_export." + (d.format || "csv") }),
       listLlmConfigs: () => ({ action: "listLlmConfigs", status: "success", configs: [
@@ -26302,6 +26304,8 @@
       // Edit user modal
       isEditUserModal: false,
       isSavingUser: false,
+      userEditPasswordSaving: false,
+      userEditPasswordError: "",
       editUserForm: {
         userId: "",
         username: "",
@@ -26695,6 +26699,8 @@ ex:publisher a ex:Property .`,
       dcmRoles: [],
       // Role definitions from dcm_roles collection
       harvestRecords: [],
+      showClearHarvestHistoryModal: false,
+      clearHarvestHistoryRunning: false,
       mappingRows: [],
       // Resize
       resizeTimer: null,
@@ -27094,6 +27100,8 @@ ex:publisher a ex:Property .`,
     template: "#tpl-view-modal",
     props: {
       visible: { type: Boolean, default: false },
+      assetDetailRow: { type: Object, default: null },
+      mappingRows: { type: Array, default: () => [] },
       currentViewTab: { type: String, default: "Overview" },
       transformationSummary: { type: Array, default: () => [] },
       validation: { type: Object, default: () => ({}) },
@@ -27105,6 +27113,11 @@ ex:publisher a ex:Property .`,
       localJsonLines: { type: Array, default: () => [] },
       viewingForm: { type: String, default: "both" },
       linkedAssets: { type: Object, default: null }
+    },
+    data() {
+      return {
+        referenceSearch: ""
+      };
     },
     emits: [
       "close",
@@ -27170,6 +27183,80 @@ ex:publisher a ex:Property .`,
       hasActiveFilters() {
         const f = this.auditFilters || {};
         return !!(f.assetId || f.catalogueId || f.promptVersion || f.status || f.dateFrom || f.dateTo);
+      },
+      // ── v42: asset detail computeds ──
+      assetDetailMappingLabel() {
+        const r = this.assetDetailRow || {};
+        const id2 = r.transformedByMappingId;
+        if (id2 && Array.isArray(this.mappingRows)) {
+          const m = this.mappingRows.find((x) => x && x.id === id2);
+          if (m && m.transformationStrategy) return m.transformationStrategy;
+        }
+        return r.transformationStrategy || (r.transformedForm ? "Applied" : "\u2014");
+      },
+      assetDetailMappingStatus() {
+        const r = this.assetDetailRow || {};
+        if (r.transformedForm) return "Success";
+        if (r.transformError) return "Error";
+        return "Pending";
+      },
+      assetDetailDescription() {
+        const r = this.assetDetailRow || {};
+        const tf = r.transformedForm || {};
+        return tf.description || tf["dct:description"] || r.description || "No description available";
+      },
+      assetDetailProvider() {
+        const r = this.assetDetailRow || {};
+        const tf = r.transformedForm || {};
+        return tf.legalName || tf.provider || tf.publisher || r.provider || r.sourceCatalogue || "\u2014";
+      },
+      assetDetailTags() {
+        const r = this.assetDetailRow || {};
+        if (Array.isArray(r.tags) && r.tags.length) return r.tags;
+        if (Array.isArray(r.keywords) && r.keywords.length) return r.keywords;
+        if (r.domain) return [String(r.domain).toLowerCase().replace(/\s+/g, "-")];
+        return [];
+      },
+      assetDetailHarvestScope() {
+        const r = this.assetDetailRow || {};
+        const parts = [];
+        if (r.type) parts.push("type=" + r.type);
+        if (r.domain) parts.push("domain=" + r.domain);
+        return parts.length ? parts.join(" AND ") : "\u2014";
+      },
+      assetDetailHarvestTrigger() {
+        const r = this.assetDetailRow || {};
+        return r.harvestTrigger || (r.harvestRunId ? "Manual" : "\u2014");
+      },
+      assetDetailHarvestType() {
+        const r = this.assetDetailRow || {};
+        return r.harvestType || (r.crawledFrom ? "Crawl-resolved" : "Full");
+      },
+      assetDetailErrorRows() {
+        const r = this.assetDetailRow || {};
+        if (Array.isArray(r.errors)) return r.errors;
+        if (Array.isArray(r.logs)) return r.logs.filter((l) => l && (l.level === "error" || l.level === "warn"));
+        return [];
+      },
+      assetDetailReferences() {
+        const r = this.assetDetailRow || {};
+        if (Array.isArray(r.references)) return r.references;
+        if (Array.isArray(r.crawlReferences)) return r.crawlReferences;
+        return [];
+      },
+      filteredAssetReferences() {
+        const q = (this.referenceSearch || "").trim().toLowerCase();
+        const list = this.assetDetailReferences || [];
+        if (!q) return list;
+        return list.filter(
+          (ref) => Object.values(ref || {}).some((v) => v && String(v).toLowerCase().includes(q))
+        );
+      },
+      assetDetailRefStats() {
+        const list = this.assetDetailReferences || [];
+        const resolved = list.filter((r) => r && r.resolved === true).length;
+        const unresolved = list.filter((r) => r && r.resolved !== true).length;
+        return { resolved, unresolved };
       }
     },
     methods: {
@@ -27180,6 +27267,33 @@ ex:publisher a ex:Property .`,
       },
       exportAudit(format) {
         this.$emit("export-audit", format);
+      },
+      // ── v42: asset detail methods ──
+      openHarvestRunAudit(runId) {
+        if (!runId) return;
+        this.$emit("open-harvest-run-audit", runId);
+      },
+      openErrorLog(err) {
+        try {
+          navigator.clipboard.writeText(JSON.stringify(err || {}, null, 2));
+        } catch (_) {
+        }
+        this.$emit("open-error-log", err);
+      },
+      exportReferences() {
+        const rows = this.assetDetailReferences || [];
+        const csv = ["Type,URI,Resolved,SourceCatalogue,TargetCatalogue"].concat(
+          rows.map((r) => [r.type, r.uri || r.url, r.resolved, r.sourceCatalogue, r.targetCatalogue].map((v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"').join(","))
+        ).join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "references.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
     }
   };
@@ -27211,9 +27325,34 @@ ex:publisher a ex:Property .`,
       visible: { type: Boolean, default: false },
       editUserForm: { type: Object, required: true },
       loading: { type: Boolean, default: false },
-      canSave: { type: Boolean, default: false }
+      canSave: { type: Boolean, default: false },
+      passwordSaving: { type: Boolean, default: false },
+      passwordError: { type: String, default: "" }
     },
-    emits: ["close", "save-user"],
+    emits: ["close", "save-user", "save-password"],
+    data() {
+      return {
+        setNewPasswordOpen: false,
+        userEditPasswordForm: { password: "", confirm: "" },
+        userEditPasswordError: ""
+      };
+    },
+    watch: {
+      visible(v) {
+        if (!v) {
+          this.setNewPasswordOpen = false;
+          this.userEditPasswordForm = { password: "", confirm: "" };
+          this.userEditPasswordError = "";
+        }
+      },
+      passwordSaving(v, prev) {
+        if (prev && !v && !this.passwordError) {
+          this.setNewPasswordOpen = false;
+          this.userEditPasswordForm = { password: "", confirm: "" };
+          this.userEditPasswordError = "";
+        }
+      }
+    },
     computed: {
       accessLabel() {
         const areas = this.editUserForm.accessAreas || [];
@@ -27222,6 +27361,28 @@ ex:publisher a ex:Property .`,
         const labelMap = { localCatalogue: "Local Catalogue", catalogueRegistry: "Catalogue Registry", schemaRegistry: "Schema Registry", adminTools: "Admin Tools", harvest: "Harvest" };
         const order = ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"];
         return order.filter((a) => areas.includes(a)).map((a) => labelMap[a]).join(" + ") || "No Access";
+      }
+    },
+    methods: {
+      toggleSetNewPassword() {
+        this.setNewPasswordOpen = !this.setNewPasswordOpen;
+        if (!this.setNewPasswordOpen) {
+          this.userEditPasswordForm = { password: "", confirm: "" };
+          this.userEditPasswordError = "";
+        }
+      },
+      submitUpdateUserPassword() {
+        const f = this.userEditPasswordForm || {};
+        if (!f.password || f.password.length < 8) {
+          this.userEditPasswordError = "Password must be at least 8 characters.";
+          return;
+        }
+        if (f.password !== f.confirm) {
+          this.userEditPasswordError = "Passwords do not match.";
+          return;
+        }
+        this.userEditPasswordError = "";
+        this.$emit("save-password", { password: f.password });
       }
     }
   };
@@ -28532,6 +28693,27 @@ ex:publisher a ex:Property .`,
           }
         });
       },
+      submitUpdateUserPassword(payload) {
+        if (this.userEditPasswordSaving) return;
+        const password = payload && payload.password || "";
+        const raw = toRaw(this.editUserForm) || {};
+        if (!raw.userId && !raw.username) {
+          this.userEditPasswordError = "No user selected.";
+          return;
+        }
+        this.userEditPasswordError = "";
+        this.userEditPasswordSaving = true;
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({
+          type: "updateUserPassword",
+          auth,
+          data: {
+            userId: raw.userId,
+            username: raw.username,
+            password
+          }
+        });
+      },
       // ── Create User ──────────────────────────────────────────
       closeCreateUserModal() {
         this.isCreateUserModal = false;
@@ -29634,7 +29816,11 @@ ex:publisher a ex:Property .`,
           remoteSchemaMeta: "",
           transformationStrategy: "Deterministic RDF",
           promptsCount: 0,
-          shaclCount: 0
+          shaclCount: 0,
+          fieldMappings: [],
+          targetClass: "",
+          jsonLdContext: "",
+          promptId: ""
         };
         this.showAddMappingModal = true;
       },
@@ -29649,7 +29835,11 @@ ex:publisher a ex:Property .`,
           ...this.addMappingForm,
           remoteCatalogue: cat?.catalogName || this.addMappingForm.remoteCatalogueId,
           remoteSchema: rs ? rs.name + " " + rs.version : this.addMappingForm.remoteSchemaId,
-          localSchema: this.addMappingForm.localSchemaId
+          localSchema: this.addMappingForm.localSchemaId,
+          fieldMappings: Array.isArray(this.addMappingForm.fieldMappings) ? this.addMappingForm.fieldMappings : [],
+          targetClass: this.addMappingForm.targetClass || "",
+          jsonLdContext: this.addMappingForm.jsonLdContext || "",
+          promptId: this.addMappingForm.promptId || ""
         };
         if (this.isEditingMapping && this.editingMappingId != null) {
           data.id = this.editingMappingId;
@@ -29663,9 +29853,26 @@ ex:publisher a ex:Property .`,
       },
       // ── Mapping View/Edit Detail (Milestone 2) ────────────────
       openMappingViewEdit(row) {
-        this.mappingDetailRow = { ...row };
+        this.mappingDetailRow = {
+          ...row,
+          fieldMappings: Array.isArray(row.fieldMappings) ? row.fieldMappings : [],
+          targetClass: row.targetClass || "",
+          jsonLdContext: row.jsonLdContext || "",
+          promptId: row.promptId || ""
+        };
         this.isEditingMappingDetail = false;
         this.showMappingDetailPanel = true;
+      },
+      addFieldMappingRow() {
+        if (!this.mappingDetailRow) return;
+        if (!Array.isArray(this.mappingDetailRow.fieldMappings)) {
+          this.mappingDetailRow.fieldMappings = [];
+        }
+        this.mappingDetailRow.fieldMappings.push({ from: "", to: "", transform: "" });
+      },
+      removeFieldMappingRow(i) {
+        if (!this.mappingDetailRow || !Array.isArray(this.mappingDetailRow.fieldMappings)) return;
+        this.mappingDetailRow.fieldMappings.splice(i, 1);
       },
       closeMappingDetail() {
         this.showMappingDetailPanel = false;
@@ -29674,12 +29881,23 @@ ex:publisher a ex:Property .`,
       },
       startEditMappingDetail() {
         if (!this.mappingDetailRow) return;
+        const r = this.mappingDetailRow;
         this.mappingDetailEditForm = {
-          remoteCatalogue: this.mappingDetailRow.remoteCatalogue,
-          remoteSchema: this.mappingDetailRow.remoteSchema,
-          localSchema: this.mappingDetailRow.localSchema || "",
-          remoteSchemaMeta: this.mappingDetailRow.remoteSchemaMeta,
-          transformationStrategy: this.mappingDetailRow.transformationStrategy
+          remoteCatalogueId: r.remoteCatalogueId || "",
+          remoteSchemaId: r.remoteSchemaId || "",
+          remoteCatalogue: r.remoteCatalogue || "",
+          remoteSchema: r.remoteSchema || "",
+          localSchema: r.localSchema || "",
+          remoteSchemaMeta: r.remoteSchemaMeta || "",
+          transformationStrategy: r.transformationStrategy || "Deterministic RDF",
+          promptsCount: r.promptsCount || 0,
+          shaclCount: r.shaclCount || 0,
+          namespacesToPreserve: Array.isArray(r.namespacesToPreserve) ? [...r.namespacesToPreserve] : [],
+          shaclShapeSchemaId: r.shaclShapeSchemaId || "",
+          fieldMappings: Array.isArray(r.fieldMappings) ? r.fieldMappings.map((x) => ({ ...x })) : [],
+          targetClass: r.targetClass || "",
+          jsonLdContext: r.jsonLdContext || "",
+          promptId: r.promptId || ""
         };
         this.isEditingMappingDetail = true;
       },
@@ -29688,7 +29906,15 @@ ex:publisher a ex:Property .`,
       },
       saveEditMappingDetail() {
         if (!this.mappingDetailRow) return;
-        const data = { id: this.mappingDetailRow.id, ...this.mappingDetailEditForm };
+        const merged = {
+          ...this.mappingDetailRow,
+          ...this.mappingDetailEditForm,
+          fieldMappings: Array.isArray(this.mappingDetailRow.fieldMappings) ? this.mappingDetailRow.fieldMappings : this.mappingDetailEditForm.fieldMappings || [],
+          targetClass: this.mappingDetailRow.targetClass || this.mappingDetailEditForm.targetClass || "",
+          jsonLdContext: this.mappingDetailRow.jsonLdContext || this.mappingDetailEditForm.jsonLdContext || "",
+          promptId: this.mappingDetailEditForm.promptId || this.mappingDetailRow.promptId || ""
+        };
+        const data = { id: this.mappingDetailRow.id, ...merged };
         uibuilderService.send({
           type: "saveMapping",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
@@ -29923,7 +30149,7 @@ ex:publisher a ex:Property .`,
         this._harvestTimeout = setTimeout(() => {
           if (this.isSubmittingHarvest) {
             this.isSubmittingHarvest = false;
-            this.addToast("error", "Harvest request timed out \u2014 no response from backend. Check ORCE logs.");
+            this.addToast("error", "Harvest request timed out \u2014 no response from backend. Check Node-RED logs.");
           }
         }, 3e4);
         uibuilderService.send({
@@ -29998,6 +30224,21 @@ ex:publisher a ex:Property .`,
         uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
         uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
         uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
+      },
+      openClearHarvestHistoryModal() {
+        this.showClearHarvestHistoryModal = true;
+      },
+      closeClearHarvestHistoryModal() {
+        if (this.clearHarvestHistoryRunning) return;
+        this.showClearHarvestHistoryModal = false;
+      },
+      confirmClearHarvestHistory() {
+        this.clearHarvestHistoryRunning = true;
+        uibuilderService.send({
+          type: "clearHarvestHistory",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {}
+        });
       },
       // ── Utility ─────────────────────────────────────────────────
       formatRelativeDate(isoStr) {
@@ -30473,6 +30714,20 @@ ex:publisher a ex:Property .`,
             this.loadHarvestData();
           }
         }
+        if (resp?.action === "clearHarvestHistory" && resp?.status === "success") {
+          this.clearHarvestHistoryRunning = false;
+          this.showClearHarvestHistoryModal = false;
+          this.harvestRecords = [];
+          this.harvestProgress = null;
+          uibuilderService.send({
+            type: "listHarvestRuns",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+          });
+          this.addToast && this.addToast(
+            "success",
+            "Harvest history cleared (" + (resp.runsDeleted || 0) + " runs, " + (resp.auditDeleted || 0) + " audit rows)."
+          );
+        }
         if (resp?.action === "listHarvestRuns" && resp?.status === "success") {
           const runs = Array.isArray(resp.runs) ? resp.runs : [];
           this.harvestRecords = runs.map((r) => ({
@@ -30631,6 +30886,20 @@ ex:publisher a ex:Property .`,
             this.editUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
           } else {
             this.addToast("error", resp.message || resp.reason || "Failed to update user: " + resp.error);
+          }
+        }
+        if (resp?.action === "updateUserPassword") {
+          this.userEditPasswordSaving = false;
+          if (resp.ok || resp.status === "success") {
+            this.userEditPasswordError = "";
+            this.addToast && this.addToast(
+              "success",
+              "Password updated. " + (resp.sessionsRevoked || 0) + " active session(s) revoked."
+            );
+          } else {
+            const m = resp.error === "validation" ? resp.reason || "Validation failed." : resp.error === "user_not_found" ? "User not found." : resp.error === "missing_userId" ? "Missing user identifier." : resp.message || "Password update failed.";
+            this.userEditPasswordError = m;
+            this.addToast && this.addToast("error", m);
           }
         }
         if (resp?.action === "getMonitoringOverview") {

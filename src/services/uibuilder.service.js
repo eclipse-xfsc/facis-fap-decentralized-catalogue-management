@@ -1,6 +1,6 @@
 /**
  * FACIS service adapter
- * - Uses real window.uibuilder when available (ORCE)
+ * - Uses real window.uibuilder when available (Node-RED)
  * - Falls back to a mock that prevents errors and feeds sample data (FACIS Preview)
  */
 
@@ -135,7 +135,7 @@ function _saveCatalogs() {
 let mockCatalogs = _loadCatalogs();
 
 // ── Route resolution map ────────────────────────────────────────
-// Maps each msg.type to a route key used by the ORCE router switch.
+// Maps each msg.type to a route key used by the Node-RED router switch.
 // Add new entries here when introducing new message types.
 const ROUTE_MAP = {
   // Dashboard / Auth
@@ -150,6 +150,7 @@ const ROUTE_MAP = {
   listUsers:              'admin-tools',
   getUserDetail:          'admin-tools',
   updateUser:             'admin-tools',
+  updateUserPassword:     'admin-tools',
   deleteUser:             'admin-tools',
   listRoles:              'admin-tools',
   createRole:             'admin-tools',
@@ -197,6 +198,7 @@ const ROUTE_MAP = {
   pauseHarvest:           'harvest',
   resumeHarvest:          'harvest',
   cancelHarvest:          'harvest',
+  clearHarvestHistory:    'harvest',
 
   // Schema Registry
   listPrompts:            'schema-registry',
@@ -1050,7 +1052,7 @@ function createMockResponder(msg) {
   // ── Schema Registry Stub Responses ──────────────────────────
   // These are thin stubs only — no business logic, no code execution,
   // no ID generation, no simulation. All real processing happens in the
-  // ORCE backend flow (DCM-SchemaRegistry.json).
+  // Node-RED backend flow (DCM-SchemaRegistry.json).
   // In preview mode these stubs return acknowledgements so the UI doesn't hang.
 
   // Helper: generate a unique short ID for mock/preview mode
@@ -1060,7 +1062,7 @@ function createMockResponder(msg) {
   function now() { return new Date().toISOString().slice(0, 10); }
 
   const schemaStubs = {
-    enhancePrompt:          (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode — connect ORCE backend for real AI enhancement]" }),
+    enhancePrompt:          (d) => ({ action: "enhancePrompt", status: "success", enhancedPrompt: (d.rawPrompt || d.template || "") + "\n\n[Enhanced in preview mode — connect Node-RED backend for real AI enhancement]" }),
     createPrompt:           (d) => {
       const id = mockId("prompt-");
       const ts = now();
@@ -1154,8 +1156,8 @@ function createMockResponder(msg) {
     getSystemSettings: () => ({ action: "getSystemSettings", ok: true, status: "success", settings: {} }),
     setSystemSetting: (d) => ({ action: "setSystemSetting", ok: true, status: "success", key: d.key, value: d.value }),
     saveRdfMappingConfig: (d) => ({ action: "saveRdfMappingConfig", success: true, mappingId: d.mappingId, namespacesToPreserve: d.namespacesToPreserve || [], shaclShapeSchemaId: d.shaclShapeSchemaId || "" }),
-    testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode — RDF execution runs in ORCE backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
-    executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode — Hybrid execution runs in ORCE backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: new Date().toISOString(), completedAt: new Date().toISOString() } }),
+    testRdfMapping: (d) => ({ action: "testRdfMapping", success: true, result: { output: "(preview mode — RDF execution runs in Node-RED backend)", retainedCount: 0, discardedCount: 0, totalTriples: 0, shaclResult: null, retainedTriples: [], discardedTriples: [] } }),
+    executeHybridTransform: (d) => ({ action: "executeHybridTransform", ok: true, phase: "deterministic", fallbackTriggered: false, result: { output: "(preview mode — Hybrid execution runs in Node-RED backend)", retainedCount: 0, totalTriples: 0, success: true }, timing: { startedAt: new Date().toISOString(), completedAt: new Date().toISOString() } }),
     listTransformationAudit: () => ({ action: "listTransformationAudit", ok: true, status: "success", rows: [], total: 0 }),
     exportTransformationAudit: (d) => ({ action: "exportTransformationAudit", ok: true, status: "success", format: d.format || "csv", base64Payload: "", filename: "audit_export." + (d.format || "csv") }),
     listLlmConfigs:         () => ({ action: "listLlmConfigs", status: "success", configs: [

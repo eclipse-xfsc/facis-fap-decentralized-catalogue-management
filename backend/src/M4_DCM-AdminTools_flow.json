@@ -12,7 +12,7 @@
         "type": "mongodb4-client",
         "name": "",
         "protocol": "mongodb+srv",
-        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "hostname": "db-mongodb-leanea-f9f0367b.mongo.ondigitalocean.com",
         "port": "",
         "dbName": "PartnerOnboarding",
         "appName": "",
@@ -62,7 +62,7 @@
         "type": "function",
         "z": "cc04000000000000",
         "name": "permission gate: prepare session lookup",
-        "func": "// Extract session token from msg\nconst token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || '';\nconst handlerType = msg.type || '';\n\n// Write operations table for this module\nmsg._writeOps = {\n    'listUsers':           ['users','read'],\n    'getUserDetail':       ['users','read'],\n    'getAdminTools':       ['users','read'],\n    'createUser':          ['users','create'],\n    'updateUser':          ['users','update'],\n    'deleteUser':          ['users','delete'],\n    'listRoles':           ['roles','read'],\n    'createRole':          ['roles','create'],\n    'updateRole':          ['roles','update'],\n    'deleteRole':          ['roles','delete'],\n    'listAudit':           ['audit','read'],\n    'getMonitoringOverview': ['audit','read']\n};\nmsg._handlerType = handlerType;\nmsg._sessionToken = token;\n\nif (!token) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Not authenticated' } };\n    return [null, msg];\n}\n\nmsg.collection = 'auth_sessions';\nmsg.operation = 'findOne';\nmsg.payload = { token: token };\nreturn [msg, null];",
+        "func": "// Extract session token from msg\nconst token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || '';\nconst handlerType = msg.type || '';\n\n// Write operations table for this module\nmsg._writeOps = {\n    'listUsers':           ['users','read'],\n    'getUserDetail':       ['users','read'],\n    'getAdminTools':       ['users','read'],\n    'createUser':          ['users','create'],\n    'updateUser':          ['users','update'],\n    'updateUserPassword':  ['users','update'],\n    'deleteUser':          ['users','delete'],\n    'listRoles':           ['roles','read'],\n    'createRole':          ['roles','create'],\n    'updateRole':          ['roles','update'],\n    'deleteRole':          ['roles','delete'],\n    'listAudit':           ['audit','read'],\n    'getMonitoringOverview': ['audit','read']\n};\nmsg._handlerType = handlerType;\nmsg._sessionToken = token;\n\nif (!token) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Not authenticated' } };\n    return [null, msg];\n}\n\nmsg.collection = 'auth_sessions';\nmsg.operation = 'findOne';\nmsg.payload = { token: token };\nreturn [msg, null];",
         "outputs": 2,
         "x": 390,
         "y": 200,
@@ -298,11 +298,16 @@
                 "t": "eq",
                 "v": "getMonitoringOverview",
                 "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateUserPassword",
+                "vt": "str"
             }
         ],
         "checkall": "false",
         "repair": false,
-        "outputs": 12,
+        "outputs": 13,
         "x": 370,
         "y": 500,
         "wires": [
@@ -341,6 +346,9 @@
             ],
             [
                 "cc04000000000500"
+            ],
+            [
+                "pw50m4000010"
             ]
         ]
     },
@@ -1537,6 +1545,206 @@
         "y": 1900,
         "wires": [
             []
+        ]
+    },
+    {
+        "id": "pw50m4000001",
+        "type": "comment",
+        "z": "cc04000000000000",
+        "name": "── FR-AC-04: Update User Password ──",
+        "x": 220,
+        "y": 1500,
+        "wires": []
+    },
+    {
+        "id": "pw50m4000010",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: validate + find",
+        "func": "var input = (msg.data && typeof msg.data === 'object' && msg.data) || (msg.payload && msg.payload.data) || {};\nvar userId = input.userId || input.uniqueId;\nvar username = input.username;\nvar pw = String(input.password || '');\nif (!userId && !username) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'missing_userId' } };\n    return [null, msg];\n}\nif (pw.length < 8) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'validation', field: 'password', reason: 'Password must be at least 8 characters' } };\n    return [null, msg];\n}\nmsg._pwInput = { userId: userId, username: username, password: pw };\nmsg.collection = 'dcm_users';\nmsg.operation  = 'findOne';\nmsg.payload    = username ? { username: username } : { _id: userId };\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000011"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000011",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: findOne dcm_users",
+        "x": 820,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000020"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000020",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: hash + updateOne auth_users",
+        "func": "var existing = msg.payload;\nif (!existing || (Array.isArray(existing) && existing.length === 0)) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'user_not_found' } };\n    return [null, msg];\n}\nvar user = Array.isArray(existing) ? existing[0] : existing;\nmsg._pwUser = user;\nvar hash = bcrypt.hashSync(msg._pwInput.password, 10);\nmsg.collection = 'auth_users';\nmsg.operation  = 'updateOne';\nmsg.payload    = [\n    { username: user.username },\n    { $set: { passwordHash: hash, passwordUpdatedAt: new Date().toISOString() } },\n    { upsert: true }\n];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "bcrypt",
+                "module": "bcryptjs"
+            }
+        ],
+        "x": 1100,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000021"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000021",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: updateOne auth_users",
+        "x": 1380,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000030"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000030",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: deleteMany sessions",
+        "func": "var user = msg._pwUser;\nmsg.collection = 'auth_sessions';\nmsg.operation  = 'deleteMany';\nmsg.payload    = { $or: [ { userId: String(user._id) }, { username: user.username } ] };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000031"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000031",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: deleteMany auth_sessions",
+        "x": 820,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000040"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000040",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: insert audit",
+        "func": "var user = msg._pwUser;\nvar r = msg.payload;\nvar sessionsRevoked = 0;\nif (r && typeof r === 'object') {\n    if (typeof r.deletedCount === 'number') sessionsRevoked = r.deletedCount;\n    else if (Array.isArray(r) && r[0] && typeof r[0].deletedCount === 'number') sessionsRevoked = r[0].deletedCount;\n}\nmsg._pwSessionsRevoked = sessionsRevoked;\nmsg.collection = 'dcm_audit_log';\nmsg.operation  = 'insertOne';\nmsg.payload    = {\n    timestamp: new Date().toISOString(),\n    actor: msg._callerUsername || 'system',\n    area: 'users',\n    action: 'updateUserPassword',\n    target: user.username,\n    payload: { sessionsRevoked: sessionsRevoked },\n    result: 'ok'\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000041"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000041",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: insert audit (password)",
+        "x": 1380,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000050"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000050",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "response: updateUserPassword",
+        "func": "var user = msg._pwUser;\nmsg.payload = { response: {\n    action: 'updateUserPassword',\n    ok: true,\n    status: 'success',\n    user: { uniqueId: String(user._id), username: user.username },\n    sessionsRevoked: msg._pwSessionsRevoked || 0\n}};\ndelete msg._pwInput;\ndelete msg._pwUser;\ndelete msg._pwSessionsRevoked;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1620,
+        "y": 1620,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
         ]
     }
 ]

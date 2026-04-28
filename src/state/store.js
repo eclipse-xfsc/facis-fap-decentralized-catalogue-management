@@ -57,6 +57,8 @@ export function createStoreData() {
     // Edit user modal
     isEditUserModal: false,
     isSavingUser: false,
+    userEditPasswordSaving: false,
+    userEditPasswordError: "",
     editUserForm: {
       userId: "",
       username: "",
@@ -473,6 +475,9 @@ ex:publisher a ex:Property .`,
     dcmRoles: [],  // Role definitions from dcm_roles collection
 
     harvestRecords: [],
+
+    showClearHarvestHistoryModal: false,
+    clearHarvestHistoryRunning: false,
 
     mappingRows: [],
 

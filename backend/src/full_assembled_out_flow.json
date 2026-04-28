@@ -125,7 +125,7 @@
         "type": "mongodb4-client",
         "name": "",
         "protocol": "mongodb+srv",
-        "hostname": "db-mongodb-facis-f9f0367b.mongo.ondigitalocean.com",
+        "hostname": "db-mongodb-leanea-f9f0367b.mongo.ondigitalocean.com",
         "port": "",
         "dbName": "PartnerOnboarding",
         "appName": "",
@@ -490,7 +490,7 @@
         "showMsgUib": false,
         "title": "",
         "descr": "",
-        "editurl": "vscode://vscode-remote/ssh-remote+hub.facis.com/data/uibuilder/uitestiatoosa/?windowId=_blank",
+        "editurl": "",
         "x": 677.5,
         "y": 320,
         "wires": [
@@ -679,7 +679,7 @@
         "type": "function",
         "z": "08651bcbec5aaa0a",
         "name": "build OpenAPI 3.0 doc",
-        "func": "// FR-GI-01 — OpenAPI 3.0 description of the FAP DCM public surface.\n// Scope is intentionally minimal: the discovery endpoints + a reference to the\n// uibuilder websocket channel through which the bulk of FR-ACM / FR-SR / FR-CR\n// operations are dispatched. Full per-message schemas can be added incrementally.\n\nconst req = msg.req || {};\nconst proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';\nconst host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'localhost';\nconst base = proto + '://' + host;\n\nconst doc = {\n    openapi: '3.0.3',\n    info: {\n        title: 'FAP DCM — Decentralized Catalogue Management API',\n        description: 'Machine-readable API description for the FAP DCM, discoverable via RFC 9279 /.well-known/api-catalog. Business operations (Asset Crawler, Schema Registry, Catalogue Registry, Access Control) are dispatched primarily through a uibuilder websocket channel; REST endpoints listed here expose discovery metadata and health checks.',\n        version: '1.0.0',\n        contact: {\n            name: 'facis GmbH — FAP DCM implementation'\n        },\n        license: {\n            name: 'See project LICENSE'\n        }\n    },\n    servers: [\n        { url: base, description: 'Current deployment' }\n    ],\n    tags: [\n        { name: 'Discovery', description: 'RFC 9279 discovery endpoints' },\n        { name: 'Realtime',  description: 'uibuilder websocket message surface (FR-ACM / FR-SR / FR-CR / FR-AC)' }\n    ],\n    paths: {\n        '/.well-known/api-catalog': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'RFC 9279 api-catalog — returns linkset pointing to this OpenAPI document',\n                responses: {\n                    '200': {\n                        description: 'RFC 9264 linkset',\n                        content: {\n                            'application/linkset+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        },\n        '/api/openapi.json': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'OpenAPI 3.0 description of the FAP DCM API',\n                responses: {\n                    '200': {\n                        description: 'OpenAPI 3.0 JSON',\n                        content: {\n                            'application/vnd.oai.openapi+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        }\n    },\n    components: {\n        schemas: {\n            UiBuilderEnvelope: {\n                type: 'object',\n                description: 'Envelope for uibuilder websocket messages. The type field names the operation (e.g. registerRemoteCatalog, startHarvest, saveAssetType, listRoles). The data field carries operation-specific payload. All operations are subject to FR-AC-01 role checks.',\n                required: ['type'],\n                properties: {\n                    type: { type: 'string', example: 'registerRemoteCatalog' },\n                    auth: { type: 'object', description: 'Session bearer / API key; injected by FE' },\n                    data: { type: 'object', description: 'Operation-specific payload' }\n                }\n            }\n        }\n    },\n    'x-realtime-channel': {\n        transport: 'uibuilder over socket.io',\n        path: '/uibuilder',\n        envelopeSchema: '#/components/schemas/UiBuilderEnvelope',\n        notes: 'Frontend src/services/uibuilder.service.js ROUTE_MAP enumerates all supported msg.type values and their target backend modules.'\n    }\n};\n\nmsg.headers = {\n    'Content-Type': 'application/vnd.oai.openapi+json; charset=utf-8',\n    'Cache-Control': 'public, max-age=300'\n};\nmsg.payload = doc;\nreturn msg;",
+        "func": "// FR-GI-01 — OpenAPI 3.0 description of the FAP DCM public surface.\n// Scope is intentionally minimal: the discovery endpoints + a reference to the\n// uibuilder websocket channel through which the bulk of FR-ACM / FR-SR / FR-CR\n// operations are dispatched. Full per-message schemas can be added incrementally.\n\nconst req = msg.req || {};\nconst proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';\nconst host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'localhost';\nconst base = proto + '://' + host;\n\nconst doc = {\n    openapi: '3.0.3',\n    info: {\n        title: 'FAP DCM — Decentralized Catalogue Management API',\n        description: 'Machine-readable API description for the FAP DCM, discoverable via RFC 9279 /.well-known/api-catalog. Business operations (Asset Crawler, Schema Registry, Catalogue Registry, Access Control) are dispatched primarily through a uibuilder websocket channel; REST endpoints listed here expose discovery metadata and health checks.',\n        version: '1.0.0',\n        contact: {\n            name: 'FAP DCM implementation'\n        },\n        license: {\n            name: 'See project LICENSE'\n        }\n    },\n    servers: [\n        { url: base, description: 'Current deployment' }\n    ],\n    tags: [\n        { name: 'Discovery', description: 'RFC 9279 discovery endpoints' },\n        { name: 'Realtime',  description: 'uibuilder websocket message surface (FR-ACM / FR-SR / FR-CR / FR-AC)' }\n    ],\n    paths: {\n        '/.well-known/api-catalog': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'RFC 9279 api-catalog — returns linkset pointing to this OpenAPI document',\n                responses: {\n                    '200': {\n                        description: 'RFC 9264 linkset',\n                        content: {\n                            'application/linkset+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        },\n        '/api/openapi.json': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'OpenAPI 3.0 description of the FAP DCM API',\n                responses: {\n                    '200': {\n                        description: 'OpenAPI 3.0 JSON',\n                        content: {\n                            'application/vnd.oai.openapi+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        }\n    },\n    components: {\n        schemas: {\n            UiBuilderEnvelope: {\n                type: 'object',\n                description: 'Envelope for uibuilder websocket messages. The type field names the operation (e.g. registerRemoteCatalog, startHarvest, saveAssetType, listRoles). The data field carries operation-specific payload. All operations are subject to FR-AC-01 role checks.',\n                required: ['type'],\n                properties: {\n                    type: { type: 'string', example: 'registerRemoteCatalog' },\n                    auth: { type: 'object', description: 'Session bearer / API key; injected by FE' },\n                    data: { type: 'object', description: 'Operation-specific payload' }\n                }\n            }\n        }\n    },\n    'x-realtime-channel': {\n        transport: 'uibuilder over socket.io',\n        path: '/uibuilder',\n        envelopeSchema: '#/components/schemas/UiBuilderEnvelope',\n        notes: 'Frontend src/services/uibuilder.service.js ROUTE_MAP enumerates all supported msg.type values and their target backend modules.'\n    }\n};\n\nmsg.headers = {\n    'Content-Type': 'application/vnd.oai.openapi+json; charset=utf-8',\n    'Cache-Control': 'public, max-age=300'\n};\nmsg.payload = doc;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -3233,7 +3233,7 @@
         "type": "function",
         "z": "aa01000000000000",
         "name": "Prepare Mapping insert/update",
-        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nif (d.id) {\n    msg._mappingId   = d.id;\n    msg._isNew       = false;\n    msg._mappingData = d;\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"updateOne\";\n    msg.payload = [\n        { id: d.id },\n        { $set: {\n            remoteCatalogueId:      d.remoteCatalogueId || \"\",\n            remoteSchemaId:         d.remoteSchemaId || \"\",\n            remoteCatalogue:        d.remoteCatalogue || \"\",\n            remoteSchema:           d.remoteSchema || \"\",\n            localSchema:            d.localSchema || \"\",\n            remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n            transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n            promptsCount:           d.promptsCount || 0,\n            shaclCount:             d.shaclCount || 0,\n            namespacesToPreserve:   d.namespacesToPreserve || [],\n            shaclShapeSchemaId:     d.shaclShapeSchemaId || \"\",\n            updatedAt:              now\n        }}\n    ];\n} else {\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'map-' + Date.now().toString(36) + rnd;\n    msg._mappingId = id;\n    msg._isNew     = true;\n    const mapping = {\n        id:                     id,\n        remoteCatalogueId:      d.remoteCatalogueId || \"\",\n        remoteSchemaId:         d.remoteSchemaId || \"\",\n        remoteCatalogue:        d.remoteCatalogue || \"\",\n        remoteSchema:           d.remoteSchema || \"\",\n        localSchema:            d.localSchema || \"\",\n        remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n        transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n        promptsCount:           d.promptsCount || 0,\n        shaclCount:             d.shaclCount || 0,\n        namespacesToPreserve:   d.namespacesToPreserve || [],\n        shaclShapeSchemaId:     d.shaclShapeSchemaId || \"\",\n        createdAt:              now,\n        updatedAt:              now\n    };\n    msg._mappingData = mapping;\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"insertOne\";\n    msg.payload      = mapping;\n}\nreturn msg;",
+        "func": "const d   = msg.data || {};\nconst now = new Date().toISOString().slice(0, 10);\n\n// Fields the FE may legitimately set on a mapping\nconst ALL_KEYS = [\n    'remoteCatalogueId', 'remoteSchemaId',\n    'remoteCatalogue',   'remoteSchema',\n    'localSchema',       'remoteSchemaMeta',\n    'transformationStrategy',\n    'promptsCount',      'shaclCount',\n    'namespacesToPreserve',\n    'shaclShapeSchemaId',\n    'fieldMappings',     'targetClass', 'jsonLdContext',\n    'promptId'\n];\n\nif (d.id) {\n    // ── UPDATE: partial $set — only overwrite keys that are explicitly present in d\n    msg._mappingId   = d.id;\n    msg._isNew       = false;\n    const setObj = { updatedAt: now };\n    for (const k of ALL_KEYS) {\n        if (Object.prototype.hasOwnProperty.call(d, k) && d[k] !== undefined) {\n            setObj[k] = d[k];\n        }\n    }\n    msg._mappingData = { id: d.id, ...setObj };\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"updateOne\";\n    msg.payload      = [{ id: d.id }, { $set: setObj }];\n} else {\n    // ── INSERT: full document with sensible defaults for new fields\n    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n    let rnd = '';\n    for (let i = 0; i < 6; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\n    const id = 'map-' + Date.now().toString(36) + rnd;\n    msg._mappingId = id;\n    msg._isNew     = true;\n    const mapping = {\n        id:                     id,\n        remoteCatalogueId:      d.remoteCatalogueId      || \"\",\n        remoteSchemaId:         d.remoteSchemaId         || \"\",\n        remoteCatalogue:        d.remoteCatalogue        || \"\",\n        remoteSchema:           d.remoteSchema           || \"\",\n        localSchema:            d.localSchema            || \"\",\n        remoteSchemaMeta:       d.remoteSchemaMeta       || \"\",\n        transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n        promptsCount:           d.promptsCount           || 0,\n        shaclCount:             d.shaclCount             || 0,\n        namespacesToPreserve:   Array.isArray(d.namespacesToPreserve) ? d.namespacesToPreserve : [],\n        shaclShapeSchemaId:     d.shaclShapeSchemaId     || \"\",\n        fieldMappings:          Array.isArray(d.fieldMappings) ? d.fieldMappings : [],\n        targetClass:            d.targetClass            || \"\",\n        jsonLdContext:          d.jsonLdContext          || \"\",\n        promptId:               d.promptId               || \"\",\n        createdAt:              now,\n        updatedAt:              now\n    };\n    msg._mappingData = mapping;\n    msg.collection   = \"sr_mappings\";\n    msg.operation    = \"insertOne\";\n    msg.payload      = mapping;\n}\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -3273,7 +3273,7 @@
         "type": "function",
         "z": "aa01000000000000",
         "name": "Format saveMapping Response",
-        "func": "const d   = msg._mappingData || {};\nconst now = new Date().toISOString().slice(0, 10);\nconst mapping = {\n    id:                     msg._mappingId,\n    remoteCatalogueId:      d.remoteCatalogueId || \"\",\n    remoteSchemaId:         d.remoteSchemaId || \"\",\n    remoteCatalogue:        d.remoteCatalogue || \"\",\n    remoteSchema:           d.remoteSchema || \"\",\n    remoteSchemaMeta:       d.remoteSchemaMeta || \"\",\n    transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n    promptsCount:           d.promptsCount || 0,\n    shaclCount:             d.shaclCount || 0,\n    createdAt:              d.createdAt || now,\n    updatedAt:              now\n};\nmsg.response = {\n    action:    \"saveMapping\",\n    status:    \"success\",\n    mappingId: msg._mappingId,\n    isNew:     !!msg._isNew,\n    mapping:   mapping\n};\ndelete msg._mappingId;\ndelete msg._isNew;\ndelete msg._mappingData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "func": "const d   = msg._mappingData || {};\nconst now = new Date().toISOString().slice(0, 10);\n\nconst mapping = {\n    id:                     msg._mappingId,\n    remoteCatalogueId:      d.remoteCatalogueId      || \"\",\n    remoteSchemaId:         d.remoteSchemaId         || \"\",\n    remoteCatalogue:        d.remoteCatalogue        || \"\",\n    remoteSchema:           d.remoteSchema           || \"\",\n    localSchema:            d.localSchema            || \"\",\n    remoteSchemaMeta:       d.remoteSchemaMeta       || \"\",\n    transformationStrategy: d.transformationStrategy || \"Deterministic RDF\",\n    promptsCount:           d.promptsCount           || 0,\n    shaclCount:             d.shaclCount             || 0,\n    namespacesToPreserve:   Array.isArray(d.namespacesToPreserve) ? d.namespacesToPreserve : [],\n    shaclShapeSchemaId:     d.shaclShapeSchemaId     || \"\",\n    fieldMappings:          Array.isArray(d.fieldMappings) ? d.fieldMappings : [],\n    targetClass:            d.targetClass            || \"\",\n    jsonLdContext:          d.jsonLdContext          || \"\",\n    promptId:               d.promptId               || \"\",\n    createdAt:              d.createdAt              || now,\n    updatedAt:              now\n};\n\nmsg.response = {\n    action:    \"saveMapping\",\n    status:    \"success\",\n    mappingId: msg._mappingId,\n    isNew:     !!msg._isNew,\n    mapping:   mapping\n};\ndelete msg._mappingId;\ndelete msg._isNew;\ndelete msg._mappingData;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -3946,7 +3946,7 @@
         "type": "function",
         "z": "aa01000000000000",
         "name": "▶ Store OpenAI Config in Flow Context",
-        "func": "// FR-CR-03 security fix: read OpenAI key from ORCE env context, NEVER hardcode.\n// env.get() looks at flow env vars first, then global env, then the host process env.\nconst apiKey = env.get('OPENAI_API_KEY') || '';\nconst model  = env.get('OPENAI_MODEL')   || 'gpt-4o';\n\nconst keyUsable = apiKey && apiKey !== 'PUT_OPENAI_API_KEY_HERE';\nflow.set('openai_api_key', keyUsable ? apiKey : '');\nflow.set('openai_model',   model);\n\nif (keyUsable) {\n    node.status({ fill: 'green', shape: 'dot', text: 'API key loaded from env' });\n} else {\n    node.status({ fill: 'yellow', shape: 'ring', text: 'No OPENAI_API_KEY env var set' });\n}\nreturn null;",
+        "func": "// FR-CR-03 security fix: read OpenAI key from Node-RED env context, NEVER hardcode.\n// env.get() looks at flow env vars first, then global env, then the host process env.\nconst apiKey = env.get('OPENAI_API_KEY') || '';\nconst model  = env.get('OPENAI_MODEL')   || 'gpt-4o';\n\nconst keyUsable = apiKey && apiKey !== 'PUT_OPENAI_API_KEY_HERE';\nflow.set('openai_api_key', keyUsable ? apiKey : '');\nflow.set('openai_model',   model);\n\nif (keyUsable) {\n    node.status({ fill: 'green', shape: 'dot', text: 'API key loaded from env' });\n} else {\n    node.status({ fill: 'yellow', shape: 'ring', text: 'No OPENAI_API_KEY env var set' });\n}\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -7279,11 +7279,16 @@
                 "t": "eq",
                 "v": "cancelHarvest",
                 "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "clearHarvestHistory",
+                "vt": "str"
             }
         ],
         "checkall": "true",
         "repair": false,
-        "outputs": 9,
+        "outputs": 10,
         "x": 330,
         "y": 300,
         "wires": [
@@ -7313,6 +7318,9 @@
             ],
             [
                 "bb03000000000082"
+            ],
+            [
+                "cl05m3000010"
             ]
         ]
     },
@@ -7394,7 +7402,7 @@
         "type": "function",
         "z": "bb03000000000000",
         "name": "Start Harvest — build run + lc_assets",
-        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst runId = 'run-' + Date.now().toString(36) + rnd;\n\nconst catalogues = msg.data?.catalogues || [];\nconst catNames = catalogues.map(c => c.catalogName).filter(Boolean);\nconst now = new Date();\nconst nowISO = now.toISOString();\nconst nowShort = nowISO.replace('T', ' ').slice(0, 19);\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    const parts = path.split('.');\n    let cur = obj;\n    for (const p of parts) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[p];\n    }\n    return cur;\n}\n\nfunction extractEntries(data, rootPath) {\n    if (!data) return [];\n    if (rootPath) {\n        const resolved = resolvePath(data, rootPath);\n        if (Array.isArray(resolved)) return resolved;\n        if (resolved && typeof resolved === 'object') return [resolved];\n    }\n    if (Array.isArray(data)) return data;\n    if (data['dcat:dataset'] && Array.isArray(data['dcat:dataset'])) return data['dcat:dataset'];\n    if (data.dataset && Array.isArray(data.dataset)) return data.dataset;\n    if (data.datasets && Array.isArray(data.datasets)) return data.datasets;\n    if (data.data && Array.isArray(data.data)) return data.data;\n    if (data.results && Array.isArray(data.results)) return data.results;\n    if (data.result && data.result.results && Array.isArray(data.result.results)) return data.result.results;\n    if (data.items && Array.isArray(data.items)) return data.items;\n    if (data.records && Array.isArray(data.records)) return data.records;\n    if (data.entries && Array.isArray(data.entries)) return data.entries;\n    if (data.assets && Array.isArray(data.assets)) return data.assets;\n    if (data.catalogs && Array.isArray(data.catalogs)) return data.catalogs;\n    if (data.title || data.name || data.identifier || data['@type']) return [data];\n    if (data._id || data.requestId != null || data.companyDetails) return [data];\n    const skipKeys = ['auditInfo','approveInfo','decisionHistory','errors','warnings','logs'];\n    for (const key of Object.keys(data)) {\n        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object' && !skipKeys.includes(key)) return data[key];\n    }\n    return [data];\n}\n\nfunction extractName(entry, nameField) {\n    if (!entry || typeof entry !== 'object') return 'Unknown Asset';\n    if (nameField) { const v = resolvePath(entry, nameField); if (v && typeof v === 'string' && v.trim()) return v; }\n    const cands = ['title','name','catalogName','label','displayName','companyName','organisationName','organization','fullName','shortName','legalName','tradingName','firma'];\n    for (const f of cands) { if (entry[f] && typeof entry[f] === 'string' && entry[f].trim()) return entry[f]; }\n    const cd = entry.companyDetails;\n    if (cd && typeof cd === 'object') {\n        if (cd['A.1.1.1'] && typeof cd['A.1.1.1'] === 'string') return cd['A.1.1.1'];\n        if (cd['A.2.1.1'] && typeof cd['A.2.1.1'] === 'string') return cd['A.2.1.1'];\n        for (const f of cands) { if (cd[f] && typeof cd[f] === 'string' && cd[f].trim()) return cd[f]; }\n    }\n    if (entry.createdBy && entry.createdBy.fullName && typeof entry.createdBy.fullName === 'string') return entry.createdBy.fullName;\n    for (const key of Object.keys(entry)) {\n        const nested = entry[key];\n        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {\n            for (const f of cands) { if (nested[f] && typeof nested[f] === 'string' && nested[f].trim()) return nested[f]; }\n        }\n    }\n    for (const key of Object.keys(entry)) {\n        const val = entry[key];\n        if (typeof val === 'string' && val.length > 2 && val.length < 200 && !/^[\\d\\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !key.startsWith('_')) return val;\n    }\n    return 'Unknown Asset';\n}\n\nfunction extractId(entry, idField) {\n    if (idField) { const v = resolvePath(entry, idField); if (v) return String(v); }\n    return String(entry.identifier || entry.id || entry._id || entry.requestId || entry.uuid || ('remote-' + Math.random().toString(36).slice(2, 10)));\n}\n\nfunction extractType(entry, typeField) {\n    if (typeField) { const v = resolvePath(entry, typeField); if (v) return String(v); }\n    const cd = entry.companyDetails;\n    return String(entry['@type'] || entry.type || entry.assetType || (cd && cd['A.1.1.0']) || (cd && cd['A.2.1.4']) || 'dcat:Dataset');\n}\n\n// ── FR-ACM-05: Crawling Reference helpers ─────────────────────────────────────\nconst REFERENCE_FIELDS = [\n  'dcat:qualifiedRelation',\n  'dcat:Relationship',\n  'dcat:source',\n  'prov:wasDerivedFrom',\n  'dct:references',\n  'dct:relation',\n  'qualifiedRelation',\n  'relation',\n  'references',\n  'source'\n];\n\nfunction normalizeRefUri(v) {\n  if (v == null) return null;\n  if (typeof v === 'string') {\n    const s = v.trim();\n    if (!s) return null;\n    if (/^https?:\\/\\//i.test(s) || /^did:[a-z0-9]+:/i.test(s) || /^urn:/i.test(s)) return s;\n    return null;\n  }\n  if (typeof v === 'object') {\n    if (v['@id']) return normalizeRefUri(v['@id']);\n    if (v.href) return normalizeRefUri(v.href);\n    if (v.id && typeof v.id === 'string') return normalizeRefUri(v.id);\n    if (v.hasTarget) return normalizeRefUri(v.hasTarget);\n    if (v.target) return normalizeRefUri(v.target);\n  }\n  return null;\n}\n\nfunction extractReferencesFromEntry(entry) {\n  if (!entry || typeof entry !== 'object') return [];\n  const refs = [];\n  for (const field of REFERENCE_FIELDS) {\n    const v = entry[field];\n    if (v == null) continue;\n    const arr = Array.isArray(v) ? v : [v];\n    for (const item of arr) {\n      const uri = normalizeRefUri(item);\n      if (uri) refs.push({ field: field, uri: uri });\n    }\n  }\n  if (Array.isArray(entry.links)) {\n    for (const l of entry.links) {\n      if (l && typeof l.href === 'string') {\n        const uri = normalizeRefUri(l.href);\n        if (uri) refs.push({ field: 'links', uri: uri, rel: l.rel || '' });\n      }\n    }\n  }\n  return refs;\n}\n\nfunction entryMatchesUri(entry, uri) {\n  if (!entry || typeof entry !== 'object' || !uri) return false;\n  const candidates = [\n    entry['@id'], entry.id, entry.identifier, entry._id,\n    entry.uri, entry.url, entry.did, entry.canonicalUri\n  ].filter(Boolean).map(String);\n  return candidates.indexOf(uri) !== -1;\n}\n// ── /FR-ACM-05 helpers ────────────────────────────────────────────────────────\n\nconst provenance = [];\nconst logs = [];\nconst assetDetails = [];\nconst lcDocs = [];\nlet assetCounter = 0;\n\nfor (const cat of catalogues) {\n    const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n    const catId = cat.uniqueId || cat.catalogId || '';\n    const isCrawlOnly = cat._crawlOnly === true;\n    if (isCrawlOnly) {\n        logs.push({ runId, assetId: '', level: 'info', message: 'Catalogue tagged crawl-only, skipping full import: ' + catName, catalogue: catName, timestamp: nowISO });\n        continue;\n    }\n    const strategy = cat.strategy || 'none';\n    const rootPath = cat.responseRootPath || '';\n    const idField = cat.responseAssetIdField || '';\n    const nameField = cat.responseAssetNameField || '';\n    const typeField = cat.responseAssetTypeField || '';\n    const typeMapping = Array.isArray(cat.typeMapping) ? cat.typeMapping : [];\n    const sourceData = cat.sourceData || null;\n    let entries = [];\n    if (sourceData) {\n        entries = extractEntries(sourceData, rootPath);\n        logs.push({ runId, assetId: '', level: 'info', message: 'Extracted ' + entries.length + ' entries from sourceData', catalogue: catName, timestamp: nowISO });\n    }\n\n    for (let i = 0; i < entries.length; i++) {\n        assetCounter++;\n        const entry = entries[i];\n        if (!entry || typeof entry !== 'object') continue;\n        const assetId = 'asset-' + runId + '-' + assetCounter;\n        const lcId = 'lc-' + runId + '-' + assetCounter;\n        const rawId = extractId(entry, idField);\n        const assetName = extractName(entry, nameField);\n        const assetType = extractType(entry, typeField);\n        const mapRow = typeMapping.find(m => m && m.remoteType === assetType);\n        const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n        const domain = entry.domain || entry.theme || entry.category || catName;\n\n        assetDetails.push({ assetId: assetId, title: assetName, catalogue: catName, status: 'success', strategy: strategy, sourceId: rawId, localTypeId: localTypeId });\n        lcDocs.push({\n            uniqueId: lcId,\n            id: lcId,\n            assets: assetName,\n            title: assetName,\n            type: assetType,\n            localTypeId: localTypeId,\n            name: catName,\n            domain: domain,\n            updated: nowShort,\n            integrationStatus: 'Active',\n            sourceCatalogue: catName,\n            sourceCatalogueId: catId,\n            harvestRunId: runId,\n            remoteAssetId: rawId,\n            originalForm: entry,\n            transformedForm: null,\n            sourceAssetId: rawId,\n            harvestedAt: nowISO,\n            createdAt: nowISO\n        });\n        provenance.push({ runId: runId, assetId: assetId, title: assetName, catalogue: catName, action: 'imported', strategy: strategy, timestamp: nowISO, status: 'success', sourceId: rawId });\n        logs.push({ runId: runId, assetId: assetId, level: 'info', message: 'Imported: ' + assetName, catalogue: catName, timestamp: nowISO });\n    }\n\n    logs.push({ runId: runId, assetId: '', level: 'info', message: 'Harvest completed for ' + catName + ': ' + entries.length + ' entries processed', catalogue: catName, timestamp: nowISO });\n}\n\n// ── FR-ACM-05: Crawl references (BFS, max depth 3, cycle detection) ──────────\nconst resolveReferences = !!(msg.data?.scope && msg.data.scope.resolveReferences);\nlet crawlStats = { enabled: resolveReferences, referencesFound: 0, crawledAssets: 0, unresolved: 0, maxDepthReached: 0 };\n\nif (resolveReferences) {\n    const crawlIndex = [];\n    for (const cat of catalogues) {\n        const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n        const catId = cat.uniqueId || cat.catalogId || '';\n        const rootPath = cat.responseRootPath || '';\n        const entries = cat.sourceData ? extractEntries(cat.sourceData, rootPath) : [];\n        for (const entry of entries) {\n            crawlIndex.push({\n                entry,\n                catName, catId,\n                strategy: cat.strategy || 'none',\n                idField: cat.responseAssetIdField || '',\n                nameField: cat.responseAssetNameField || '',\n                typeField: cat.responseAssetTypeField || '',\n                typeMapping: Array.isArray(cat.typeMapping) ? cat.typeMapping : [],\n                crawlOnly: cat._crawlOnly === true\n            });\n        }\n    }\n\n    const MAX_DEPTH = 3;\n    const visitedUris = new Set();\n    const visitedAssetIds = new Set(lcDocs.map(d => d.id));\n\n    const queue = [];\n    for (const lcDoc of lcDocs) {\n        queue.push({ entry: lcDoc.originalForm, lcId: lcDoc.id, depth: 1 });\n    }\n\n    while (queue.length > 0) {\n        const { entry, lcId, depth } = queue.shift();\n        if (depth > MAX_DEPTH) continue;\n        crawlStats.maxDepthReached = Math.max(crawlStats.maxDepthReached, depth);\n\n        const refs = extractReferencesFromEntry(entry);\n        for (const ref of refs) {\n            crawlStats.referencesFound++;\n            if (visitedUris.has(ref.uri)) continue;\n            visitedUris.add(ref.uri);\n\n            const hit = crawlIndex.find(row => entryMatchesUri(row.entry, ref.uri));\n            if (!hit) {\n                crawlStats.unresolved++;\n                provenance.push({\n                    runId, assetId: lcId, action: 'crawl-unresolved',\n                    referenceUri: ref.uri, referenceField: ref.field,\n                    timestamp: nowISO, status: 'warning',\n                    message: 'Reference target not found in any supplied catalogue'\n                });\n                logs.push({\n                    runId, assetId: lcId, level: 'warn',\n                    message: 'Unresolved cross-catalogue reference: ' + ref.uri + ' (field=' + ref.field + ')',\n                    catalogue: '', timestamp: nowISO\n                });\n                continue;\n            }\n\n            assetCounter++;\n            const newAssetId = 'asset-' + runId + '-' + assetCounter;\n            const newLcId = 'lc-' + runId + '-' + assetCounter;\n            if (visitedAssetIds.has(newLcId)) continue;\n            visitedAssetIds.add(newLcId);\n\n            const rawId = extractId(hit.entry, hit.idField);\n            const assetName = extractName(hit.entry, hit.nameField);\n            const assetType = extractType(hit.entry, hit.typeField);\n            const mapRow = hit.typeMapping.find(m => m && m.remoteType === assetType);\n            const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n            const domain = hit.entry.domain || hit.entry.theme || hit.entry.category || hit.catName;\n\n            assetDetails.push({ assetId: newAssetId, title: assetName, catalogue: hit.catName, status: 'success', strategy: hit.strategy, sourceId: rawId, localTypeId: localTypeId, crawled: true });\n            const newLcDoc = {\n                uniqueId: newLcId,\n                id: newLcId,\n                assets: assetName,\n                title: assetName,\n                type: assetType,\n                localTypeId: localTypeId,\n                name: hit.catName,\n                domain: domain,\n                updated: nowShort,\n                integrationStatus: 'Active',\n                sourceCatalogue: hit.catName,\n                sourceCatalogueId: hit.catId,\n                harvestRunId: runId,\n                remoteAssetId: rawId,\n                originalForm: hit.entry,\n                transformedForm: null,\n                sourceAssetId: rawId,\n                harvestedAt: nowISO,\n                createdAt: nowISO,\n                crawledFrom: lcId,\n                crawlDepth: depth,\n                crawlReferenceUri: ref.uri,\n                crawlReferenceField: ref.field\n            };\n            lcDocs.push(newLcDoc);\n            provenance.push({ runId, assetId: newAssetId, title: assetName, catalogue: hit.catName, action: 'crawled', strategy: hit.strategy, timestamp: nowISO, status: 'success', sourceId: rawId, crawledFrom: lcId, crawlDepth: depth });\n            logs.push({ runId, assetId: newAssetId, level: 'info', message: 'Crawled (depth=' + depth + '): ' + assetName + ' from ' + hit.catName + ' (ref=' + ref.uri + ')', catalogue: hit.catName, timestamp: nowISO });\n            crawlStats.crawledAssets++;\n\n            if (depth + 1 <= MAX_DEPTH) {\n                queue.push({ entry: hit.entry, lcId: newLcId, depth: depth + 1 });\n            }\n        }\n    }\n\n    logs.push({ runId, assetId: '', level: 'info', message: 'Crawl complete: ' + crawlStats.crawledAssets + ' assets crawled, ' + crawlStats.unresolved + ' unresolved, max depth ' + crawlStats.maxDepthReached, catalogue: '', timestamp: nowISO });\n}\n// ── /FR-ACM-05 crawl block ───────────────────────────────────────────────────\n\nconst successCount = assetDetails.filter(a => a.status === 'success').length;\nconst errorCount = assetDetails.filter(a => a.status === 'error').length;\n\nconst run = {\n    uniqueId: runId,\n    catalogueName: catNames.filter(n => !catalogues.find(c => c.catalogName === n && c._crawlOnly)).join(', ') || 'Harvest',\n    scope: msg.data?.scope || {},\n    lifecycle: msg.data?.lifecycle || {},\n    status: 'completed',\n    startedAt: nowShort,\n    totalAssets: assetCounter,\n    assetsAdded: successCount,\n    successCount: successCount,\n    errorCount: errorCount,\n    result: errorCount === 0 ? 'Success' : 'Partial',\n    tool: 'Harvester',\n    provenance: provenance,\n    logs: logs,\n    assetIds: lcDocs.map(a => a.id),\n    crawlStats: crawlStats\n};\n\nconst msg1 = { _harvestRun: run, _lcDocs: lcDocs, operation: 'insertOne', collection: 'hv_runs', payload: run, _msgid: msg._msgid, _uib: msg._uib, _socketId: msg._socketId };\nreturn msg1;",
+        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst runId = 'run-' + Date.now().toString(36) + rnd;\n\n// ── FR-CR-04: JSON Field Mapping helpers ─────────────────────────────────\nfunction fmGetPath(obj, p) {\n    if (!p || obj == null) return undefined;\n\n    // Strategy 1 — exact match: the path *is* a key on this object.\n    if (Object.prototype.hasOwnProperty.call(obj, p)) return obj[p];\n\n    // Strategy 2 — greedy walk that prefers the LONGEST matching key prefix\n    // at every level. Naturally handles keys that themselves contain dots.\n    function walk(o, rem) {\n        if (rem === '' || rem == null) return o;\n        if (o == null || typeof o !== 'object') return undefined;\n        if (Object.prototype.hasOwnProperty.call(o, rem)) return o[rem];\n        const keys = Object.keys(o).slice().sort((a, b) => b.length - a.length);\n        for (const k of keys) {\n            if (rem.startsWith(k + '.')) {\n                const v = walk(o[k], rem.slice(k.length + 1));\n                if (v !== undefined) return v;\n            }\n        }\n        return undefined;\n    }\n    const greedy = walk(obj, p);\n    if (greedy !== undefined) return greedy;\n\n    // Strategy 3 — backward compatibility with the v35 escape-aware syntax.\n    const parts = []; let cur = ''; let esc = false;\n    for (let i = 0; i < p.length; i++) {\n        const ch = p[i];\n        if (esc) { cur += ch; esc = false; continue; }\n        if (ch === '\\\\') { esc = true; continue; }\n        if (ch === '.') { parts.push(cur); cur = ''; continue; }\n        cur += ch;\n    }\n    if (cur) parts.push(cur);\n    let v = obj;\n    for (const k of parts) {\n        if (v == null || typeof v !== 'object') return undefined;\n        v = v[k];\n    }\n    return v;\n}\nfunction fmSetPath(obj, p, value) {\n    if (!p) return;\n    const parts = p.split('.');\n    let cur = obj;\n    for (let i = 0; i < parts.length - 1; i++) {\n        const k = parts[i];\n        if (cur[k] == null || typeof cur[k] !== 'object') cur[k] = {};\n        cur = cur[k];\n    }\n    cur[parts[parts.length - 1]] = value;\n}\nconst FM_TRANSFORMS = {\n    identity: v => v,\n    parseAddress: v => {\n        if (v == null) return null;\n        const s = String(v).trim();\n        let m = s.match(/^(.+?),\\s*(\\d{4,5})\\s+(.+?),\\s*(.+)$/);\n        if (m) return { streetAddress: m[1].trim(), postalCode: m[2].trim(), addressLocality: m[3].trim(), addressCountry: m[4].trim() };\n        m = s.match(/^(.+?),\\s*(\\d{4,5})\\s+(.+)$/);\n        if (m) return { streetAddress: m[1].trim(), postalCode: m[2].trim(), addressLocality: m[3].trim() };\n        return { streetAddress: s };\n    },\n    split:     (v, sep) => v == null ? [] : String(v).split(sep || ','),\n    concat:    (v, sep, ...rest) => [v, ...rest].filter(x => x != null).join(sep || ' '),\n    lower:     v => v == null ? v : String(v).toLowerCase(),\n    upper:     v => v == null ? v : String(v).toUpperCase(),\n    trim:      v => v == null ? v : String(v).trim(),\n    toNumber:  v => v == null ? null : Number(v),\n    toBoolean: v => Boolean(v),\n    nonEmpty:  v => (v != null && v !== '') ? v : undefined\n};\nfunction fmApplyTransform(value, spec) {\n    if (!spec) return value;\n    if (typeof spec === 'string') {\n        const fn = FM_TRANSFORMS[spec];\n        return fn ? fn(value) : value;\n    }\n    if (typeof spec === 'object' && spec.fn) {\n        const fn = FM_TRANSFORMS[spec.fn];\n        return fn ? fn(value, ...(spec.args || [])) : value;\n    }\n    return value;\n}\nfunction fmFindMapping(catId, catName, mappings) {\n    if (!Array.isArray(mappings)) return null;\n    return mappings.find(m =>\n        m && m.transformationStrategy === 'JSON Field Mapping' &&\n        (m.remoteCatalogueId === catId || m.remoteCatalogue === catName)\n    ) || null;\n}\nfunction fmTransform(entry, mapping, lcId) {\n    const out = {};\n    const rows = Array.isArray(mapping.fieldMappings) ? mapping.fieldMappings : [];\n    for (const row of rows) {\n        if (!row || !row.from || !row.to) continue;\n        const raw = fmGetPath(entry, row.from);\n        const v = fmApplyTransform(raw, row.transform);\n        if (v === undefined) continue;\n        fmSetPath(out, row.to, v);\n    }\n    return {\n        '@context': mapping.jsonLdContext || 'https://registry.lab.gaia-x.eu/development/context/development',\n        '@type':    mapping.targetClass   || '',\n        '@id':      'did:web:dcm.local:' + lcId,\n        ...out\n    };\n}\nconst _fieldMappings = Array.isArray(msg._fieldMappings) ? msg._fieldMappings : [];\n// ── /FR-CR-04 helpers ─────────────────────────────────────────────────────\n\n\nconst catalogues = msg.data?.catalogues || [];\nconst catNames = catalogues.map(c => c.catalogName).filter(Boolean);\nconst now = new Date();\nconst nowISO = now.toISOString();\nconst nowShort = nowISO.replace('T', ' ').slice(0, 19);\n\nfunction resolvePath(obj, path) {\n    if (!path || !obj) return obj;\n    const parts = path.split('.');\n    let cur = obj;\n    for (const p of parts) {\n        if (cur == null || typeof cur !== 'object') return undefined;\n        cur = cur[p];\n    }\n    return cur;\n}\n\nfunction extractEntries(data, rootPath) {\n    if (!data) return [];\n    if (rootPath) {\n        const resolved = resolvePath(data, rootPath);\n        if (Array.isArray(resolved)) return resolved;\n        if (resolved && typeof resolved === 'object') return [resolved];\n    }\n    if (Array.isArray(data)) return data;\n    if (data['dcat:dataset'] && Array.isArray(data['dcat:dataset'])) return data['dcat:dataset'];\n    if (data.dataset && Array.isArray(data.dataset)) return data.dataset;\n    if (data.datasets && Array.isArray(data.datasets)) return data.datasets;\n    if (data.data && Array.isArray(data.data)) return data.data;\n    if (data.results && Array.isArray(data.results)) return data.results;\n    if (data.result && data.result.results && Array.isArray(data.result.results)) return data.result.results;\n    if (data.items && Array.isArray(data.items)) return data.items;\n    if (data.records && Array.isArray(data.records)) return data.records;\n    if (data.entries && Array.isArray(data.entries)) return data.entries;\n    if (data.assets && Array.isArray(data.assets)) return data.assets;\n    if (data.catalogs && Array.isArray(data.catalogs)) return data.catalogs;\n    if (data.title || data.name || data.identifier || data['@type']) return [data];\n    if (data._id || data.requestId != null || data.companyDetails) return [data];\n    const skipKeys = ['auditInfo','approveInfo','decisionHistory','errors','warnings','logs'];\n    for (const key of Object.keys(data)) {\n        if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object' && !skipKeys.includes(key)) return data[key];\n    }\n    return [data];\n}\n\nfunction extractName(entry, nameField) {\n    if (!entry || typeof entry !== 'object') return 'Unknown Asset';\n    if (nameField) {\n        const v = resolvePath(entry, nameField);\n        if (v && typeof v === 'string' && v.trim()) return v;\n    }\n    const cands = ['title','name','catalogName','label','displayName','companyName','organisationName','organization','fullName','shortName','legalName','tradingName','firma'];\n    for (const f of cands) { if (entry[f] && typeof entry[f] === 'string' && entry[f].trim()) return entry[f]; }\n\n    // companyDetails (legacy)\n    const cd = entry.companyDetails;\n    if (cd && typeof cd === 'object') {\n        if (cd['A.1.1.1'] && typeof cd['A.1.1.1'] === 'string') return cd['A.1.1.1'];\n        if (cd['A.2.1.1'] && typeof cd['A.2.1.1'] === 'string') return cd['A.2.1.1'];\n        for (const f of cands) { if (cd[f] && typeof cd[f] === 'string' && cd[f].trim()) return cd[f]; }\n    }\n\n    // Trusted Cloud-style: A.1.Anbieter.A.1.1.<varies>.A.1.1.1\n    function findFirstByKey(node, targetKey, depth) {\n        if (depth > 6 || node == null || typeof node !== 'object') return null;\n        if (Object.prototype.hasOwnProperty.call(node, targetKey)) {\n            const v = node[targetKey];\n            if (typeof v === 'string' && v.trim()) return v;\n        }\n        for (const k of Object.keys(node)) {\n            const child = node[k];\n            if (child && typeof child === 'object') {\n                const found = findFirstByKey(child, targetKey, depth + 1);\n                if (found) return found;\n            }\n        }\n        return null;\n    }\n    const tcCompany = findFirstByKey(entry, 'A.1.1.1', 0);\n    if (tcCompany) return tcCompany;\n    const tcService = findFirstByKey(entry, 'A.2.1.1', 0);\n    if (tcService) return tcService;\n\n    if (entry.createdBy && entry.createdBy.fullName && typeof entry.createdBy.fullName === 'string') return entry.createdBy.fullName;\n    for (const key of Object.keys(entry)) {\n        const nested = entry[key];\n        if (nested && typeof nested === 'object' && !Array.isArray(nested)) {\n            for (const f of cands) { if (nested[f] && typeof nested[f] === 'string' && nested[f].trim()) return nested[f]; }\n        }\n    }\n    for (const key of Object.keys(entry)) {\n        const val = entry[key];\n        if (typeof val === 'string' && val.length > 2 && val.length < 200 && !/^[\\d\\-:.TZ]+$/.test(val) && !/^[0-9a-f]{24}$/i.test(val) && !key.startsWith('_')) return val;\n    }\n    return 'Unknown Asset';\n}\n\nfunction extractId(entry, idField) {\n    if (idField) { const v = resolvePath(entry, idField); if (v) return String(v); }\n    return String(entry.identifier || entry.id || entry._id || entry.requestId || entry.uuid || ('remote-' + Math.random().toString(36).slice(2, 10)));\n}\n\nfunction extractType(entry, typeField) {\n    if (typeField) { const v = resolvePath(entry, typeField); if (v) return String(v); }\n    const cd = entry.companyDetails;\n    return String(entry['@type'] || entry.type || entry.assetType || (cd && cd['A.1.1.0']) || (cd && cd['A.2.1.4']) || 'dcat:Dataset');\n}\n\n// ── FR-ACM-05: Crawling Reference helpers ─────────────────────────────────────\nconst REFERENCE_FIELDS = [\n  'dcat:qualifiedRelation',\n  'dcat:Relationship',\n  'dcat:source',\n  'prov:wasDerivedFrom',\n  'dct:references',\n  'dct:relation',\n  'qualifiedRelation',\n  'relation',\n  'references',\n  'source'\n];\n\nfunction normalizeRefUri(v) {\n  if (v == null) return null;\n  if (typeof v === 'string') {\n    const s = v.trim();\n    if (!s) return null;\n    if (/^https?:\\/\\//i.test(s) || /^did:[a-z0-9]+:/i.test(s) || /^urn:/i.test(s)) return s;\n    return null;\n  }\n  if (typeof v === 'object') {\n    if (v['@id']) return normalizeRefUri(v['@id']);\n    if (v.href) return normalizeRefUri(v.href);\n    if (v.id && typeof v.id === 'string') return normalizeRefUri(v.id);\n    if (v.hasTarget) return normalizeRefUri(v.hasTarget);\n    if (v.target) return normalizeRefUri(v.target);\n  }\n  return null;\n}\n\nfunction extractReferencesFromEntry(entry) {\n  if (!entry || typeof entry !== 'object') return [];\n  const refs = [];\n  for (const field of REFERENCE_FIELDS) {\n    const v = entry[field];\n    if (v == null) continue;\n    const arr = Array.isArray(v) ? v : [v];\n    for (const item of arr) {\n      const uri = normalizeRefUri(item);\n      if (uri) refs.push({ field: field, uri: uri });\n    }\n  }\n  if (Array.isArray(entry.links)) {\n    for (const l of entry.links) {\n      if (l && typeof l.href === 'string') {\n        const uri = normalizeRefUri(l.href);\n        if (uri) refs.push({ field: 'links', uri: uri, rel: l.rel || '' });\n      }\n    }\n  }\n  return refs;\n}\n\nfunction entryMatchesUri(entry, uri) {\n  if (!entry || typeof entry !== 'object' || !uri) return false;\n  const candidates = [\n    entry['@id'], entry.id, entry.identifier, entry._id,\n    entry.uri, entry.url, entry.did, entry.canonicalUri\n  ].filter(Boolean).map(String);\n  return candidates.indexOf(uri) !== -1;\n}\n// ── /FR-ACM-05 helpers ────────────────────────────────────────────────────────\n\nconst provenance = [];\nconst logs = [];\nconst assetDetails = [];\nconst lcDocs = [];\nlet assetCounter = 0;\n\nfor (const cat of catalogues) {\n    const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n    const catId = cat.uniqueId || cat.catalogId || '';\n    const isCrawlOnly = cat._crawlOnly === true;\n    if (isCrawlOnly) {\n        logs.push({ runId, assetId: '', level: 'info', message: 'Catalogue tagged crawl-only, skipping full import: ' + catName, catalogue: catName, timestamp: nowISO });\n        continue;\n    }\n    const strategy = cat.strategy || 'none';\n    const rootPath = cat.responseRootPath || '';\n    const idField = cat.responseAssetIdField || '';\n    const nameField = cat.responseAssetNameField || '';\n    const typeField = cat.responseAssetTypeField || '';\n    const typeMapping = Array.isArray(cat.typeMapping) ? cat.typeMapping : [];\n    const sourceData = cat.sourceData || null;\n    let entries = [];\n    if (sourceData) {\n        entries = extractEntries(sourceData, rootPath);\n        logs.push({ runId, assetId: '', level: 'info', message: 'Extracted ' + entries.length + ' entries from sourceData', catalogue: catName, timestamp: nowISO });\n    }\n\n    for (let i = 0; i < entries.length; i++) {\n        assetCounter++;\n        const entry = entries[i];\n        if (!entry || typeof entry !== 'object') continue;\n        const assetId = 'asset-' + runId + '-' + assetCounter;\n        const lcId = 'lc-' + runId + '-' + assetCounter;\n        const rawId = extractId(entry, idField);\n        const assetName = extractName(entry, nameField);\n        const assetType = extractType(entry, typeField);\n        const mapRow = typeMapping.find(m => m && m.remoteType === assetType);\n        const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n        const domain = entry.domain || entry.theme || entry.category || catName;\n\n        assetDetails.push({ assetId: assetId, title: assetName, catalogue: catName, status: 'success', strategy: strategy, sourceId: rawId, localTypeId: localTypeId });\n        lcDocs.push({\n            uniqueId: lcId,\n            id: lcId,\n            assets: assetName,\n            title: assetName,\n            type: assetType,\n            localTypeId: localTypeId,\n            name: catName,\n            domain: domain,\n            updated: nowShort,\n            integrationStatus: 'Active',\n            sourceCatalogue: catName,\n            sourceCatalogueId: catId,\n            harvestRunId: runId,\n            remoteAssetId: rawId,\n            originalForm: entry,\n            transformedForm: (function(){\n                // ── FR-CR-04: apply JSON field mapping if configured ──\n                const _m = fmFindMapping(catId, catName, _fieldMappings);\n                if (!_m) return null;\n                try { return fmTransform(entry, _m, lcId); }\n                catch (_e) {\n                    logs.push({ runId: runId, assetId: assetId, level: 'warn',\n                        message: 'JSON field mapping failed: ' + _e.message,\n                        catalogue: catName, timestamp: nowISO });\n                    return null;\n                }\n            })(),\n            sourceAssetId: rawId,\n            harvestedAt: nowISO,\n            createdAt: nowISO\n        });\n        provenance.push({ runId: runId, assetId: assetId, title: assetName, catalogue: catName, action: 'imported', strategy: strategy, timestamp: nowISO, status: 'success', sourceId: rawId });\n        logs.push({ runId: runId, assetId: assetId, level: 'info', message: 'Imported: ' + assetName, catalogue: catName, timestamp: nowISO });\n    }\n\n    logs.push({ runId: runId, assetId: '', level: 'info', message: 'Harvest completed for ' + catName + ': ' + entries.length + ' entries processed', catalogue: catName, timestamp: nowISO });\n}\n\n// ── FR-ACM-05: Crawl references (BFS, max depth 3, cycle detection) ──────────\nconst resolveReferences = !!(msg.data?.scope && msg.data.scope.resolveReferences);\nlet crawlStats = { enabled: resolveReferences, referencesFound: 0, crawledAssets: 0, unresolved: 0, maxDepthReached: 0 };\n\nif (resolveReferences) {\n    const crawlIndex = [];\n    for (const cat of catalogues) {\n        const catName = cat.catalogName || cat.uniqueId || 'Unknown';\n        const catId = cat.uniqueId || cat.catalogId || '';\n        const rootPath = cat.responseRootPath || '';\n        const entries = cat.sourceData ? extractEntries(cat.sourceData, rootPath) : [];\n        for (const entry of entries) {\n            crawlIndex.push({\n                entry,\n                catName, catId,\n                strategy: cat.strategy || 'none',\n                idField: cat.responseAssetIdField || '',\n                nameField: cat.responseAssetNameField || '',\n                typeField: cat.responseAssetTypeField || '',\n                typeMapping: Array.isArray(cat.typeMapping) ? cat.typeMapping : [],\n                crawlOnly: cat._crawlOnly === true\n            });\n        }\n    }\n\n    const MAX_DEPTH = 3;\n    const visitedUris = new Set();\n    const visitedAssetIds = new Set(lcDocs.map(d => d.id));\n\n    const queue = [];\n    for (const lcDoc of lcDocs) {\n        queue.push({ entry: lcDoc.originalForm, lcId: lcDoc.id, depth: 1 });\n    }\n\n    while (queue.length > 0) {\n        const { entry, lcId, depth } = queue.shift();\n        if (depth > MAX_DEPTH) continue;\n        crawlStats.maxDepthReached = Math.max(crawlStats.maxDepthReached, depth);\n\n        const refs = extractReferencesFromEntry(entry);\n        for (const ref of refs) {\n            crawlStats.referencesFound++;\n            if (visitedUris.has(ref.uri)) continue;\n            visitedUris.add(ref.uri);\n\n            const hit = crawlIndex.find(row => entryMatchesUri(row.entry, ref.uri));\n            if (!hit) {\n                crawlStats.unresolved++;\n                provenance.push({\n                    runId, assetId: lcId, action: 'crawl-unresolved',\n                    referenceUri: ref.uri, referenceField: ref.field,\n                    timestamp: nowISO, status: 'warning',\n                    message: 'Reference target not found in any supplied catalogue'\n                });\n                logs.push({\n                    runId, assetId: lcId, level: 'warn',\n                    message: 'Unresolved cross-catalogue reference: ' + ref.uri + ' (field=' + ref.field + ')',\n                    catalogue: '', timestamp: nowISO\n                });\n                continue;\n            }\n\n            assetCounter++;\n            const newAssetId = 'asset-' + runId + '-' + assetCounter;\n            const newLcId = 'lc-' + runId + '-' + assetCounter;\n            if (visitedAssetIds.has(newLcId)) continue;\n            visitedAssetIds.add(newLcId);\n\n            const rawId = extractId(hit.entry, hit.idField);\n            const assetName = extractName(hit.entry, hit.nameField);\n            const assetType = extractType(hit.entry, hit.typeField);\n            const mapRow = hit.typeMapping.find(m => m && m.remoteType === assetType);\n            const localTypeId = mapRow && mapRow.localTypeId ? String(mapRow.localTypeId) : '';\n            const domain = hit.entry.domain || hit.entry.theme || hit.entry.category || hit.catName;\n\n            assetDetails.push({ assetId: newAssetId, title: assetName, catalogue: hit.catName, status: 'success', strategy: hit.strategy, sourceId: rawId, localTypeId: localTypeId, crawled: true });\n            const newLcDoc = {\n                uniqueId: newLcId,\n                id: newLcId,\n                assets: assetName,\n                title: assetName,\n                type: assetType,\n                localTypeId: localTypeId,\n                name: hit.catName,\n                domain: domain,\n                updated: nowShort,\n                integrationStatus: 'Active',\n                sourceCatalogue: hit.catName,\n                sourceCatalogueId: hit.catId,\n                harvestRunId: runId,\n                remoteAssetId: rawId,\n                originalForm: hit.entry,\n                transformedForm: (function(){\n                    // ── FR-CR-04: apply JSON field mapping if configured (crawl) ──\n                    const _m = fmFindMapping(hit.catId, hit.catName, _fieldMappings);\n                    if (!_m) return null;\n                    try { return fmTransform(hit.entry, _m, newLcId); }\n                    catch (_e) {\n                        logs.push({ runId: runId, assetId: newAssetId, level: 'warn',\n                            message: 'JSON field mapping failed (crawl): ' + _e.message,\n                            catalogue: hit.catName, timestamp: nowISO });\n                        return null;\n                    }\n                })(),\n                sourceAssetId: rawId,\n                harvestedAt: nowISO,\n                createdAt: nowISO,\n                crawledFrom: lcId,\n                crawlDepth: depth,\n                crawlReferenceUri: ref.uri,\n                crawlReferenceField: ref.field\n            };\n            lcDocs.push(newLcDoc);\n            provenance.push({ runId, assetId: newAssetId, title: assetName, catalogue: hit.catName, action: 'crawled', strategy: hit.strategy, timestamp: nowISO, status: 'success', sourceId: rawId, crawledFrom: lcId, crawlDepth: depth });\n            logs.push({ runId, assetId: newAssetId, level: 'info', message: 'Crawled (depth=' + depth + '): ' + assetName + ' from ' + hit.catName + ' (ref=' + ref.uri + ')', catalogue: hit.catName, timestamp: nowISO });\n            crawlStats.crawledAssets++;\n\n            if (depth + 1 <= MAX_DEPTH) {\n                queue.push({ entry: hit.entry, lcId: newLcId, depth: depth + 1 });\n            }\n        }\n    }\n\n    logs.push({ runId, assetId: '', level: 'info', message: 'Crawl complete: ' + crawlStats.crawledAssets + ' assets crawled, ' + crawlStats.unresolved + ' unresolved, max depth ' + crawlStats.maxDepthReached, catalogue: '', timestamp: nowISO });\n}\n// ── /FR-ACM-05 crawl block ───────────────────────────────────────────────────\n\nconst successCount = assetDetails.filter(a => a.status === 'success').length;\nconst errorCount = assetDetails.filter(a => a.status === 'error').length;\n\nconst run = {\n    uniqueId: runId,\n    catalogueName: catNames.filter(n => !catalogues.find(c => c.catalogName === n && c._crawlOnly)).join(', ') || 'Harvest',\n    scope: msg.data?.scope || {},\n    lifecycle: msg.data?.lifecycle || {},\n    status: 'completed',\n    startedAt: nowShort,\n    totalAssets: assetCounter,\n    assetsAdded: successCount,\n    successCount: successCount,\n    errorCount: errorCount,\n    result: errorCount === 0 ? 'Success' : 'Partial',\n    tool: 'Harvester',\n    provenance: provenance,\n    logs: logs,\n    assetIds: lcDocs.map(a => a.id),\n    crawlStats: crawlStats\n};\n\nconst msg1 = {\n    _harvestRun: run,\n    _lcDocs: lcDocs,\n    // Carry-forward prefetched lookups so the post-import AI hook (ai04m3000020) can use them.\n    _fieldMappings: msg._fieldMappings,\n    _aiPrompts: msg._aiPrompts,\n    _aiProviders: msg._aiProviders,\n    _apiMappings: msg._apiMappings,\n    operation: 'insertOne',\n    collection: 'hv_runs',\n    payload: run,\n    _msgid: msg._msgid,\n    _uib: msg._uib,\n    _socketId: msg._socketId\n};\nreturn msg1;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -7465,7 +7473,7 @@
         "y": 200,
         "wires": [
             [
-                "bb03000000000a10"
+                "ai04m3000020"
             ]
         ]
     },
@@ -8068,7 +8076,444 @@
         "y": 400,
         "wires": [
             [
+                "fm04m3000010"
+            ]
+        ]
+    },
+    {
+        "id": "fm04m3000001",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "── FR-CR-04: Prefetch sr_mappings (JSON Field Mapping only) ──",
+        "info": "",
+        "x": 220,
+        "y": 540,
+        "wires": []
+    },
+    {
+        "id": "fm04m3000010",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Prefetch sr_mappings",
+        "func": "msg.collection = 'sr_mappings';\nmsg.operation  = 'find';\nmsg.payload    = [{}];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 580,
+        "wires": [
+            [
+                "fm04m3000011"
+            ]
+        ]
+    },
+    {
+        "id": "fm04m3000011",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find sr_mappings",
+        "x": 820,
+        "y": 580,
+        "wires": [
+            [
+                "fm04m3000012"
+            ]
+        ]
+    },
+    {
+        "id": "fm04m3000012",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Stash _fieldMappings",
+        "func": "msg._fieldMappings = Array.isArray(msg.payload) ? msg.payload : [];\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 580,
+        "wires": [
+            [
+                "ai04m3000010"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000001",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "── FR-CR-05: Prefetch sr_prompts + sr_providers (AI-driven only) ──",
+        "info": "",
+        "x": 240,
+        "y": 660,
+        "wires": []
+    },
+    {
+        "id": "ai04m3000010",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Prefetch sr_prompts",
+        "func": "msg.collection = 'sr_prompts';\nmsg.operation  = 'find';\nmsg.payload    = [{ status: 'active' }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 580,
+        "y": 700,
+        "wires": [
+            [
+                "ai04m3000011"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000011",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find sr_prompts",
+        "x": 840,
+        "y": 700,
+        "wires": [
+            [
+                "ai04m3000012"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000012",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Stash _aiPrompts → fetch providers",
+        "func": "msg._aiPrompts = Array.isArray(msg.payload) ? msg.payload : [];\nmsg.collection = 'sr_providers';\nmsg.operation  = 'find';\nmsg.payload    = [{ status: 'active' }, { sort: { precedence: 1 } }];\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1140,
+        "y": 700,
+        "wires": [
+            [
+                "ai04m3000013"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000013",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: Find sr_providers",
+        "x": 1380,
+        "y": 700,
+        "wires": [
+            [
+                "ai04m3000014"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000014",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Stash _aiProviders",
+        "func": "msg._aiProviders = Array.isArray(msg.payload) ? msg.payload : [];\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1620,
+        "y": 700,
+        "wires": [
+            [
                 "bb03000000000024"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000002",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "── FR-CR-05: AI / Hybrid AI transform pipeline (auto, post-import) ──",
+        "info": "",
+        "x": 1740,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "ai04m3000020",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "AI: Build LLM queue + kickoff",
+        "func": "// FR-CR-05: build LLM call queue from prefetched mappings/prompts/providers and just-imported lc docs.\nconst lcDocs    = Array.isArray(msg._lcDocs) ? msg._lcDocs : [];\nconst allMaps   = Array.isArray(msg._fieldMappings) ? msg._fieldMappings : [];\nconst aiMappings = allMaps.filter(m => m && (m.transformationStrategy === 'AI-driven' || m.transformationStrategy === 'Hybrid AI Mapping'));\nconst prompts   = Array.isArray(msg._aiPrompts) ? msg._aiPrompts : [];\nconst providers = Array.isArray(msg._aiProviders) ? msg._aiProviders : [];\n\nfunction _norm(s) {\n    return s == null ? '' : String(s).trim().toLowerCase();\n}\n\nfunction findMapping(catId, catName) {\n    if (!Array.isArray(aiMappings) || aiMappings.length === 0) return null;\n    const idN = _norm(catId);\n    const nameN = _norm(catName);\n\n    // Tier 1 — strict ID match (both sides non-empty, normalised string equality)\n    if (idN) {\n        const m = aiMappings.find(x => x && _norm(x.remoteCatalogueId) === idN);\n        if (m) return m;\n    }\n    // Tier 2 — strict name match (both sides non-empty, normalised)\n    if (nameN) {\n        const m = aiMappings.find(x => x && _norm(x.remoteCatalogue) === nameN);\n        if (m) return m;\n    }\n    // Tier 3 — cross match: mapping's name field carries the asset's id, or vice versa\n    if (idN) {\n        const m = aiMappings.find(x => x && _norm(x.remoteCatalogue) === idN);\n        if (m) return m;\n    }\n    if (nameN) {\n        const m = aiMappings.find(x => x && _norm(x.remoteCatalogueId) === nameN);\n        if (m) return m;\n    }\n    return null;\n}\nfunction findPrompt(mapping) {\n    if (!mapping) return null;\n    // v40: explicit link wins\n    if (mapping.promptId) {\n        const explicit = prompts.find(p => p && p.id === mapping.promptId && p.status === 'active');\n        if (explicit) return explicit;\n    }\n    // Legacy fallback: match by sourceSchema\n    const sourceSchema = mapping.remoteSchema || mapping.remoteCatalogue;\n    return prompts.find(p => p && p.sourceSchema === sourceSchema && p.status === 'active') || null;\n}\nfunction findProvider(prompt, mapping) {\n    if (!Array.isArray(providers) || providers.length === 0) return null;\n    if (prompt && prompt.providerId) {\n        const p = providers.find(x => x && x.id === prompt.providerId);\n        if (p) return p;\n    }\n    if (mapping && mapping.providerId) {\n        const p = providers.find(x => x && x.id === mapping.providerId);\n        if (p) return p;\n    }\n    return providers[0];\n}\nfunction decryptKey(provider) {\n    if (!provider) return '';\n    const k = provider.apiKey;\n    if (!k) return '';\n    if (typeof k === 'string') return k;\n    if (typeof k === 'object' && k.ct) {\n        const kmsKey = env.get('DCM_KMS_KEY') || global.get('DCM_KMS_KEY') || '';\n        if (!kmsKey) return '';\n        try {\n            const key = Buffer.from(kmsKey, 'hex');\n            const iv  = Buffer.from(k.iv, 'hex');\n            const tag = Buffer.from(k.tag, 'hex');\n            const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);\n            decipher.setAuthTag(tag);\n            return decipher.update(k.ct, 'hex', 'utf8') + decipher.final('utf8');\n        } catch(e) { return ''; }\n    }\n    return '';\n}\nfunction buildLLMRequest(provider, prompt, asset) {\n    const apiKey = decryptKey(provider);\n    let template = (prompt && prompt.template) || '';\n    template = template.replace(/\\{SOURCE_ASSET\\}/g, JSON.stringify(asset, null, 2));\n    template = template.replace(/\\{SOURCE_SCHEMA\\}/g, (prompt && prompt.sourceSchema) || '');\n    template = template.replace(/\\{TARGET_SCHEMA\\}/g, (prompt && prompt.targetSchema) || '');\n    template = template.replace(/\\{EXAMPLES\\}/g, (prompt && prompt.examples) || '');\n    template = template.replace(/\\{CONSTRAINTS\\}/g, (prompt && prompt.constraints) || '');\n\n    const type = (provider.type || 'openai').toLowerCase();\n    const model = (provider.models && provider.models[0]) || provider.model || 'gpt-4o';\n\n    if (type === 'anthropic') {\n        return {\n            url: provider.apiEndpoint || 'https://api.anthropic.com/v1/messages',\n            headers: {\n                'Content-Type': 'application/json',\n                'x-api-key': apiKey,\n                'anthropic-version': '2023-06-01'\n            },\n            body: JSON.stringify({\n                model: model,\n                max_tokens: 4000,\n                messages: [{ role: 'user', content: template }]\n            }),\n            kind: 'anthropic'\n        };\n    }\n    return {\n        url: provider.apiEndpoint || 'https://api.openai.com/v1/chat/completions',\n        headers: {\n            'Content-Type': 'application/json',\n            'Authorization': 'Bearer ' + apiKey\n        },\n        body: JSON.stringify({\n            model: model,\n            messages: [{ role: 'user', content: template }],\n            temperature: 0\n        }),\n        kind: 'openai'\n    };\n}\n\nconst queue = [];\nconst localUpdates = [];\nconst skips = { transformed: 0, noMapping: 0, noPrompt: 0, noProvider: 0, codeFailed: 0, ok: 0 };\n\n// Index of available mappings/prompts/providers — emitted once for diagnostics\nnode.warn('[ai-harvest] Loop start: ' + lcDocs.length + ' assets, ' +\n          aiMappings.length + ' AI mappings, ' +\n          prompts.length + ' active prompts, ' +\n          providers.length + ' active providers');\n\nfor (const lc of lcDocs) {\n    if (lc.transformedForm) { skips.transformed++; continue; }\n\n    const m = findMapping(lc.sourceCatalogueId, lc.sourceCatalogue);\n    if (!m) {\n        skips.noMapping++;\n        node.warn('[ai-harvest] SKIP (no mapping) lc=' + lc.id +\n                  ' sourceCatalogueId=' + JSON.stringify(lc.sourceCatalogueId) +\n                  ' sourceCatalogue=' + JSON.stringify(lc.sourceCatalogue) +\n                  ' | available mappings: ' +\n                  aiMappings.map(x => '{id=' + JSON.stringify(x.remoteCatalogueId) +\n                                       ',name=' + JSON.stringify(x.remoteCatalogue) + '}').join(', '));\n        continue;\n    }\n\n    const p = findPrompt(m);\n    if (!p) {\n        skips.noPrompt++;\n        node.warn('[ai-harvest] SKIP (no prompt) lc=' + lc.id +\n                  ' mapping.id=' + m.id +\n                  ' mapping.promptId=' + JSON.stringify(m.promptId) +\n                  ' mapping.remoteSchema=' + JSON.stringify(m.remoteSchema) +\n                  ' | active prompts: ' + prompts.map(p => '{id=' + p.id +\n                                                          ',sourceSchema=' + JSON.stringify(p.sourceSchema) + '}').join(', '));\n        continue;\n    }\n\n    // Inline path: prompt has saved generatedCode → run it locally, no LLM round-trip\n    const code = (p.generatedCode || '').trim();\n    if (code) {\n        try {\n            const fn = new Function('input', code + '\\nreturn transform(input);');\n            const result = fn(lc.originalForm || {});\n            if (result && typeof result === 'object') {\n                if (!result['@id']) result['@id'] = 'did:web:dcm.local:' + lc.id;\n                localUpdates.push({\n                    lcId: lc.id,\n                    transformedForm: result,\n                    mappingId: m.id,\n                    promptId: p.id,\n                    providerId: '(local-code)'\n                });\n                skips.ok++;\n                continue;\n            }\n            skips.codeFailed++;\n            node.warn('[ai-harvest] generatedCode returned non-object for ' + lc.id + ' — falling back to LLM');\n        } catch (codeErr) {\n            skips.codeFailed++;\n            node.warn('[ai-harvest] generatedCode threw for ' + lc.id + ': ' + codeErr.message + ' — falling back to LLM');\n        }\n    }\n\n    // LLM path: no code or code failed → queue an LLM call\n    const prov = findProvider(p, m);\n    if (!prov) {\n        skips.noProvider++;\n        node.warn('[ai-harvest] SKIP (no provider) lc=' + lc.id +\n                  ' prompt.providerId=' + JSON.stringify(p.providerId) +\n                  ' mapping.providerId=' + JSON.stringify(m.providerId) +\n                  ' | active providers: ' + providers.map(x => x.id).join(', '));\n        continue;\n    }\n    const req = buildLLMRequest(prov, p, lc.originalForm || {});\n    queue.push({ lcId: lc.id, mappingId: m.id, promptId: p.id, providerId: prov.id, req: req });\n}\n\nnode.warn('[ai-harvest] Loop done: queued ' + queue.length + ' LLM calls, ' +\n          localUpdates.length + ' inline transforms; skips=' + JSON.stringify(skips));\n\nmsg._aiQueue = queue;\nmsg._aiQueueIdx = 0;\nmsg._aiUpdates = localUpdates;\n\nif (queue.length === 0) {\n    return [null, msg];\n}\n\nconst first = queue[0];\nmsg.url = first.req.url;\nmsg.method = 'POST';\nmsg.headers = first.req.headers;\nmsg.payload = first.req.body;\nnode.warn('[ai-harvest] Calling LLM 1/' + queue.length + ' for ' + first.lcId);\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "crypto",
+                "module": "crypto"
+            }
+        ],
+        "x": 2000,
+        "y": 200,
+        "wires": [
+            [
+                "ai04m3000023"
+            ],
+            [
+                "ai04m3000025"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000023",
+        "type": "http request",
+        "z": "bb03000000000000",
+        "name": "LLM HTTP call",
+        "method": "use",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 2260,
+        "y": 200,
+        "wires": [
+            [
+                "ai04m3000024"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000024",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "AI: Handle LLM response + loop",
+        "func": "const queue   = msg._aiQueue || [];\nconst idx     = msg._aiQueueIdx || 0;\nconst updates = msg._aiUpdates || [];\nconst current = queue[idx];\n\nfunction extractContent(data, kind) {\n    if (!data || typeof data !== 'object') return '';\n    if (kind === 'anthropic') {\n        if (Array.isArray(data.content) && data.content[0] && typeof data.content[0].text === 'string') return data.content[0].text;\n        return '';\n    }\n    if (Array.isArray(data.choices) && data.choices[0] && data.choices[0].message && typeof data.choices[0].message.content === 'string') return data.choices[0].message.content;\n    if (Array.isArray(data.choices) && data.choices[0] && typeof data.choices[0].text === 'string') return data.choices[0].text;\n    return '';\n}\nfunction stripMarkdown(s) {\n    if (!s) return s;\n    let t = String(s).trim();\n    if (t.startsWith('```')) {\n        t = t.replace(/^```(?:json|javascript|js)?\\s*\\n?/i, '');\n        t = t.replace(/\\n?```\\s*$/, '');\n    }\n    return t.trim();\n}\nfunction safeParseJson(s) {\n    if (!s) return null;\n    try { return JSON.parse(s); } catch(e) {\n        const m = String(s).match(/\\{[\\s\\S]*\\}/);\n        if (m) {\n            try { return JSON.parse(m[0]); } catch(_) { return null; }\n        }\n        return null;\n    }\n}\n\nif (current) {\n    const status = msg.statusCode || 0;\n    const data = msg.payload;\n    let transformed = null;\n    if (status >= 200 && status < 300) {\n        const raw = extractContent(data, current.req.kind);\n        const cleaned = stripMarkdown(raw);\n        const parsed = safeParseJson(cleaned);\n        if (parsed && typeof parsed === 'object') {\n            transformed = parsed;\n        } else {\n            node.warn('[ai-harvest] LLM returned non-JSON for ' + current.lcId);\n        }\n    } else {\n        node.warn('[ai-harvest] LLM HTTP ' + status + ' for ' + current.lcId);\n    }\n    if (transformed) {\n        if (!transformed['@id']) transformed['@id'] = 'did:web:dcm.local:' + current.lcId;\n        updates.push({ lcId: current.lcId, transformedForm: transformed, mappingId: current.mappingId, promptId: current.promptId, providerId: current.providerId });\n    }\n}\n\nconst nextIdx = idx + 1;\nmsg._aiQueueIdx = nextIdx;\nmsg._aiUpdates = updates;\n\nif (nextIdx < queue.length) {\n    const next = queue[nextIdx];\n    msg.url = next.req.url;\n    msg.method = 'POST';\n    msg.headers = next.req.headers;\n    msg.payload = next.req.body;\n    node.warn('[ai-harvest] Calling LLM ' + (nextIdx+1) + '/' + queue.length + ' for ' + next.lcId);\n    return [msg, null];\n}\n\ndelete msg._aiQueue;\ndelete msg._aiQueueIdx;\nmsg.payload = '';\nreturn [null, msg];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2520,
+        "y": 200,
+        "wires": [
+            [
+                "ai04m3000023"
+            ],
+            [
+                "ai04m3000025"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000025",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "AI: Bulk-update lc_assets.transformedForm",
+        "func": "const updates = msg._aiUpdates || [];\nif (updates.length === 0) return [null, msg];\nconst bulk = updates.map(u => ({\n    updateOne: {\n        filter: { id: u.lcId },\n        update: { $set: {\n            transformedForm: u.transformedForm,\n            transformedAt: new Date().toISOString(),\n            transformedByMappingId: u.mappingId,\n            transformedByPromptId: u.promptId,\n            transformedByProviderId: u.providerId\n        }}\n    }\n}));\nmsg.collection = 'lc_assets';\nmsg.operation  = 'bulkWrite';\nmsg.payload    = [bulk];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 2820,
+        "y": 200,
+        "wires": [
+            [
+                "ai04m3000027"
+            ],
+            [
+                "ai04m3000026"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000027",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: bulkWrite lc_assets",
+        "x": 3100,
+        "y": 200,
+        "wires": [
+            [
+                "ai04m3000026"
+            ]
+        ]
+    },
+    {
+        "id": "ai04m3000026",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "AI: pass to audit",
+        "func": "// Clean up AI loop state and continue to existing audit/response chain.\ndelete msg._aiQueue;\ndelete msg._aiQueueIdx;\ndelete msg._aiUpdates;\ndelete msg._aiPrompts;\ndelete msg._aiProviders;\ndelete msg.url;\ndelete msg.method;\ndelete msg.headers;\nmsg.payload = '';\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 3380,
+        "y": 200,
+        "wires": [
+            [
+                "bb03000000000a10"
+            ]
+        ]
+    },
+    {
+        "id": "cl05m3000001",
+        "type": "comment",
+        "z": "bb03000000000000",
+        "name": "── FR-ACM-06: Clear Harvest History (hv_runs + audit) ──",
+        "x": 220,
+        "y": 940,
+        "wires": []
+    },
+    {
+        "id": "cl05m3000010",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Prepare deleteMany hv_runs",
+        "func": "msg.collection = 'hv_runs';\nmsg.operation  = 'deleteMany';\nmsg.payload    = {};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 980,
+        "wires": [
+            [
+                "cl05m3000011"
+            ]
+        ]
+    },
+    {
+        "id": "cl05m3000011",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: deleteMany hv_runs",
+        "x": 820,
+        "y": 980,
+        "wires": [
+            [
+                "cl05m3000012"
+            ]
+        ]
+    },
+    {
+        "id": "cl05m3000012",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "Stash hv_runs result + delete audit",
+        "func": "const r = msg.payload;\nlet n = 0;\nif (r && typeof r === 'object') {\n    if (typeof r.deletedCount === 'number') n = r.deletedCount;\n    else if (Array.isArray(r) && r[0] && typeof r[0].deletedCount === 'number') n = r[0].deletedCount;\n}\nmsg._clearHvDeleted = n;\nmsg.collection = 'dcm_transformation_audit';\nmsg.operation  = 'deleteMany';\nmsg.payload    = {};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1080,
+        "y": 980,
+        "wires": [
+            [
+                "cl05m3000013"
+            ]
+        ]
+    },
+    {
+        "id": "cl05m3000013",
+        "type": "mongodb4",
+        "z": "bb03000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: deleteMany audit",
+        "x": 1340,
+        "y": 980,
+        "wires": [
+            [
+                "cl05m3000014"
+            ]
+        ]
+    },
+    {
+        "id": "cl05m3000014",
+        "type": "function",
+        "z": "bb03000000000000",
+        "name": "response: clearHarvestHistory",
+        "func": "const r = msg.payload;\nlet auditDeleted = 0;\nif (r && typeof r === 'object') {\n    if (typeof r.deletedCount === 'number') auditDeleted = r.deletedCount;\n    else if (Array.isArray(r) && r[0] && typeof r[0].deletedCount === 'number') auditDeleted = r[0].deletedCount;\n}\nmsg.response = {\n    action: 'clearHarvestHistory',\n    status: 'success',\n    runsDeleted: msg._clearHvDeleted || 0,\n    auditDeleted: auditDeleted\n};\ndelete msg._clearHvDeleted;\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1620,
+        "y": 980,
+        "wires": [
+            [
+                "bb03000000000099"
             ]
         ]
     },
@@ -8103,7 +8548,7 @@
         "type": "function",
         "z": "cc04000000000000",
         "name": "permission gate: prepare session lookup",
-        "func": "// Extract session token from msg\nconst token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || '';\nconst handlerType = msg.type || '';\n\n// Write operations table for this module\nmsg._writeOps = {\n    'listUsers':           ['users','read'],\n    'getUserDetail':       ['users','read'],\n    'getAdminTools':       ['users','read'],\n    'createUser':          ['users','create'],\n    'updateUser':          ['users','update'],\n    'deleteUser':          ['users','delete'],\n    'listRoles':           ['roles','read'],\n    'createRole':          ['roles','create'],\n    'updateRole':          ['roles','update'],\n    'deleteRole':          ['roles','delete'],\n    'listAudit':           ['audit','read'],\n    'getMonitoringOverview': ['audit','read']\n};\nmsg._handlerType = handlerType;\nmsg._sessionToken = token;\n\nif (!token) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Not authenticated' } };\n    return [null, msg];\n}\n\nmsg.collection = 'auth_sessions';\nmsg.operation = 'findOne';\nmsg.payload = { token: token };\nreturn [msg, null];",
+        "func": "// Extract session token from msg\nconst token = msg.auth?.userToken || msg.payload?.data?.token || msg.data?.token || '';\nconst handlerType = msg.type || '';\n\n// Write operations table for this module\nmsg._writeOps = {\n    'listUsers':           ['users','read'],\n    'getUserDetail':       ['users','read'],\n    'getAdminTools':       ['users','read'],\n    'createUser':          ['users','create'],\n    'updateUser':          ['users','update'],\n    'updateUserPassword':  ['users','update'],\n    'deleteUser':          ['users','delete'],\n    'listRoles':           ['roles','read'],\n    'createRole':          ['roles','create'],\n    'updateRole':          ['roles','update'],\n    'deleteRole':          ['roles','delete'],\n    'listAudit':           ['audit','read'],\n    'getMonitoringOverview': ['audit','read']\n};\nmsg._handlerType = handlerType;\nmsg._sessionToken = token;\n\nif (!token) {\n    msg.payload = { response: { action: handlerType, ok: false, error: 'not_authenticated', status: 'error', message: 'Not authenticated' } };\n    return [null, msg];\n}\n\nmsg.collection = 'auth_sessions';\nmsg.operation = 'findOne';\nmsg.payload = { token: token };\nreturn [msg, null];",
         "outputs": 2,
         "x": 390,
         "y": 200,
@@ -8339,11 +8784,16 @@
                 "t": "eq",
                 "v": "getMonitoringOverview",
                 "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "updateUserPassword",
+                "vt": "str"
             }
         ],
         "checkall": "false",
         "repair": false,
-        "outputs": 12,
+        "outputs": 13,
         "x": 370,
         "y": 500,
         "wires": [
@@ -8382,6 +8832,9 @@
             ],
             [
                 "cc04000000000500"
+            ],
+            [
+                "pw50m4000010"
             ]
         ]
     },
@@ -9578,6 +10031,206 @@
         "y": 1900,
         "wires": [
             []
+        ]
+    },
+    {
+        "id": "pw50m4000001",
+        "type": "comment",
+        "z": "cc04000000000000",
+        "name": "── FR-AC-04: Update User Password ──",
+        "x": 220,
+        "y": 1500,
+        "wires": []
+    },
+    {
+        "id": "pw50m4000010",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: validate + find",
+        "func": "var input = (msg.data && typeof msg.data === 'object' && msg.data) || (msg.payload && msg.payload.data) || {};\nvar userId = input.userId || input.uniqueId;\nvar username = input.username;\nvar pw = String(input.password || '');\nif (!userId && !username) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'missing_userId' } };\n    return [null, msg];\n}\nif (pw.length < 8) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'validation', field: 'password', reason: 'Password must be at least 8 characters' } };\n    return [null, msg];\n}\nmsg._pwInput = { userId: userId, username: username, password: pw };\nmsg.collection = 'dcm_users';\nmsg.operation  = 'findOne';\nmsg.payload    = username ? { username: username } : { _id: userId };\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000011"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000011",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: findOne dcm_users",
+        "x": 820,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000020"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000020",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: hash + updateOne auth_users",
+        "func": "var existing = msg.payload;\nif (!existing || (Array.isArray(existing) && existing.length === 0)) {\n    msg.payload = { response: { action: 'updateUserPassword', ok: false, status: 'error', error: 'user_not_found' } };\n    return [null, msg];\n}\nvar user = Array.isArray(existing) ? existing[0] : existing;\nmsg._pwUser = user;\nvar hash = bcrypt.hashSync(msg._pwInput.password, 10);\nmsg.collection = 'auth_users';\nmsg.operation  = 'updateOne';\nmsg.payload    = [\n    { username: user.username },\n    { $set: { passwordHash: hash, passwordUpdatedAt: new Date().toISOString() } },\n    { upsert: true }\n];\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [
+            {
+                "var": "bcrypt",
+                "module": "bcryptjs"
+            }
+        ],
+        "x": 1100,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000021"
+            ],
+            [
+                "cc04000000000099"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000021",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: updateOne auth_users",
+        "x": 1380,
+        "y": 1540,
+        "wires": [
+            [
+                "pw50m4000030"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000030",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: deleteMany sessions",
+        "func": "var user = msg._pwUser;\nmsg.collection = 'auth_sessions';\nmsg.operation  = 'deleteMany';\nmsg.payload    = { $or: [ { userId: String(user._id) }, { username: user.username } ] };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000031"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000031",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: deleteMany auth_sessions",
+        "x": 820,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000040"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000040",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "updateUserPassword: insert audit",
+        "func": "var user = msg._pwUser;\nvar r = msg.payload;\nvar sessionsRevoked = 0;\nif (r && typeof r === 'object') {\n    if (typeof r.deletedCount === 'number') sessionsRevoked = r.deletedCount;\n    else if (Array.isArray(r) && r[0] && typeof r[0].deletedCount === 'number') sessionsRevoked = r[0].deletedCount;\n}\nmsg._pwSessionsRevoked = sessionsRevoked;\nmsg.collection = 'dcm_audit_log';\nmsg.operation  = 'insertOne';\nmsg.payload    = {\n    timestamp: new Date().toISOString(),\n    actor: msg._callerUsername || 'system',\n    area: 'users',\n    action: 'updateUserPassword',\n    target: user.username,\n    payload: { sessionsRevoked: sessionsRevoked },\n    result: 'ok'\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1100,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000041"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000041",
+        "type": "mongodb4",
+        "z": "cc04000000000000",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "DB: insert audit (password)",
+        "x": 1380,
+        "y": 1620,
+        "wires": [
+            [
+                "pw50m4000050"
+            ]
+        ]
+    },
+    {
+        "id": "pw50m4000050",
+        "type": "function",
+        "z": "cc04000000000000",
+        "name": "response: updateUserPassword",
+        "func": "var user = msg._pwUser;\nmsg.payload = { response: {\n    action: 'updateUserPassword',\n    ok: true,\n    status: 'success',\n    user: { uniqueId: String(user._id), username: user.username },\n    sessionsRevoked: msg._pwSessionsRevoked || 0\n}};\ndelete msg._pwInput;\ndelete msg._pwUser;\ndelete msg._pwSessionsRevoked;\ndelete msg.collection;\ndelete msg.operation;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1620,
+        "y": 1620,
+        "wires": [
+            [
+                "cc04000000000099"
+            ]
         ]
     },
     {

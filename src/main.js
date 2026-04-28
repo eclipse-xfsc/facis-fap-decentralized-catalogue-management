@@ -6,7 +6,7 @@
  */
 
 import { uibuilderService } from "./services/uibuilder.service.js";
-// OpenAI operations are now handled by the ORCE backend via uibuilder messages.
+// OpenAI operations are now handled by the Node-RED backend via uibuilder messages.
 // The openai.service.js is kept for reference but no longer imported here.
 import { EditorView, basicSetup } from "codemirror";
 import { javascript } from "@codemirror/lang-javascript";
@@ -1177,6 +1177,27 @@ const app = createApp({
         },
       });
     },
+    submitUpdateUserPassword(payload) {
+      if (this.userEditPasswordSaving) return;
+      const password = (payload && payload.password) || "";
+      const raw = toRaw(this.editUserForm) || {};
+      if (!raw.userId && !raw.username) {
+        this.userEditPasswordError = "No user selected.";
+        return;
+      }
+      this.userEditPasswordError = "";
+      this.userEditPasswordSaving = true;
+      const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+      uibuilderService.send({
+        type: "updateUserPassword",
+        auth: auth,
+        data: {
+          userId: raw.userId,
+          username: raw.username,
+          password: password,
+        },
+      });
+    },
 
     // ── Create User ──────────────────────────────────────────
     closeCreateUserModal() {
@@ -2189,7 +2210,9 @@ const app = createApp({
         remoteCatalogue: "", remoteSchema: "",
         localSchemaId: "",
         remoteSchemaMeta: "", transformationStrategy: "Deterministic RDF",
-        promptsCount: 0, shaclCount: 0
+        promptsCount: 0, shaclCount: 0,
+        fieldMappings: [], targetClass: "", jsonLdContext: "",
+        promptId: ""
       };
       this.showAddMappingModal = true;
     },
@@ -2206,6 +2229,10 @@ const app = createApp({
         remoteCatalogue: cat?.catalogName || this.addMappingForm.remoteCatalogueId,
         remoteSchema: rs ? (rs.name + " " + rs.version) : this.addMappingForm.remoteSchemaId,
         localSchema: this.addMappingForm.localSchemaId,
+        fieldMappings: Array.isArray(this.addMappingForm.fieldMappings) ? this.addMappingForm.fieldMappings : [],
+        targetClass:   this.addMappingForm.targetClass   || "",
+        jsonLdContext: this.addMappingForm.jsonLdContext || "",
+        promptId:      this.addMappingForm.promptId      || ""
       };
       if (this.isEditingMapping && this.editingMappingId != null) {
         data.id = this.editingMappingId;
@@ -2220,9 +2247,26 @@ const app = createApp({
 
     // ── Mapping View/Edit Detail (Milestone 2) ────────────────
     openMappingViewEdit(row) {
-      this.mappingDetailRow = { ...row };
+      this.mappingDetailRow = {
+        ...row,
+        fieldMappings: Array.isArray(row.fieldMappings) ? row.fieldMappings : [],
+        targetClass:   row.targetClass   || "",
+        jsonLdContext: row.jsonLdContext || "",
+        promptId:      row.promptId      || ""
+      };
       this.isEditingMappingDetail = false;
       this.showMappingDetailPanel = true;
+    },
+    addFieldMappingRow() {
+      if (!this.mappingDetailRow) return;
+      if (!Array.isArray(this.mappingDetailRow.fieldMappings)) {
+        this.mappingDetailRow.fieldMappings = [];
+      }
+      this.mappingDetailRow.fieldMappings.push({ from: "", to: "", transform: "" });
+    },
+    removeFieldMappingRow(i) {
+      if (!this.mappingDetailRow || !Array.isArray(this.mappingDetailRow.fieldMappings)) return;
+      this.mappingDetailRow.fieldMappings.splice(i, 1);
     },
     closeMappingDetail() {
       this.showMappingDetailPanel = false;
@@ -2231,12 +2275,23 @@ const app = createApp({
     },
     startEditMappingDetail() {
       if (!this.mappingDetailRow) return;
+      const r = this.mappingDetailRow;
       this.mappingDetailEditForm = {
-        remoteCatalogue: this.mappingDetailRow.remoteCatalogue,
-        remoteSchema: this.mappingDetailRow.remoteSchema,
-        localSchema: this.mappingDetailRow.localSchema || "",
-        remoteSchemaMeta: this.mappingDetailRow.remoteSchemaMeta,
-        transformationStrategy: this.mappingDetailRow.transformationStrategy,
+        remoteCatalogueId:      r.remoteCatalogueId      || "",
+        remoteSchemaId:         r.remoteSchemaId         || "",
+        remoteCatalogue:        r.remoteCatalogue        || "",
+        remoteSchema:           r.remoteSchema           || "",
+        localSchema:            r.localSchema            || "",
+        remoteSchemaMeta:       r.remoteSchemaMeta       || "",
+        transformationStrategy: r.transformationStrategy || "Deterministic RDF",
+        promptsCount:           r.promptsCount           || 0,
+        shaclCount:             r.shaclCount             || 0,
+        namespacesToPreserve:   Array.isArray(r.namespacesToPreserve) ? [...r.namespacesToPreserve] : [],
+        shaclShapeSchemaId:     r.shaclShapeSchemaId     || "",
+        fieldMappings:          Array.isArray(r.fieldMappings) ? r.fieldMappings.map(x => ({ ...x })) : [],
+        targetClass:            r.targetClass            || "",
+        jsonLdContext:          r.jsonLdContext          || "",
+        promptId:               r.promptId               || ""
       };
       this.isEditingMappingDetail = true;
     },
@@ -2245,7 +2300,17 @@ const app = createApp({
     },
     saveEditMappingDetail() {
       if (!this.mappingDetailRow) return;
-      const data = { id: this.mappingDetailRow.id, ...this.mappingDetailEditForm };
+      // Merge: detail row is the source of truth for fields not in the edit form
+      // (e.g. fieldMappings + targetClass added via inline rows / target-class input).
+      const merged = {
+        ...this.mappingDetailRow,
+        ...this.mappingDetailEditForm,
+        fieldMappings: Array.isArray(this.mappingDetailRow.fieldMappings) ? this.mappingDetailRow.fieldMappings : (this.mappingDetailEditForm.fieldMappings || []),
+        targetClass:   this.mappingDetailRow.targetClass   || this.mappingDetailEditForm.targetClass   || "",
+        jsonLdContext: this.mappingDetailRow.jsonLdContext || this.mappingDetailEditForm.jsonLdContext || "",
+        promptId:      this.mappingDetailEditForm.promptId  || this.mappingDetailRow.promptId      || ""
+      };
+      const data = { id: this.mappingDetailRow.id, ...merged };
       uibuilderService.send({
         type: "saveMapping",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
@@ -2483,7 +2548,7 @@ const app = createApp({
       this._harvestTimeout = setTimeout(() => {
         if (this.isSubmittingHarvest) {
           this.isSubmittingHarvest = false;
-          this.addToast("error", "Harvest request timed out — no response from backend. Check ORCE logs.");
+          this.addToast("error", "Harvest request timed out — no response from backend. Check Node-RED logs.");
         }
       }, 30000);
       uibuilderService.send({
@@ -2560,6 +2625,21 @@ const app = createApp({
       uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
       uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
       uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
+    },
+    openClearHarvestHistoryModal() {
+      this.showClearHarvestHistoryModal = true;
+    },
+    closeClearHarvestHistoryModal() {
+      if (this.clearHarvestHistoryRunning) return;
+      this.showClearHarvestHistoryModal = false;
+    },
+    confirmClearHarvestHistory() {
+      this.clearHarvestHistoryRunning = true;
+      uibuilderService.send({
+        type: "clearHarvestHistory",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {}
+      });
     },
 
     // ── Utility ─────────────────────────────────────────────────
@@ -3060,6 +3140,20 @@ const app = createApp({
         }
       }
 
+      if (resp?.action === "clearHarvestHistory" && resp?.status === "success") {
+        this.clearHarvestHistoryRunning = false;
+        this.showClearHarvestHistoryModal = false;
+        this.harvestRecords = [];
+        this.harvestProgress = null;
+        uibuilderService.send({
+          type: "listHarvestRuns",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        });
+        this.addToast && this.addToast("success",
+          "Harvest history cleared (" + (resp.runsDeleted || 0) + " runs, " +
+          (resp.auditDeleted || 0) + " audit rows).");
+      }
+
       if (resp?.action === "listHarvestRuns" && resp?.status === "success") {
         const runs = Array.isArray(resp.runs) ? resp.runs : [];
         this.harvestRecords = runs.map(r => ({
@@ -3242,6 +3336,26 @@ const app = createApp({
           this.editUserForm.validationError = { field: resp.field, reason: resp.reason || "Invalid value" };
         } else {
           this.addToast("error", resp.message || resp.reason || "Failed to update user: " + resp.error);
+        }
+      }
+
+      // ── updateUserPassword response ───────────────────────────
+      if (resp?.action === "updateUserPassword") {
+        this.userEditPasswordSaving = false;
+        if (resp.ok || resp.status === "success") {
+          this.userEditPasswordError = "";
+          this.addToast && this.addToast(
+            "success",
+            "Password updated. " + (resp.sessionsRevoked || 0) + " active session(s) revoked."
+          );
+        } else {
+          const m =
+            resp.error === "validation"     ? (resp.reason || "Validation failed.") :
+            resp.error === "user_not_found" ? "User not found." :
+            resp.error === "missing_userId" ? "Missing user identifier." :
+                                              (resp.message || "Password update failed.");
+          this.userEditPasswordError = m;
+          this.addToast && this.addToast("error", m);
         }
       }
 

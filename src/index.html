@@ -1721,7 +1721,67 @@
                               <option>Deterministic RDF</option>
                               <option>AI-driven</option>
                               <option>Hybrid AI Mapping</option>
+                              <option value="JSON Field Mapping">JSON Field Mapping</option>
                             </select>
+                          </div>
+                          <!-- v40: explicit prompt link for AI strategies -->
+                          <div v-if="mappingDetailEditForm.transformationStrategy === 'AI-driven' || mappingDetailEditForm.transformationStrategy === 'Hybrid AI Mapping'"
+                               class="detail-field" style="margin-top:12px;">
+                            <label class="detail-label">Linked Prompt</label>
+                            <select class="filter-select" v-model="mappingDetailEditForm.promptId">
+                              <option value="">(auto — match by Source Schema)</option>
+                              <option v-for="p in (prompts || []).filter(x => x.status === 'active')"
+                                      :key="'lp-' + p.id"
+                                      :value="p.id">
+                                {{ p.name }}{{ p.sourceSchema ? ' — src: ' + p.sourceSchema : '' }}
+                              </option>
+                            </select>
+                            <div class="field-hint" style="font-size:11px; color:#6B7280; margin-top:4px;">
+                              Pick one to override the default Source-Schema match. Leave on "auto" for legacy behaviour.
+                            </div>
+                          </div>
+                          <div v-if="mappingDetailEditForm.transformationStrategy === 'JSON Field Mapping'" class="field-mapping-section" style="margin-top:12px;border-top:1px solid #E5E7EB;padding-top:12px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                              <strong>Field Mappings</strong>
+                              <button class="btn-light" type="button" @click="addFieldMappingRow">+ Add Row</button>
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label">Target Class</label>
+                              <input class="form-input" type="text" v-model="mappingDetailRow.targetClass" placeholder="e.g. LegalPerson" />
+                            </div>
+                            <div class="form-group">
+                              <label class="form-label">JSON-LD @context (optional)</label>
+                              <input class="form-input" type="text" v-model="mappingDetailRow.jsonLdContext" placeholder="https://registry.lab.gaia-x.eu/development/context/development" />
+                            </div>
+                            <table class="field-mapping-table" style="width:100%;font-size:12px;">
+                              <thead><tr>
+                                <th style="text-align:left;">Source Path</th>
+                                <th style="text-align:left;">Target Path</th>
+                                <th style="text-align:left;width:140px;">Transform</th>
+                                <th style="width:30px;"></th>
+                              </tr></thead>
+                              <tbody>
+                                <tr v-for="(row, i) in mappingDetailRow.fieldMappings" :key="i">
+                                  <td><input class="form-input" v-model="row.from" placeholder="A.1.Anbieter.A.1.1.\u2026" /></td>
+                                  <td><input class="form-input" v-model="row.to" placeholder="legalName" /></td>
+                                  <td><select class="filter-select" v-model="row.transform">
+                                    <option value="">(none)</option>
+                                    <option value="identity">identity</option>
+                                    <option value="parseAddress">parseAddress</option>
+                                    <option value="lower">lower</option>
+                                    <option value="upper">upper</option>
+                                    <option value="trim">trim</option>
+                                    <option value="toNumber">toNumber</option>
+                                    <option value="toBoolean">toBoolean</option>
+                                    <option value="nonEmpty">nonEmpty</option>
+                                  </select></td>
+                                  <td><button class="btn-icon" type="button" @click="removeFieldMappingRow(i)">×</button></td>
+                                </tr>
+                                <tr v-if="!mappingDetailRow.fieldMappings || mappingDetailRow.fieldMappings.length === 0">
+                                  <td colspan="4" style="color:#9CA3AF;font-style:italic;padding:8px;">No field mappings yet — click "+ Add Row".</td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
                         </template>
                       </div>
@@ -2929,8 +2989,37 @@
                     </div>
 
                     <div class="harvest-content">
-                        <div class="harvest-content-header">
+                        <div class="harvest-content-header" style="display:flex;justify-content:space-between;align-items:center;">
                             <span>Harvesting Overview</span>
+                            <button class="btn-secondary"
+                                    style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;color:#991B1B;border:1px solid #FCA5A5;background:#FEF2F2;"
+                                    @click="openClearHarvestHistoryModal"
+                                    :disabled="clearHarvestHistoryRunning"
+                                    title="Delete every harvest run and audit record. Imported assets stay.">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M3 5h10M5 5v8a1 1 0 001 1h4a1 1 0 001-1V5M7 5V3h2v2"
+                                          stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Clear History</span>
+                            </button>
+                        </div>
+                        <!-- Clear Harvest History Confirmation -->
+                        <div v-if="showClearHarvestHistoryModal" class="modal-overlay" @click.self="closeClearHarvestHistoryModal" style="z-index:1100;">
+                            <div class="modal-card-catalog" style="max-width:480px;">
+                                <div class="modal-header">
+                                    <h2>Clear Harvest History?</h2>
+                                    <button class="modal-close" @click="closeClearHarvestHistoryModal">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>This will delete <strong>every harvest run record</strong> and the related transformation audit trail.</p>
+                                    <p style="color:#6B7280;font-size:13px;margin-top:8px;">Imported assets in the Local Catalogue are <strong>NOT</strong> deleted. Catalogue Registry, Schema Registry, Prompts, and Providers are <strong>NOT</strong> touched.</p>
+                                    <p v-if="clearHarvestHistoryRunning" style="color:#6B7280;margin-top:8px;">Working…</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn-secondary" @click="closeClearHarvestHistoryModal" :disabled="clearHarvestHistoryRunning">Cancel</button>
+                                    <button class="btn-edit danger" @click="confirmClearHarvestHistory" :disabled="clearHarvestHistoryRunning">Yes, clear history</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="harvest-content-status">
                             <div class="harvest-status-card">
@@ -3208,6 +3297,8 @@
 <!-- View Modal (component) -->
         <view-modal
           :visible="isViewModal"
+          :asset-detail-row="assetDetailRow"
+          :mapping-rows="mappingRows"
           :current-view-tab="currentViewTab"
           :transformation-summary="transformationSummary"
           :validation="validation"
@@ -3261,8 +3352,11 @@
           :edit-user-form="editUserForm"
           :loading="isSavingUser"
           :can-save="canSaveEditUser"
+          :password-saving="userEditPasswordSaving"
+          :password-error="userEditPasswordError"
           @close="closeEditUserModal"
           @save-user="submitEditUser"
+          @save-password="submitUpdateUserPassword"
         ></manage-user-modal>
 
         <!-- Schema Edit Modal (component) -->
@@ -3343,7 +3437,7 @@
               <div class="form-group"><label class="form-label">Local Mapping</label><input class="form-input" type="text" placeholder="e.g. Service, Data Product" v-model="localSchemaForm.localMapping" /></div>
               <div class="form-group">
                 <label class="form-label">Author</label>
-                <input class="form-input" type="text" placeholder="e.g. admin@facis.com" v-model="localSchemaForm.author" />
+                <input class="form-input" type="text" placeholder="e.g. admin@leanea.com" v-model="localSchemaForm.author" />
               </div>
               <div class="form-group">
                 <label class="form-label">Description</label>
@@ -3417,6 +3511,7 @@
                   <option>Deterministic RDF</option>
                   <option>AI-driven</option>
                   <option>Hybrid AI Mapping</option>
+                  <option value="JSON Field Mapping">JSON Field Mapping</option>
                 </select>
               </div>
               <div class="form-group">
@@ -3529,7 +3624,7 @@
                   <select v-model="promptForm.sourceSchema" class="form-input">
                     <option value="">Select source schema...</option>
                     <option v-for="s in schemaRegistry" :key="'src-'+s.id" :value="s.schema">{{ s.schema }}</option>
-                    <option v-for="s in remoteSchema" :key="'rsrc-'+s.id" :value="s.schema">{{ s.schema }}</option>
+                    <option v-for="s in remoteSchemas" :key="'rsrc-'+s.id" :value="s.name + ' ' + (s.version || '')">{{ s.name }}{{ s.version ? ' (' + s.version + ')' : '' }}</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -3537,7 +3632,7 @@
                   <select v-model="promptForm.targetSchema" class="form-input">
                     <option value="">Select target schema...</option>
                     <option v-for="s in schemaRegistry" :key="'tgt-'+s.id" :value="s.schema">{{ s.schema }}</option>
-                    <option v-for="s in remoteSchema" :key="'rtgt-'+s.id" :value="s.schema">{{ s.schema }}</option>
+                    <option v-for="s in remoteSchemas" :key="'rtgt-'+s.id" :value="s.name + ' ' + (s.version || '')">{{ s.name }}{{ s.version ? ' (' + s.version + ')' : '' }}</option>
                   </select>
                 </div>
               </div>
@@ -3820,7 +3915,7 @@
                   <label class="form-label">Catalogue Filter</label>
                   <select class="form-input" v-model="batchRetransform.catalogueFilter">
                     <option value="">Select catalogue...</option>
-                    <option v-for="s in remoteSchema" :key="'bc-'+s.id" :value="s.schema">{{ s.schema }}</option>
+                    <option v-for="s in remoteSchemas" :key="'bc-'+s.id" :value="s.name + ' ' + (s.version || '')">{{ s.name }}{{ s.version ? ' (' + s.version + ')' : '' }}</option>
                     <option v-for="s in schemaRegistry" :key="'blc-'+s.id" :value="s.schema">{{ s.schema }}</option>
                   </select>
                 </div>
@@ -4379,7 +4474,7 @@
                 </div>
                 <div class="modal-header-right">
                     <div class="modal-header-right-top">
-                        <span>Stationary Sensor Network</span>
+                        <span>{{ (assetDetailRow && (assetDetailRow.title || assetDetailRow.assets)) || 'Untitled asset' }}</span>
                         <div class="modal-header-right-top-buttons">
                             <button class="modal-header-button">Export Transformed</button>
                             <button class="modal-header-button">Export Audiut</button>
@@ -4387,10 +4482,10 @@
                     </div>
                     <div class="modal-header-right-down">
                         <div class="modal-header-right-down-spans">
-                            <span class="modal-header-active">Active</span>
-                            <span>Catalogue SensorML</span>
-                            <span>Type: <span class="modal-span-color">Dataset</span></span>
-                            <span>Domain: <span class="modal-span-color">Asset + Safety</span></span>
+                            <span class="modal-header-active">{{ (assetDetailRow && assetDetailRow.integrationStatus) || 'Unknown' }}</span>
+                            <span>{{ (assetDetailRow && (assetDetailRow.sourceCatalogue || assetDetailRow.name)) || '—' }}</span>
+                            <span>Type: <span class="modal-span-color">{{ (assetDetailRow && assetDetailRow.type) || '—' }}</span></span>
+                            <span>Domain: <span class="modal-span-color">{{ (assetDetailRow && assetDetailRow.domain) || '—' }}</span></span>
                         </div>
                         <div class="moda-header-right-down-button">
                             <button class="modal-transform-button">Transformed</button>
@@ -4411,15 +4506,15 @@
                     <div class="modal-main-left-top">
                         <div class="source-prov">
                             <div class="source-prov-header"><span>Source &amp; Provenance</span></div>
-                            <div class="source-row"><span class="source-label">Remote Asset ID:</span><span class="source-value mono">sensor-asset-001</span></div>
-                            <div class="source-row"><span class="source-label">Source Catalogue:</span><span class="source-value mono">C -&gt; SensorML</span></div>
-                            <div class="source-row"><span class="source-label">Last Harvest:</span><span class="source-value mono">2026-02-09 10:32</span></div>
+                            <div class="source-row"><span class="source-label">Remote Asset ID:</span><span class="source-value mono">{{ (assetDetailRow && (assetDetailRow.remoteAssetId || assetDetailRow.sourceAssetId)) || '—' }}</span></div>
+                            <div class="source-row"><span class="source-label">Source Catalogue:</span><span class="source-value mono">{{ (assetDetailRow && (assetDetailRow.sourceCatalogue || assetDetailRow.name)) || '—' }}</span></div>
+                            <div class="source-row"><span class="source-label">Last Harvest:</span><span class="source-value mono">{{ (assetDetailRow && (assetDetailRow.harvestedAt || assetDetailRow.updated)) || '—' }}</span></div>
                             <div class="source-prov-footer"><span>Open Harvest Record</span></div>
                         </div>
                         <div class="mapping">
                             <div class="mapping-header"><span>Mapping &amp; Data Quality</span></div>
-                            <div class="mapping-row"><span class="mapping-label">Mapping Strategy:</span><span class="mapping-value mono">Hybrid (AI fallback deterninistic)</span></div>
-                            <div class="mapping-row"><span class="mapping-label">Mapping Status:</span><span class="mapping-value mono">Success</span></div>
+                            <div class="mapping-row"><span class="mapping-label">Mapping Strategy:</span><span class="mapping-value mono">{{ assetDetailMappingLabel }}</span></div>
+                            <div class="mapping-row"><span class="mapping-label">Mapping Status:</span><span class="mapping-value mono">{{ assetDetailMappingStatus }}</span></div>
                             <div class="mapping-row"><span class="mapping-label">Validation</span><span class="mapping-value mono">Passed</span></div>
                             <div class="mapping-footer"><span>Open Latest Audit Record</span><span>Learn More</span></div>
                         </div>
@@ -4427,26 +4522,23 @@
                     <div class="modal-main-left-down">
                         <div class="modal-main-left-down-header"><span>Description</span></div>
                         <div class="modal-main-left-down-description">
-                            <span>A stationary sensor network monitoring environmental conditions for asset and safety</span>
-                            <span>management. Designed to provide real-time data on temperature, humidity, air quality, and</span>
-                            <span>noise levels in urban areas.</span>
+                            <span>{{ assetDetailDescription }}</span>
                         </div>
                         <div class="modal-main-left-down-footer">
-                            <span class="modal-footer-spans">asset-safety</span>
-                            <span class="modal-footer-spans">environmental-monitoring</span>
-                            <span class="modal-footer-spans">sensor-network</span>
+                            <span v-for="(tag, i) in assetDetailTags" :key="'tag-'+i" class="modal-footer-spans">{{ tag }}</span>
+                            <span v-if="assetDetailTags.length === 0" class="modal-footer-spans" style="opacity:0.5;font-style:italic;">no tags</span>
                         </div>
                     </div>
                 </div>
                 <div class="modal-main-right">
                     <div class="key-properties">
                         <div class="key-properties-header"><span>Key Properties</span></div>
-                        <div class="key-row"><span class="key-label">Provider:</span><span class="key-value mono">SensorML Organization</span></div>
-                        <div class="key-row"><span class="key-label">Author:</span><span class="key-value mono">John Doe</span></div>
-                        <div class="key-row"><span class="key-label">Domain:</span><span class="key-value mono">Asset + Safety</span></div>
-                        <div class="key-row"><span class="key-label">Keywords:</span><span class="key-value mono">stationary, sensors, safety, environment</span></div>
-                        <div class="key-row"><span class="key-label">License:</span><span class="key-value mono">CC By 4.0</span></div>
-                        <div class="key-row"><span class="key-label">Data Format:</span><span class="key-value mono">JSON</span></div>
+                        <div class="key-row"><span class="key-label">Provider:</span><span class="key-value mono">{{ assetDetailProvider }}</span></div>
+                        <div class="key-row"><span class="key-label">Author:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.author) || (assetDetailRow && assetDetailRow.transformedForm && assetDetailRow.transformedForm.author) || '—' }}</span></div>
+                        <div class="key-row"><span class="key-label">Domain:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.domain) || '—' }}</span></div>
+                        <div class="key-row"><span class="key-label">Keywords:</span><span class="key-value mono">{{ assetDetailTags.join(', ') || '—' }}</span></div>
+                        <div class="key-row"><span class="key-label">License:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.license) || (assetDetailRow && assetDetailRow.transformedForm && assetDetailRow.transformedForm.license) || '—' }}</span></div>
+                        <div class="key-row"><span class="key-label">Data Format:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.dataFormat) || 'JSON' }}</span></div>
                     </div>
                 </div>
             </div>
@@ -4454,20 +4546,26 @@
                 <div class="modal-section-grid">
                     <div class="modal-card">
                       <h3 class="modal-card-title">Provenance Metadata</h3>
-                      <div class="meta-row"><span class="meta-label">Remote Asset ID:</span><span class="meta-value mono">sensor-asset-001</span></div>
-                      <div class="meta-row"><span class="meta-label">Catalogue Registry ID:</span><span class="meta-value link">C+ SensorML</span></div>
-                      <div class="meta-row"><span class="meta-label">Harvest Timestamp:</span><span class="meta-value">2026-02-09 10:32 (UTC)</span></div>
-                      <div class="meta-row"><span class="meta-label">Harvest Scope:</span><span class="meta-value mono">type=Dataset AND domain=AssetSafety</span></div>
-                      <div class="meta-status success">&#10004; Audit trail stored as provenance metadata</div>
+                      <div class="meta-row"><span class="meta-label">Remote Asset ID:</span><span class="meta-value mono">{{ (assetDetailRow && (assetDetailRow.remoteAssetId || assetDetailRow.sourceAssetId)) || '—' }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Catalogue Registry ID:</span><span class="meta-value link">{{ (assetDetailRow && (assetDetailRow.sourceCatalogueId || assetDetailRow.sourceCatalogue)) || '—' }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Harvest Timestamp:</span><span class="meta-value">{{ (assetDetailRow && (assetDetailRow.harvestedAt || assetDetailRow.updated)) || '—' }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Harvest Scope:</span><span class="meta-value mono">{{ assetDetailHarvestScope }}</span></div>
+                      <div class="meta-status" :class="assetDetailRow && assetDetailRow.transformedForm ? 'success' : 'warning'">
+                        <template v-if="assetDetailRow && assetDetailRow.transformedForm">&#10004; Audit trail stored as provenance metadata</template>
+                        <template v-else>&#9888; No transformation applied yet</template>
+                      </div>
                     </div>
                     <div class="modal-card">
                       <h3 class="modal-card-title">Harvest Record</h3>
-                      <div class="meta-row"><span class="meta-label">Error ID:</span><span class="meta-value mono">eec023d1-5868-4a5a-b5a6-8c462493fclda</span></div>
-                      <div class="meta-row"><span class="meta-label">Trigger:</span><span class="meta-value">Scheduled</span></div>
-                      <div class="meta-row"><span class="meta-label">Type:</span><span class="meta-value">Incremental</span></div>
-                      <div class="meta-row"><span class="meta-label">Timestamp:</span><span class="meta-value">2026-02-09 10:32 (UTC)</span></div>
-                      <div class="meta-status success">&#10004; Errors logged: No logs found</div>
-                      <button class="btn-secondary small">Open Full Run Audit</button>
+                      <div class="meta-row"><span class="meta-label">Run ID:</span><span class="meta-value mono">{{ (assetDetailRow && assetDetailRow.harvestRunId) || '—' }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Trigger:</span><span class="meta-value">{{ assetDetailHarvestTrigger }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Type:</span><span class="meta-value">{{ assetDetailHarvestType }}</span></div>
+                      <div class="meta-row"><span class="meta-label">Timestamp:</span><span class="meta-value">{{ (assetDetailRow && (assetDetailRow.harvestedAt || assetDetailRow.createdAt)) || '—' }}</span></div>
+                      <div class="meta-status" :class="assetDetailErrorRows.length > 0 ? 'error' : 'success'">
+                        <template v-if="assetDetailErrorRows.length > 0">&#9888; Errors logged: {{ assetDetailErrorRows.length }}</template>
+                        <template v-else>&#10004; Errors logged: No logs found</template>
+                      </div>
+                      <button class="btn-secondary small" @click="openHarvestRunAudit(assetDetailRow && assetDetailRow.harvestRunId)">Open Full Run Audit</button>
                     </div>
                 </div>
                 <div class="modal-note warning">
@@ -4478,8 +4576,16 @@
                   <table class="data-table">
                     <thead><tr><th>Error ID</th><th>Timestamp</th><th>Log Level</th><th>Error Message</th><th></th></tr></thead>
                     <tbody>
-                      <tr><td class="mono">error-123456</td><td>2026-02-09 10:32 (UTC)</td><td><span class="pill red">Error</span></td><td>Reference www.example-catalog.com failed to resolve.<br/>Reason: Timeout</td><td><button class="btn-light">View Log</button></td></tr>
-                      <tr><td class="mono">error-123457</td><td>2026-02-09 10:32 (UTC)</td><td><span class="pill red">Error</span></td><td>Reference www.example-catalog.com failed to resolve.</td><td><button class="btn-light">View Log</button></td></tr>
+                      <tr v-for="(err, i) in assetDetailErrorRows" :key="'aerr-'+i">
+                        <td class="mono">{{ err.id || ('error-' + i) }}</td>
+                        <td>{{ err.timestamp || '—' }}</td>
+                        <td><span class="pill" :class="err.level === 'error' ? 'red' : err.level === 'warn' ? 'yellow' : 'gray'">{{ err.level || 'info' }}</span></td>
+                        <td>{{ err.message || '—' }}</td>
+                        <td><button class="btn-light" @click="openErrorLog(err)">View Log</button></td>
+                      </tr>
+                      <tr v-if="assetDetailErrorRows.length === 0">
+                        <td colspan="5" class="muted" style="text-align:center;padding:20px;">No errors logged for this asset.</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -4614,19 +4720,43 @@
                 </div>
             </div>
             <div v-if="currentViewTab == 'References'" class="modal-main references">
-                <div class="ref-header"><span class="ref-header-span">Outgoing Cross-Catalogue References <span class="ref-header-span second">(1 Resolced, 2 Unresolved)</span></span><button class="ref-header-button">Export CSV</button></div>
-                <div class="ref-search"><svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#9CA3AF" stroke-width="2"></circle><path d="M14 14l4 4" stroke="#9CA3AF" stroke-width="2"></path></svg><input type="text" placeholder="Search for references..."></div>
+                <div class="ref-header">
+                  <span class="ref-header-span">
+                    Outgoing Cross-Catalogue References
+                    <span class="ref-header-span second">({{ assetDetailRefStats.resolved }} Resolved, {{ assetDetailRefStats.unresolved }} Unresolved)</span>
+                  </span>
+                  <button class="ref-header-button" @click="exportReferences">Export CSV</button>
+                </div>
+                <div class="ref-search">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="#9CA3AF" stroke-width="2"></circle><path d="M14 14l4 4" stroke="#9CA3AF" stroke-width="2"></path></svg>
+                  <input type="text" placeholder="Search for references..." v-model="referenceSearch" />
+                </div>
                 <div class="table-card references">
                   <table class="data-table">
                     <thead><tr><th><input type="checkbox"></th><th>Reference Type</th><th>Reference</th><th>Resolved?</th><th>Source Catalogue</th><th>Target Catalogue</th></tr></thead>
                     <tbody>
-                      <tr><td><input type="checkbox"></td><td class="link">URL</td><td>http://datasensor-018.did:example</td><td><span class="pill green">ioT Data Node 18</span></td><td>SensorML</td><td>--</td></tr>
-                      <tr><td><input type="checkbox"></td><td class="link">DID</td><td>did:example:abc123sensorError</td><td><span class="pill yellow">Unresolved</span></td><td>SensorML</td><td>--</td></tr>
-                      <tr><td><input type="checkbox"></td><td class="link">URL</td><td>http://404catalog.org/data/sensor-asset-001</td><td><span class="pill red">Not configured</span></td><td>SensorML</td><td>--</td></tr>
+                      <tr v-for="(ref, i) in filteredAssetReferences" :key="'aref-'+i">
+                        <td><input type="checkbox" /></td>
+                        <td class="link">{{ ref.type || '—' }}</td>
+                        <td>{{ ref.uri || ref.url || '—' }}</td>
+                        <td>
+                          <span v-if="ref.resolved === true" class="pill green">{{ ref.targetTitle || 'Resolved' }}</span>
+                          <span v-else-if="ref.resolved === false" class="pill yellow">Unresolved</span>
+                          <span v-else class="pill gray">Not configured</span>
+                        </td>
+                        <td>{{ ref.sourceCatalogue || (assetDetailRow && assetDetailRow.sourceCatalogue) || '—' }}</td>
+                        <td>{{ ref.targetCatalogue || '—' }}</td>
+                      </tr>
+                      <tr v-if="filteredAssetReferences.length === 0">
+                        <td colspan="6" class="muted" style="text-align:center;padding:20px;">No cross-catalogue references found for this asset.</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="table-statusbar references"><div class="pagination"><div class="pager"><button>&#8249;</button><button class="active">1</button><button>&#8250;</button></div></div><div class="showing">Showing 5 of 147 items</div></div>
+                <div class="table-statusbar references">
+                  <div class="pagination"><div class="pager"><button>&#8249;</button><button class="active">1</button><button>&#8250;</button></div></div>
+                  <div class="showing">Showing {{ filteredAssetReferences.length }} of {{ (assetDetailReferences || []).length }} items</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <div class="modal-footer-actions">
@@ -4758,6 +4888,35 @@
               <div style="display:flex;gap:8px;align-items:center;">
                 <input class="input" type="datetime-local" v-model="editUserForm.expiresAt" style="flex:1;" />
                 <button type="button" class="btn-secondary" style="white-space:nowrap;" @click="editUserForm.expiresAt = null">Clear</button>
+              </div>
+            </div>
+          </div>
+          <!-- v50/v53: Set New Password -->
+          <div style="margin-top:48px;padding:20px 20px 16px 20px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid #E5E7EB;">
+              <label class="label" style="margin:0;font-weight:600;font-size:15px;">Password</label>
+              <button type="button" class="btn-secondary btn-sm" @click="toggleSetNewPassword">
+                {{ setNewPasswordOpen ? 'Cancel password change' : 'Set new password' }}
+              </button>
+            </div>
+            <div v-if="setNewPasswordOpen" style="background:#F9FAFB;padding:12px;border-radius:6px;border:1px solid #E5E7EB;">
+              <div class="field">
+                <label class="label">New password <span style="color:#9CA3AF;font-size:11px;">(min 8 characters)</span></label>
+                <input class="input" type="password" v-model="userEditPasswordForm.password" autocomplete="new-password" />
+              </div>
+              <div class="field">
+                <label class="label">Confirm new password</label>
+                <input class="input" type="password" v-model="userEditPasswordForm.confirm" autocomplete="new-password" />
+              </div>
+              <div v-if="userEditPasswordError || passwordError" style="color:#991B1B;font-size:12px;margin-bottom:8px;">{{ userEditPasswordError || passwordError }}</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn-primary"
+                        type="button"
+                        @click="submitUpdateUserPassword"
+                        :disabled="passwordSaving || !userEditPasswordForm.password || !userEditPasswordForm.confirm">
+                  {{ passwordSaving ? 'Saving…' : 'Update password' }}
+                </button>
+                <span style="font-size:12px;color:#6B7280;">All active sessions for this user will be revoked.</span>
               </div>
             </div>
           </div>
@@ -5007,7 +5166,7 @@
       </teleport>
     </template>
 
-    <!-- uibuilder client library — auto-served by the uibuilder node in ORCE.
+    <!-- uibuilder client library — auto-served by the uibuilder node in Node-RED.
          In preview/dev mode this 404s harmlessly, and the mock adapter activates. -->
     <script src="../uibuilder/uibuilder.iife.min.js"></script>
     <script src="index.js"></script>
