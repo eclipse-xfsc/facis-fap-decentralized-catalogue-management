@@ -1,0 +1,418 @@
+[
+  {
+    "A.1": {
+      "Anbieter": {
+        "A.1.1": {
+          "Rechtlicher Vertragsgeber und Beteiligungsverhältnisse": {
+            "A.1.1.0": [
+              "Cloud Service"
+            ],
+            "A.1.1.1": "Diamant Software GmbH",
+            "A.1.1.2": "GmbH",
+            "A.1.1.3": "(1) Keine Angabe",
+            "A.1.1.4": "(1) Keine Angabe",
+            "A.1.1.5": "(1) Keine Angabe",
+            "A.1.1.6": false,
+            "A.1.1.7": "Stadtring 2, 33647 Bielefeld, Deutschland",
+            "A.1.1.8": "(1) Keine Angabe",
+            "A.1.1.9": "Mary Kowalski (Marketing)",
+            "A.1.1.10": "Spezialist für Rechnungswesen- und Controllingsoftware seit über 40 Jahren. Eigenes KI-Kompetenzzentrum.",
+            "A.1.1.11": "Rechenzentren in der EU (Deutschland, Niederlande).",
+            "A.1.1.12": "(1) Keine Angabe",
+            "A.1.1.13": "https://www.diamant-software.de/diamant-cloud/",
+            "A.1.1.14": "Betrieb der Software Diamant Rechnungswesen+Controlling als Service. Übernahme des gesamten Softwarebetriebs.",
+            "A.1.1.15": {
+              "name": "diamant_logo.png",
+              "type": "image/png",
+              "base64": ""
+            }
+          }
+        },
+        "A.1.2": {
+          "Unternehmensprofil": {
+            "A.1.2.1": "250",
+            "A.1.2.2": "5",
+            "A.1.2.3": 2,
+            "A.1.2.4": [
+              "Mittelstand"
+            ],
+            "A.1.2.5": "Erfahrungsgrad > 5 Jahre.",
+            "A.1.2.6": [
+              "> 5 Jahre"
+            ]
+          }
+        },
+        "A.1.3": {
+          "Auditierbarkeit": {
+            "A.1.3.1": true,
+            "A.1.3.2": "Grundsätzlich ist ein Audit möglich (bisher noch keines durchgeführt).",
+            "A.1.3.3": [
+              "Durch Dritte"
+            ]
+          }
+        }
+      }
+    },
+    "A.2": {
+      "Service": {
+        "A.2.1": {
+          "Allgemeine Angaben zum Service": {
+            "A.2.1.1": "Diamant Cloud",
+            "A.2.1.2": "SaaS für Rechnungswesen und Controlling.",
+            "A.2.1.3": [
+              "Public"
+            ],
+            "A.2.1.4": [
+              "SaaS"
+            ],
+            "A.2.1.5": "https://www.diamant-software.de/diamant-cloud/"
+          }
+        },
+        "A.2.2": {
+          "Funktionale Beschreibung des Service": {
+            "A.2.2.1": "Inklusive Administration und IT-Support. Zertifiziertes, ausfallsicheres Rechenzentrum.",
+            "A.2.2.2": "Spezialisiert auf Rechnungswesen+Controlling."
+          }
+        },
+        "A.2.3": {
+          "Reifegrad des Services": {
+            "A.2.3.1": "Über 40 Jahre Erfahrung im Softwarebereich.",
+            "A.2.3.2": "> 5 Jahre Cloud-Erfahrung."
+          }
+        },
+        "ReferenzenListe": [
+          {
+            "A.2.4": {
+              "Referenzen": {
+                "A.2.4.1": [
+                  "(1) Keine Angabe"
+                ]
+              }
+            }
+          }
+        ],
+        "A.2.5": {
+          "Hauptkontakt zum Service": {
+            "A.2.5.1": "Mary Kowalski",
+            "A.2.5.2": "Hauptkontakt des Unternehmens",
+            "A.2.5.3": "0521 94260-810",
+            "A.2.5.4": "marketing@diamant-software.de",
+            "A.2.5.5": "Stadtring 2, 33647 Bielefeld, Deutschland",
+            "A.2.5.6": "Hauptkontakt des Unternehmens"
+          }
+        },
+        "Weitere Kontakte zum ServiceListe": [
+          {
+            "A.2.6": {
+              "Weitere Kontakte zum Service": {
+                "A.2.6.1": "Karl-Uwe Lüllemann",
+                "A.2.6.2": "Datenschutzbeauftragter",
+                "A.2.6.3": "+49 521 94260-0",
+                "A.2.6.4": "info@diamant-software.de"
+              }
+            }
+          }
+        ],
+        "A.2.7": {
+          "Datenverarbeitung": {
+            "A.2.7.1": [
+              "Auftragsverarbeitung gem. Art. 28 DSGVO"
+            ]
+          }
+        }
+      }
+    },
+    "A.3": {
+      "Subunternehmer und Rechenzentren": {
+        "SubunternehmerListe": [
+          {
+            "A.3.1": {
+              "Subunternehmer und Standorte der Rechenzentren": {
+                "A.3.1.1": "T-Systems International",
+                "A.3.1.2": "Rechenzentrum",
+                "A.3.1.3": "Am Schiens 10, 39221 Bördeland/Biere",
+                "A.3.1.4": "Am Schiens 10, 39221 Bördeland/Biere, Deutschland",
+                "A.3.1.5": "Deutschland (Sachsen-Anhalt)",
+                "A.3.1.6": "ISO 9001, ISO 20000-1",
+                "A.3.1.7": "Hochsicheres Rechenzentrum."
+              }
+            }
+          },
+          {
+            "A.3.1": {
+              "Subunternehmer und Standorte der Rechenzentren": {
+                "A.3.1.1": "T-Systems International (RZ Amsterdam)",
+                "A.3.1.2": "Rechenzentrum",
+                "A.3.1.3": "Van Deventerlaan 31-51, 3528 AG Utrecht",
+                "A.3.1.4": "Van Deventerlaan 31-51, 3528 AG Utrecht, Niederlande",
+                "A.3.1.5": "Niederlande",
+                "A.3.1.6": "(1) Keine Angabe"
+              }
+            }
+          },
+          {
+            "A.3.1": {
+              "Subunternehmer und Standorte der Rechenzentren": {
+                "A.3.1.1": "Telekom Deutschland GmbH",
+                "A.3.1.2": "Subunternehmen",
+                "A.3.1.3": "Landgrabenweg 151, 53227 Bonn",
+                "A.3.1.4": "Landgrabenweg 151, 53227 Bonn, Deutschland",
+                "A.3.1.5": "Deutschland",
+                "A.3.1.6": "ISO 27001, ISO 14001, ISO 22301, ISO 27017, ISO 27018"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "A.4": {
+      "Zertifikate": {
+        "Gütesiegel Zertifikate des ServicesListe": [
+          {
+            "A.4.1": {
+              "Gütesiegel Zertifikate des Services": {
+                "A.4.1.1": "ISO/IEC 27001:2022",
+                "A.4.1.2": [
+                  "ISO 27001"
+                ],
+                "A.4.1.3": "Zertifikat der Diamant Software GmbH.",
+                "A.4.1.5": {
+                  "name": "iso27001_certificate.pdf",
+                  "base64": ""
+                },
+                "A.4.1.7": true
+              }
+            }
+          }
+        ],
+        "Gütesiegel, Zertifikate der Subunternehmer bzw. RechenzentrenListe": [
+          {
+            "A.4.2": {
+              "Gütesiegel, Zertifikate der Subunternehmer bzw. Rechenzentren": {
+                "A.4.2.1": "ISO 27001, ISO 14001, ISO 22301, ISO 9001, ISO 20000-1, ISO 27017, ISO 27018",
+                "A.4.2.2": [
+                  "ISO 27001",
+                  "ISO 14001",
+                  "ISO 22301",
+                  "ISO 9001",
+                  "ISO 20000-1",
+                  "ISO 27017",
+                  "ISO 27018"
+                ],
+                "A.4.2.5": {
+                  "name": "sub_certificates.pdf",
+                  "base64": ""
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "A.5": {
+      "Vertrag": {
+        "A.5.1": {
+          "Vertragsgrundlagen": {
+            "A.5.1.1": {
+              "name": "agb.pdf",
+              "base64": ""
+            }
+          }
+        },
+        "A.5.2": {
+          "Anwendbares Recht": {
+            "A.5.2.1": [
+              "Deutsches Vertragsrecht"
+            ]
+          }
+        },
+        "A.5.3": {
+          "Gerichtsstand": {
+            "A.5.3.1": [
+              "(1) Keine Angabe"
+            ]
+          }
+        },
+        "A.5.5": {
+          "Service Level Agreements (SLA)": {
+            "A.5.5.1": {
+              "name": "sla.pdf",
+              "base64": ""
+            },
+            "A.5.5.3": "Sonstiges (Max. Downtime 116,8 Stunden/Jahr)."
+          }
+        },
+        "A.5.6": {
+          "Preismodell": {
+            "A.5.6.1": "Keine Mindestvertragslaufzeit. Kündigungsfrist 3 Monate zum Jahresende.",
+            "A.5.6.2": [
+              "Das Preismodell ist öffentlich verfügbar"
+            ],
+            "A.5.6.4": "Keine Mindestlaufzeit.",
+            "A.5.6.5": "3 Monate zum Ende eines Kalenderjahres.",
+            "A.5.6.6": true,
+            "A.5.6.7": true
+          }
+        }
+      }
+    },
+    "A.6": {
+      "Sicherheit": {
+        "SicherheitszertifikateListe": [
+          {
+            "A.6.3": {
+              "Sicherheitszertifikate": {
+                "A.6.3.1": "ISO/IEC 27001:2022"
+              }
+            }
+          }
+        ],
+        "Zertifizierung des Rechenzentrums und der Technischen InfrastrukturListe": [
+          {
+            "A.6.4": {
+              "Zertifizierung des Rechenzentrums und der Technischen Infrastruktur": {
+                "A.6.4.1": "ISO 27001, ISO 27018",
+                "A.6.4.2": "(1) Keine Angabe"
+              }
+            }
+          }
+        ],
+        "A.6.5": {
+          "Verschlüsselung": {
+            "A.6.5.1": "HTTPS für Datenübertragung. Backups verschlüsselt.",
+            "A.6.5.2": [
+              "(1) Keine Angabe"
+            ]
+          }
+        },
+        "A.6.6": {
+          "Identity und Accessmanagement": {
+            "A.6.6.1": [
+              "Unternehmensweites Rechte- und Rollenkonzept"
+            ]
+          }
+        }
+      }
+    },
+    "A.7": {
+      "Datenschutz": {
+        "A.7.1": {
+          "Technische und Organisatorische Maßnahmen": {
+            "A.7.1.2": "Umsetzung durch Vertrag zur Auftragsdatenvereinbarung gem. Art. 28 DSGVO."
+          }
+        },
+        "A.7.4": {
+          "Ort der Datenhaltung": {
+            "A.7.4.1": [
+              "EU"
+            ],
+            "A.7.4.2": "Deutschland, Niederlande"
+          }
+        },
+        "A.7.5": {
+          "Datenschutzbeauftragter": {
+            "A.7.5.1": "Karl-Uwe Lüllemann",
+            "A.7.5.2": "+49 521 94260-0",
+            "A.7.5.3": "info@diamant-software.de"
+          }
+        }
+      }
+    },
+    "A.8": {
+      "Operative Prozesse": {
+        "A.8.1": {
+          "Service Management": {
+            "A.8.1.1": [
+              "Gemäß anerkanntem Vorgehen"
+            ],
+            "A.8.1.2": "Angepasstes ITIL-Framework."
+          }
+        },
+        "A.8.3": {
+          "Service Verfügbarkeit": {
+            "A.8.3.1": [
+              "Sonstiges"
+            ],
+            "A.8.3.2": "Garantierte Wiederherstellung durch Backups und regelmäßige Restore-Prozesse."
+          }
+        },
+        "BackupsListe": [
+          {
+            "A.8.4": {
+              "Backups": {
+                "A.8.4.1": "Tägliche Backups. 7 Backup-Stände verfügbar.",
+                "A.8.4.2": "Backups generell verschlüsselt und zugangsbeschränkt."
+              }
+            }
+          }
+        ],
+        "A.8.5": {
+          "Provisionierung": {
+            "A.8.5.1": [
+              "Eigenständige Provisionierung durch den Kunden über Weboberfläche"
+            ]
+          }
+        },
+        "A.8.6": {
+          "Support": {
+            "A.8.6.1": "First-Level Support.",
+            "A.8.6.2": [
+              "1 Arbeitstag"
+            ],
+            "A.8.6.3": [
+              "< 4 Arbeitstage"
+            ],
+            "A.8.6.4": [
+              "Übliche Arbeitszeiten (5x8)"
+            ]
+          }
+        }
+      }
+    },
+    "A.9": {
+      "Interoperabilität": {
+        "A.9.1": {
+          "Standards": {
+            "A.9.1.1": [
+              "REST"
+            ],
+            "A.9.1.2": [
+              "ODATA"
+            ],
+            "A.9.1.3": "Weboberfläche zur Administration."
+          }
+        },
+        "DatenexportListe": [
+          {
+            "A.9.2": {
+              "Datenexport": {
+                "A.9.2.1": [
+                  "SQL-Backup"
+                ],
+                "A.9.2.2": "Datenexport nach Vereinbarung möglich."
+              }
+            }
+          }
+        ],
+        "A.9.4": {
+          "Technische und Organisatorische Voraussetzungen zur Service Nutzung": {
+            "A.9.4.1": "Internetanschluss, Windows-Betriebssystem.",
+            "A.9.4.2": "Person mit Buchhaltungskenntnissen."
+          }
+        }
+      }
+    },
+    "A.10": {
+      "Architektur": {
+        "A.10.2": {
+          "Skalierung": {
+            "A.10.2.1": [
+              "Kontinuierliche Überwachung",
+              "Skalierung gemäß Performance-Werten"
+            ]
+          }
+        }
+      }
+    }
+  }
+]

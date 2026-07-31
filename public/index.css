@@ -141,6 +141,10 @@ body{
   cursor: pointer;
 }
 
+.nav-icon {
+  flex: 0 0 20px;
+}
+
 .nav-item:hover {
   background: rgba(59, 130, 246, 0.12);
   color: #1F2937;
@@ -2112,6 +2116,11 @@ body{
   flex-direction: column;
 }
 
+.manage-user-modal{
+  max-height: min(500px, calc(100vh - 48px));
+  overflow-y: auto;
+}
+
 /* header */
 .invite-header{
   padding: 18px 22px;
@@ -2199,6 +2208,11 @@ body{
   box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
 }
 .input.input-error{
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
+}
+.form-input.input-error,
+.form-textarea.input-error{
   border-color: #DC2626;
   box-shadow: 0 0 0 3px rgba(220,38,38,0.12);
 }
@@ -5540,6 +5554,13 @@ button:disabled {
   color: #991B1B;
   font-size: 13px;
   margin-bottom: 12px;
+}
+
+/* NF-8: a required identifier that is absent must never look like a normal value */
+.audit-missing {
+  color: #B45309;
+  font-style: italic;
+  font-size: 11px;
 }
 
 /* FR-CR-02: Remote → Local Asset Type Mapping */

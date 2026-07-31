@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "test": "npm run test:static && npm run test:integration",
+    "test:static": "node --test tests/static/*.test.mjs tests/bdd/*.test.mjs",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test:ci": "npm run build && npm run test:static"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcm.local/schemas/dcat-dataset.json",
+  "title": "DCAT Dataset",
+  "description": "Local canonical schema for a DCAT v3 Dataset record.",
+  "type": "object",
+  "required": ["@id", "@type", "title", "description"],
+  "properties": {
+    "@context": {
+      "type": "object",
+      "default": {
+        "dcat": "http://www.w3.org/ns/dcat#",
+        "dct":  "http://purl.org/dc/terms/",
+        "foaf": "http://xmlns.com/foaf/0.1/"
+      }
+    },
+    "@id":   { "type": "string", "format": "uri" },
+    "@type": { "const": "dcat:Dataset" },
+    "title":       { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "identifier":  { "type": "string" },
+    "issued":      { "type": "string", "format": "date-time" },
+    "modified":    { "type": "string", "format": "date-time" },
+    "language":    { "type": "array", "items": { "type": "string" } },
+    "keyword":     { "type": "array", "items": { "type": "string" } },
+    "theme":       { "type": "array", "items": { "type": "string", "format": "uri" } },
+    "landingPage": { "type": "string", "format": "uri" },
+    "publisher": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "@id":  { "type": "string", "format": "uri" },
+        "@type": { "const": "foaf:Agent" },
+        "name": { "type": "string" },
+        "mbox": { "type": "string", "format": "uri" }
+      }
+    },
+    "contactPoint": {
+      "type": "object",
+      "properties": {
+        "fn":           { "type": "string" },
+        "hasEmail":     { "type": "string", "format": "uri" },
+        "hasTelephone": { "type": "string" }
+      }
+    },
+    "distribution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["@type", "accessURL"],
+        "properties": {
+          "@id":         { "type": "string", "format": "uri" },
+          "@type":       { "const": "dcat:Distribution" },
+          "title":       { "type": "string" },
+          "description": { "type": "string" },
+          "accessURL":   { "type": "string", "format": "uri" },
+          "downloadURL": { "type": "string", "format": "uri" },
+          "mediaType":   { "type": "string" },
+          "format":      { "type": "string" },
+          "byteSize":    { "type": "integer", "minimum": 0 },
+          "license":     { "type": "string", "format": "uri" }
+        }
+      }
+    }
+  }
+}

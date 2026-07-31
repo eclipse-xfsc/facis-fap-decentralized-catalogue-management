@@ -6,6 +6,7 @@
  */
 
 import { uibuilderService } from "./services/uibuilder.service.js";
+import { oidcService } from "./services/oidc.service.js";
 // OpenAI operations are now handled by the Node-RED backend via uibuilder messages.
 // The openai.service.js is kept for reference but no longer imported here.
 import { EditorView, basicSetup } from "codemirror";
@@ -14,7 +15,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { EditorState } from "@codemirror/state";
 import { createStoreData } from "./state/store.js";
 import {
-  statusClass, trustClass, roleClass, resultClass, logPillClass,
+  statusClass, trustClass, roleClass, resultClass, logPillClass, resultLabel,
   namespaceClass, strategyPillClass, strategyLabel, getAccessInitial
 } from "./utils/formatters.js";
 import {
@@ -22,6 +23,16 @@ import {
   matchValue, getCatalogAssets, getAssetTitle, assetMatchesQuery,
   getChangedFields, parseJsonLine, hasPermission
 } from "./utils/helpers.js";
+import {
+  promptVarsFor, validatePromptTemplate, unknownVarMessage, missingVarMessage,
+  normalizePromptStatus, providerErrorMessage
+} from "./utils/promptVars.js";
+import {
+  PROTOCOLS, QUERY_LANGUAGES, RESULT_MODES,
+  normaliseProtocol, protocolLabel, normaliseQueryLanguage,
+  isExecutableQueryLanguage, validateProtocolConfig, protocolHarvestConfig,
+  expectedMimeType,
+} from "./utils/protocols.js";
 
 // Components
 import AppSidebar from "./components/Sidebar.js";
@@ -160,11 +171,27 @@ const app = createApp({
         const added = toInt(raw.assetsAdded);
         const succ  = toInt(raw.successCount);
         const errs  = toInt(raw.errorCount);
+        const isFailed = String(raw.result || "").trim().toLowerCase() === "failed";
         newAssetsCount += (added > 0 ? added : succ);
-        errorsCount    += errs;
+        errorsCount    += (errs > 0 ? errs : (isFailed ? 1 : 0));
       }
 
       return { remoteCataloguesCount, newAssetsCount, errorsCount };
+    },
+    filteredRunLogs() {
+      const logs = (this.harvestRunDetailData && Array.isArray(this.harvestRunDetailData.logs)) ? this.harvestRunDetailData.logs : [];
+      const f = String(this.harvestLogLevelFilter || "all").toLowerCase();
+      if (f === "all") return logs;
+      return logs.filter((lg) => {
+        const lv = String(lg.level || "").trim().toLowerCase();
+        if (f === "warn") return lv === "warn" || lv === "warning";
+        if (f === "error") return lv === "error" || lv === "fatal";
+        return lv === f;
+      });
+    },
+    runLogErrorCount() {
+      const logs = (this.harvestRunDetailData && Array.isArray(this.harvestRunDetailData.logs)) ? this.harvestRunDetailData.logs : [];
+      return logs.filter((lg) => { const lv = String(lg.level || "").trim().toLowerCase(); return lv === "error" || lv === "fatal"; }).length;
     },
     harvestWizardPagination() {
       return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
@@ -267,10 +294,33 @@ const app = createApp({
         (c.status || "").toLowerCase().includes(q)
       );
     },
+    // FR-SR-04: Prompt Testing must run the exact immutable version selected.
+    promptTestVersionRecord() {
+      const vid = this.promptTestSelectedVersionId;
+      if (vid) {
+        const fromList = this.promptTestVersions.find(v => v.versionId === vid || v.id === vid);
+        if (fromList) return fromList;
+      }
+      return this.prompts.find(x => x.id === this.promptTestSelectedPrompt) || null;
+    },
+    promptTestTemplateIssues() {
+      const p = this.promptTestVersionRecord;
+      if (!p) return { unknown: [], missingRequired: [] };
+      const { unknown, missingRequired } = validatePromptTemplate(p.template, p.kind);
+      return { unknown, missingRequired };
+    },
+    promptTestValidationError() {
+      const { unknown, missingRequired } = this.promptTestTemplateIssues;
+      const p = this.promptTestVersionRecord;
+      if (unknown.length) return unknownVarMessage(unknown, p?.kind);
+      if (missingRequired.length) {
+        return `Template is missing required variable(s): ${missingRequired.map(v => `{${v}}`).join(", ")}.`;
+      }
+      return "";
+    },
     resolvedPromptPreview() {
-      if (!this.promptTestSelectedPrompt || !this.promptTestSampleInput) return "";
-      const p = this.prompts.find(x => x.id === this.promptTestSelectedPrompt);
-      if (!p) return "";
+      const p = this.promptTestVersionRecord;
+      if (!p || !this.promptTestSampleInput) return "";
       let tpl = p.template || "";
       tpl = tpl.replace(/\{SOURCE_ASSET\}/g, this.promptTestSampleInput);
       tpl = tpl.replace(/\{SOURCE_SCHEMA\}/g, p.sourceSchema || "");
@@ -425,13 +475,72 @@ const app = createApp({
       const s = this.harvestScope.selected;
       return s.includes("last_harvest") || s.includes("ever_imported");
     },
+    // ── NF-2: catalogue protocol configuration ──────────────
+    protocolOptions() {
+      return PROTOCOLS;
+    },
+    queryLanguageOptions() {
+      return QUERY_LANGUAGES;
+    },
+    resultModeOptions() {
+      return RESULT_MODES;
+    },
+    catalogProtocol() {
+      return normaliseProtocol(this.remoteCatalogForm.protocol);
+    },
+    catalogQueryExecutable() {
+      return this.catalogProtocol === "query-interface" && isExecutableQueryLanguage(this.remoteCatalogForm.queryLanguage);
+    },
+    protocolIssues() {
+      return Object.values(validateProtocolConfig(this.remoteCatalogForm));
+    },
+    // NF-6: deterministic RDF output is N-Quads, not JSON.
+    assetDataFormat() {
+      const row = this.assetDetailRow;
+      if (!row) return "JSON";
+      const format = row.transformedForm && row.transformedForm.format;
+      if (format === "application/n-quads") return "N-Quads (application/n-quads)";
+      if (format) return format;
+      return row.dataFormat || row.sourceContentType || "JSON";
+    },
+    protocolReady() {
+      return this.protocolIssues.length === 0;
+    },
     auditTrailTotalPages() {
       return Math.max(1, Math.ceil(this.auditTrail.pagination.total / this.auditTrail.pagination.perPage));
     },
+    // Pagination is server-side: the backend already returned exactly this page.
     auditTrailPage() {
-      const p = this.auditTrail.pagination;
-      const start = (p.page - 1) * p.perPage;
-      return this.auditTrail.rows.slice(start, start + p.perPage);
+      return this.auditTrail.rows;
+    },
+    // NF-8: fields shown in the audit record details drawer, full values.
+    auditDetailFields() {
+      return [
+        { key: "sequenceNumber", label: "Sequence" },
+        { key: "id", label: "Record ID" },
+        { key: "timestamp", label: "Timestamp" },
+        { key: "eventType", label: "Event Type" },
+        { key: "operationId", label: "Operation ID" },
+        { key: "harvestRunId", label: "Harvest Run ID" },
+        { key: "userId", label: "Actor / User ID" },
+        { key: "catalogueId", label: "Catalogue ID (raw)" },
+        { key: "catalogueNameSnapshot", label: "Catalogue Name (snapshot)" },
+        { key: "remoteAssetId", label: "Remote Asset ID" },
+        { key: "localAssetId", label: "Local Asset ID" },
+        { key: "promptVersionId", label: "Prompt Version ID" },
+        { key: "strategy", label: "Strategy" },
+        { key: "originalStatus", label: "Original Status" },
+        { key: "effectiveStatus", label: "Effective Status" },
+        { key: "complianceError", label: "Compliance Error" },
+        { key: "validationStatus", label: "Validation Status" },
+        { key: "durationMs", label: "Duration (ms)" },
+        { key: "errorCode", label: "Error Code" },
+        { key: "errorMessage", label: "Error Message" },
+        { key: "hashAlgorithm", label: "Hash Algorithm" },
+        { key: "chainVersion", label: "Chain Version" },
+        { key: "previousHash", label: "Previous Hash" },
+        { key: "recordHash", label: "Record Hash" },
+      ];
     },
   },
 
@@ -446,7 +555,7 @@ const app = createApp({
       document.body.style.overflow = v ? "hidden" : "";
     },
     currentSchemaTab(val) {
-      if (val === "auditTrail" && !this.auditTrail.loaded) {
+      if (val === "auditTrail" && !this.auditTrail.loaded && this.hasAccess("schema_registry")) {
         this.fetchAuditTrail();
       }
     },
@@ -454,19 +563,28 @@ const app = createApp({
       handler() { this.filterProvenance(); },
       deep: true
     },
+    remoteCatalogForm: {
+      handler() {
+        const unchanged = this._testedConnectionKey === this.connectionTestKey();
+        if (unchanged) return;
+        if (this.testConnectionResult.status || this.isTestingConnection) this.resetConnectionTest();
+      },
+      deep: true
+    },
     currentTab(newTab) {
-      if (newTab === "localCatalogue") {
+      if (newTab === "localCatalogue" && this.hasAccess("local_catalogue")) {
         this.loadLocalCatalogs();
       }
-      if (newTab === "provenance") {
+      if (newTab === "provenance" && this.hasAccess("local_catalogue")) {
         this.loadLocalProvenance();
       }
     },
     currentPage(newPage) {
-      if (newPage === "catalogueRegistry") {
+      if (newPage === "catalogueRegistry" && this.hasAccess("catalogue_registry")) {
         uibuilderService.send({
           type: "getCatalogRegistry",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          _silent: true
         });
       }
       if (newPage === "adminTools") {
@@ -484,16 +602,19 @@ const app = createApp({
       } else {
         this.stopMonitoringPolling();
       }
-      if (newPage === "harvester") {
+      if (newPage === "harvester" && this.hasAccess("harvester")) {
         this.loadHarvestData();
         // Also refresh the remote catalogue list so the overview KPI reflects
         // the current Catalogue Registry without requiring a prior visit to that page.
-        uibuilderService.send({
-          type: "getCatalogRegistry",
-          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-        });
+        if (this.hasAccess("catalogue_registry")) {
+          uibuilderService.send({
+            type: "getCatalogRegistry",
+            auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+            _silent: true
+          });
+        }
       }
-      if (newPage === "localCatalogue") {
+      if (newPage === "localCatalogue" && this.hasAccess("local_catalogue")) {
         this.loadLocalCatalogs();
         this.loadLocalProvenance();
       }
@@ -509,12 +630,41 @@ const app = createApp({
 
   methods: {
     // ── Formatters (delegated) ─────────────────────────────────
-    statusClass, trustClass, roleClass, resultClass, logPillClass,
+    statusClass, trustClass, roleClass, resultClass, logPillClass, resultLabel,
     namespaceClass, strategyPillClass, strategyLabel, getAccessInitial,
     parseJsonLine,
 
     // ── Helpers ────────────────────────────────────────────────
     getCookie,
+    expectedMimeType,
+    harvestStatusLabel(status) {
+      const v = String(status || "").trim().toLowerCase();
+      if (v === "completed_with_warnings") return "Completed with warnings";
+      if (v === "completed_with_errors") return "Completed with errors";
+      return status || "-";
+    },
+    harvestStatusClass(status) {
+      const v = String(status || "").trim().toLowerCase();
+      if (v === "completed") return "green";
+      if (v === "running") return "blue";
+      if (v === "failed" || v === "error" || v === "cancelled") return "red";
+      return "yellow";
+    },
+    provenanceStatusClass(status) {
+      const v = String(status || "").trim().toLowerCase();
+      if (v === "completed" || v === "success") return "green";
+      if (v === "failed" || v === "error") return "red";
+      return "yellow";
+    },
+    responseMappingLabel(mapping) {
+      const m = mapping || {};
+      const parts = [];
+      if (m.rootPath) parts.push("root " + m.rootPath);
+      if (m.idField) parts.push("id " + m.idField);
+      if (m.nameField) parts.push("name " + m.nameField);
+      if (m.typeField) parts.push("type " + m.typeField);
+      return parts.length ? parts.join(", ") : "defaults";
+    },
     hasAccess(key) {
       // Use accessAreas (camelCase) as the single source of truth for sidebar visibility
       const aa = this.currentUser.accessAreas || [];
@@ -595,10 +745,12 @@ const app = createApp({
 
     // ── Local Catalogue ────────────────────────────────────────
     loadLocalCatalogs() {
+      if (!this.hasAccess("local_catalogue")) return;
       // Always load from backend — database is the source of truth
       uibuilderService.send({
         type: "getLocalCatalogue",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        _silent: true
       });
     },
     runSearch() {
@@ -656,10 +808,12 @@ const app = createApp({
       this.pagination.provenance.page = 1;
     },
     loadLocalProvenance() {
+      if (!this.hasAccess("local_catalogue")) return;
       // Always load from backend — database is the source of truth
       uibuilderService.send({
         type: "getLocalProvenance",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        _silent: true
       });
     },
 
@@ -700,8 +854,9 @@ const app = createApp({
       } else {
         this.localJsonLines = [{ text: 'No transformed form yet (mapping pending or not configured).', changeType: null }];
       }
-      // Keep a reference for the toggle
-      this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, {
+      // Merge the complete backend detail so Overview can display the
+      // persisted NF-6 transformation metadata as well as the form bodies.
+      this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, a, {
         linkedAssets: a.linkedAssets || { hasOriginal: !!original, hasTransformed: !!transformed }
       });
     },
@@ -904,10 +1059,15 @@ const app = createApp({
       this.editingRemoteCatalogId = null;
       this.remoteCatalogForm = {
         catalogId: "", catalogName: "", owner: "",
-        protocol: "Query interface", baseEndpoint: "",
+        protocol: "query-interface", baseEndpoint: "",
         mimeType: "application/sparql-results+json",
         queryEndpoint: "", queryLanguages: "",
-        metadataPrefix: "oai_dc", setSpec: "", resumptionToken: false,
+        queryLanguage: "rest-json", queryMethod: "GET", queryText: "",
+        queryParameterName: "query", requestContentType: "application/sparql-query",
+        resultMimeType: "application/sparql-results+json", resultMode: "sparql-select",
+        resultRootPath: "", resultIdVariable: "", resultNameVariable: "", resultTypeVariable: "",
+        metadataPrefix: "oai_dc", setSpec: "", setSpecEnabled: false,
+        resumptionToken: true, resumptionTokenEnabled: true, maxPages: 50,
         dcatCatalogUri: "", linkedDataEndpoint: "", contentNegotiation: "application/ld+json",
         strategy: "none", promptId: "", llmConfigId: "", providerId: "",
         namespacesToPreserve: "", shaclShapeId: "",
@@ -924,13 +1084,29 @@ const app = createApp({
       };
       this.uploadedJsonFile = null;
       this.jsonUploadError = "";
+      this.resetConnectionTest();
       this.showRegisterRemoteCatalogModal = true;
     },
     openEditRemoteCatalog(row) {
       this.isEditingRemoteCatalog = true;
       this.editingRemoteCatalogId = row.id;
-      this.remoteCatalogForm = JSON.parse(JSON.stringify(row));
-      this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(row));
+      // Legacy rows carry labels such as "OAI-PMH" and no query-execution
+      // fields; normalise them so the protocol-specific form works.
+      const normalised = JSON.parse(JSON.stringify(row));
+      normalised.protocol = normaliseProtocol(row.protocol);
+      normalised.queryLanguage = normaliseQueryLanguage(row.queryLanguage || row.queryLanguages);
+      normalised.queryMethod = row.queryMethod || "GET";
+      normalised.queryParameterName = row.queryParameterName || "query";
+      normalised.requestContentType = row.requestContentType || "application/sparql-query";
+      normalised.resultMimeType = row.resultMimeType || row.mimeType || "application/sparql-results+json";
+      normalised.resultMode = row.resultMode || "sparql-select";
+      normalised.setSpecEnabled = row.setSpecEnabled !== undefined ? !!row.setSpecEnabled : !!row.setSpec;
+      normalised.resumptionTokenEnabled = row.resumptionTokenEnabled !== undefined
+        ? !!row.resumptionTokenEnabled
+        : row.resumptionToken !== false;
+      normalised.maxPages = row.maxPages || 50;
+      this.remoteCatalogForm = normalised;
+      this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(normalised));
       // Restore saved file indicator from persisted sourceData
       if (row.sourceData && row.sourceFileName) {
         this.uploadedJsonFile = { name: row.sourceFileName };
@@ -938,14 +1114,39 @@ const app = createApp({
         this.uploadedJsonFile = null;
       }
       this.jsonUploadError = "";
+      this.resetConnectionTest();
       this.showRegisterRemoteCatalogModal = true;
     },
     closeRegisterRemoteCatalogModal() {
       this.showRegisterRemoteCatalogModal = false;
+      this.resetConnectionTest();
+    },
+    // A connection result only ever describes the configuration it was run for,
+    // so it is discarded whenever that configuration changes.
+    resetConnectionTest() {
+      if (this._testConnTimeout) { clearTimeout(this._testConnTimeout); this._testConnTimeout = null; }
+      this._testedConnectionKey = null;
+      this.isTestingConnection = false;
+      this.testConnectionResult = { status: "", message: "", latency: 0 };
+    },
+    connectionTestKey() {
+      const f = this.remoteCatalogForm || {};
+      return JSON.stringify([
+        this.editingRemoteCatalogId, f.protocol, f.baseEndpoint, f.mimeType,
+        f.queryEndpoint, f.queryLanguage, f.queryMethod, f.queryText,
+        f.queryParameterName, f.requestContentType, f.resultMimeType, f.resultMode,
+        f.resultRootPath, f.resultIdVariable, f.resultNameVariable, f.resultTypeVariable,
+        f.metadataPrefix, f.setSpec, f.setSpecEnabled, f.resumptionTokenEnabled, f.maxPages,
+        f.dcatCatalogUri, f.linkedDataEndpoint, f.contentNegotiation,
+        f.auth, f.authLoginEndpoint, f.authUsername, f.authPassword, f.authPayloadTemplate,
+        f.authTokenPath, f.authTokenPrefix, f.authStaticToken, f.authApiKey, f.authApiKeyHeader,
+        f.responseRootPath, f.responseAssetIdField, f.responseAssetNameField, f.responseAssetTypeField,
+      ]);
     },
     testRemoteCatalogConnection() {
       this.isTestingConnection = true;
       this.testConnectionResult = { status: "", message: "", latency: 0 };
+      this._testedConnectionKey = this.connectionTestKey();
 
       // Lightweight client-side validation — backend will re-validate
       const auth = this.remoteCatalogForm.auth || "none";
@@ -981,6 +1182,13 @@ const app = createApp({
     registerRemoteCatalog() {
       const payload = JSON.parse(JSON.stringify(this.remoteCatalogForm));
       this.registerRemoteCatalogError = "";
+      const protocolErrors = validateProtocolConfig(payload);
+      if (Object.keys(protocolErrors).length > 0) {
+        this.catalogFieldErrors = protocolErrors;
+        this.registerRemoteCatalogError = "The protocol configuration is incomplete.";
+        return;
+      }
+      this.catalogFieldErrors = {};
       this.isRegisteringRemoteCatalog = true;
       this.pendingRemoteCatalog = payload;
       uibuilderService.send({
@@ -991,6 +1199,14 @@ const app = createApp({
     },
     saveRemoteCatalog() {
       const current = JSON.parse(JSON.stringify(this.remoteCatalogForm));
+      const saveProtocolErrors = validateProtocolConfig(current);
+      if (Object.keys(saveProtocolErrors).length) {
+        this.catalogFieldErrors = saveProtocolErrors;
+        this.updateRemoteCatalogError = 'The protocol configuration is incomplete.';
+        this.registerRemoteCatalogError = 'The protocol configuration is incomplete.';
+        return;
+      }
+      this.catalogFieldErrors = {};
       if (this.isEditingRemoteCatalog && this.editingRemoteCatalogId != null) {
         const old = this.originalRemoteCatalogForm || {};
         const patch = getChangedFields(old, current);
@@ -1137,6 +1353,7 @@ const app = createApp({
         username: user.username || '',
         email: user.email || '',
         status: user.status || 'active',
+        roles: Array.isArray(user.roles) ? user.roles.slice() : [],
         accessAreas: accessAreas,
         expiresAt: expiresAtLocal,
         validationError: null,
@@ -1172,6 +1389,7 @@ const app = createApp({
           username: raw.username,
           email: raw.email || null,
           status: raw.status,
+          roles: raw.roles || [],
           accessAreas: raw.accessAreas || [],
           expiresAt: raw.expiresAt ? new Date(raw.expiresAt).toISOString() : null,
         },
@@ -1389,8 +1607,12 @@ const app = createApp({
     },
     loadApiMappings() {
       const auth = { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") };
-      uibuilderService.send({ type: "listApiMappings", auth, data: {} });
-      uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" } });
+      if (this.hasAccess("catalogue_registry")) {
+        uibuilderService.send({ type: "listApiMappings", auth, data: {}, _silent: true });
+      }
+      if (this.hasAccess("schema_registry")) {
+        uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" }, _silent: true });
+      }
     },
     openApiMappingForm(mapping) {
       this.apiMappingError = "";
@@ -1486,27 +1708,55 @@ const app = createApp({
     openPromptModal() {
       this.isEditingPrompt = false;
       this.promptFormError = "";
+      this.promptFieldErrors = {};
+      this.promptFormWarnings = [];
       this.isEnhancingPrompt = false;
+      this.finishPromptSave();
       this.promptForm = {
-        id: null, name: "", version: "1.0", status: "draft",
+        id: null, promptId: null, name: "", version: "1.0.0", status: "draft",
         sourceSchema: "", targetSchema: "",
         template: "", examples: "", constraints: "",
-        author: "",
+        author: this.currentUser?.username || "",
         providerId: "",
+        kind: "schema-mapping",
+        generationStatus: "idle",
       };
       this.showPromptModal = true;
     },
     openEditPrompt(p) {
       this.isEditingPrompt = true;
       this.promptFormError = "";
+      this.promptFieldErrors = {};
+      this.promptFormWarnings = [];
       this.isEnhancingPrompt = false;
-      this.promptForm = { ...p, name: p.name || "", author: p.author || "", providerId: p.providerId || "" };
+      this.finishPromptSave();
+      // FR-SR-03: restore all ten fields exactly as persisted.
+      this.promptForm = {
+        ...p,
+        id: p.id,
+        promptId: p.promptId || p.id,
+        name: p.name || "",
+        version: p.version || "1.0.0",
+        sourceSchema: p.sourceSchema || "",
+        targetSchema: p.targetSchema || "",
+        template: p.template || "",
+        examples: p.examples || "",
+        constraints: p.constraints || "",
+        providerId: p.providerId || "",
+        author: p.author || "",
+        status: normalizePromptStatus(p.status),
+        kind: p.kind || "schema-mapping",
+        generationStatus: p.generationStatus || p.codeGenerationStatus || "idle",
+      };
       this.showPromptModal = true;
     },
     closePromptModal() {
       this.showPromptModal = false;
       this.promptFormError = "";
+      this.promptFieldErrors = {};
+      this.promptFormWarnings = [];
       this.isEnhancingPrompt = false;
+      this.finishPromptSave();
     },
     enhancePromptWithAI() {
       if (!this.promptForm.template || !this.promptForm.sourceSchema || !this.promptForm.targetSchema) {
@@ -1530,57 +1780,126 @@ const app = createApp({
     // Code generation is now handled by the backend as part of createPrompt flow.
     // The backend sends a "codeGenerated" response asynchronously after the prompt is created.
     savePrompt() {
-      if (!this.promptForm.sourceSchema || !this.promptForm.targetSchema || !this.promptForm.template) return;
+      const f = this.promptForm;
+      this.promptFieldErrors = {};
+      this.promptFormError = "";
+      this.promptFormWarnings = [];
 
-      // Generate a unique name if user left it empty
-      let promptName = (this.promptForm.name || "").trim();
-      if (!promptName) {
-        let num;
-        do {
-          num = Math.floor(100 + Math.random() * 900);
-        } while (this.prompts.some(p => p.name === `prompt-${num}`));
-        promptName = `prompt-${num}`;
+      // FR-SR-03: validate all ten fields client-side before hitting the API.
+      const errors = {};
+      if (!String(f.name || "").trim()) errors.name = "Prompt name is required.";
+      if (!/^\d+\.\d+(\.\d+)?$/.test(String(f.version || "").trim())) {
+        errors.version = "Version must be semantic (e.g. 1.0.0).";
+      }
+      if (!String(f.sourceSchema || "").trim()) errors.sourceSchema = "Source schema is required.";
+      if (!String(f.targetSchema || "").trim()) errors.targetSchema = "Target schema is required.";
+      if (!String(f.template || "").trim()) errors.template = "Template is required.";
+
+      const kind = f.kind === "api-mapping" ? "api-mapping" : "schema-mapping";
+      const scan = validatePromptTemplate(f.template, kind);
+      // Unknown placeholders name every offender; missing required ones name exactly
+      // what is absent. Both block the save.
+      if (scan.unknown.length) {
+        errors.template = unknownVarMessage(scan.unknown, kind);
+      } else if (scan.missingRequired.length) {
+        errors.template = missingVarMessage(scan.missingRequired, kind);
       }
 
-      if (this.isEditingPrompt && this.promptForm.id) {
+      if (Object.keys(errors).length > 0) {
+        this.promptFieldErrors = errors;
+        this.promptFormError = "Please correct the highlighted fields.";
+        return;
+      }
+
+      const payload = {
+        name: String(f.name).trim(),
+        version: String(f.version).trim(),
+        sourceSchema: f.sourceSchema,
+        targetSchema: f.targetSchema,
+        template: f.template,
+        examples: f.examples || "",
+        constraints: f.constraints || "",
+        status: normalizePromptStatus(f.status),
+        author: String(f.author || "").trim(),
+        providerId: f.providerId || "",
+      };
+
+      this.isSavingPrompt = true;
+      this.promptSaveTimeout = setTimeout(() => {
+        if (this.isSavingPrompt) {
+          this.isSavingPrompt = false;
+          this.promptFormError = "The server did not respond. Please try again.";
+        }
+      }, 30000);
+
+      if (this.isEditingPrompt && f.id) {
         uibuilderService.send({
           type: "updatePrompt",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
           data: {
-            promptId: this.promptForm.id,
-            name: promptName,
-            version: this.promptForm.version || "1.0",
-            sourceSchema: this.promptForm.sourceSchema,
-            targetSchema: this.promptForm.targetSchema,
-            template: this.promptForm.template,
-            examples: this.promptForm.examples || "",
-            constraints: this.promptForm.constraints || "",
-            status: this.promptForm.status || "active",
-            code: this.promptForm.generatedCode || "",
-            author: this.promptForm.author || "",
-            providerId: this.promptForm.providerId || ""
-          }
+            ...payload,
+            // promptGroupId = stable prompt identity, versionId = the record being edited
+            promptGroupId: f.promptId || f.id,
+            versionId: f.id,
+            promptId: f.id,
+            code: f.generatedCode || "",
+          },
         });
-        this.closePromptModal();
       } else {
         uibuilderService.send({
           type: "createPrompt",
           auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-          data: {
-            name: promptName,
-            version: this.promptForm.version || "1.0",
-            sourceSchema: this.promptForm.sourceSchema,
-            targetSchema: this.promptForm.targetSchema,
-            template: this.promptForm.template,
-            examples: this.promptForm.examples || "",
-            constraints: this.promptForm.constraints || "",
-            author: this.promptForm.author || "",
-            providerId: this.promptForm.providerId || "",
-          }
+          data: payload,
         });
-        this.closePromptModal();
-        // The prompt will be added to the list when the backend responds
       }
+      // Modal stays open until the backend confirms, so validation errors are visible.
+    },
+    finishPromptSave() {
+      this.isSavingPrompt = false;
+      if (this.promptSaveTimeout) {
+        clearTimeout(this.promptSaveTimeout);
+        this.promptSaveTimeout = null;
+      }
+    },
+    fetchPrompts() {
+      uibuilderService.send({
+        type: "listPrompts",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: {},
+        _silent: true,
+      });
+    },
+    retryPromptCodeGeneration(p) {
+      const idx = this.prompts.findIndex(x => x.id === p.id);
+      if (idx !== -1) {
+        this.prompts.splice(idx, 1, {
+          ...this.prompts[idx],
+          generationStatus: "generating",
+          generationError: "",
+          generationErrorCode: "",
+        });
+      }
+      uibuilderService.send({
+        type: "retryPromptCodeGeneration",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { versionId: p.id, promptId: p.id },
+      });
+      this.addToast("info", "Retrying code generation...");
+    },
+    testProviderConnection(provider) {
+      const id = provider?.id || provider;
+      if (!id) return;
+      this.providerTestingId = id;
+      this.providerTestResult = null;
+      uibuilderService.send({
+        type: "testProviderConnection",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { providerId: id },
+      });
+    },
+    promptGenerationError(p) {
+      if (!p || p.generationStatus !== "error") return "";
+      return providerErrorMessage(p.generationErrorCode, p.generationError);
     },
     deletePrompt(id) {
       this.showConfirm("Delete Prompt", `Are you sure you want to delete prompt "${id}"?`, "Delete", () => {
@@ -1592,13 +1911,70 @@ const app = createApp({
         });
       });
     },
-    changePromptStatus(prompt, newStatus) {
-      // Send status change to backend — backend enforces active-prompt-per-source-target rule
+    // ── Single lifecycle service used by BOTH the table dropdown and the
+    //    Versions-dialog Activate button. Optimistic with rollback.
+    setPromptLifecycleStatus(record, newStatus) {
+      const versionId = record.versionId || record.id;
+      const groupId = record.promptId || record.id;
+      if (!versionId) return;
+      if (this.lifecyclePending[versionId]) return;
+
+      const previous = normalizePromptStatus(record.status);
+      const target = normalizePromptStatus(newStatus);
+      if (previous === target) return;
+
+      // Remember the previous value so a failed write can be rolled back.
+      this.lifecyclePending = { ...this.lifecyclePending, [versionId]: previous };
+      this.lifecycleError = "";
+      this.applyLifecycleStatusLocally(versionId, target);
+
+      if (this.lifecycleTimeouts[versionId]) clearTimeout(this.lifecycleTimeouts[versionId]);
+      this.lifecycleTimeouts[versionId] = setTimeout(() => {
+        this.rollbackLifecycle(versionId, "The server did not respond. The status was not changed.");
+      }, 20000);
+
       uibuilderService.send({
         type: "updatePromptStatus",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: { promptId: prompt.id, status: newStatus, sourceSchema: prompt.sourceSchema, targetSchema: prompt.targetSchema }
+        data: {
+          promptId: versionId,
+          versionId,
+          promptGroupId: groupId,
+          status: target,
+          sourceSchema: record.sourceSchema,
+          targetSchema: record.targetSchema,
+        },
       });
+    },
+    // Kept as the dropdown entry point; delegates to the shared service.
+    changePromptStatus(prompt, newStatus) {
+      this.setPromptLifecycleStatus(prompt, newStatus);
+    },
+    applyLifecycleStatusLocally(versionId, status) {
+      const pi = this.prompts.findIndex(p => (p.versionId || p.id) === versionId);
+      if (pi !== -1) this.prompts.splice(pi, 1, { ...this.prompts[pi], status });
+      const vi = this.promptVersions.findIndex(v => (v.versionId || v.id) === versionId);
+      if (vi !== -1) this.promptVersions.splice(vi, 1, { ...this.promptVersions[vi], status });
+      const ti = this.promptTestVersions.findIndex(v => (v.versionId || v.id) === versionId);
+      if (ti !== -1) this.promptTestVersions.splice(ti, 1, { ...this.promptTestVersions[ti], status });
+      if (this.promptForm && this.promptForm.id === versionId) this.promptForm.status = status;
+    },
+    clearLifecyclePending(versionId) {
+      if (this.lifecycleTimeouts[versionId]) {
+        clearTimeout(this.lifecycleTimeouts[versionId]);
+        delete this.lifecycleTimeouts[versionId];
+      }
+      const next = { ...this.lifecyclePending };
+      delete next[versionId];
+      this.lifecyclePending = next;
+    },
+    rollbackLifecycle(versionId, message) {
+      const previous = this.lifecyclePending[versionId];
+      if (previous === undefined) return;
+      this.applyLifecycleStatusLocally(versionId, previous);
+      this.clearLifecyclePending(versionId);
+      this.lifecycleError = message || "Status change failed.";
+      this.addToast("error", this.lifecycleError);
     },
     insertVariable(variable) {
       const ta = this.$refs.promptTemplateArea;
@@ -1677,14 +2053,20 @@ const app = createApp({
     },
 
     promptStatusClass(status) {
-      switch (status) {
+      switch (normalizePromptStatus(status)) {
         case "active": return "green";
         case "draft": return "blue";
         case "deprecated": return "yellow";
         case "archived": return "gray";
-        case "writing code": return "orange";
         default: return "gray";
       }
+    },
+    promptStatusLabel(status) {
+      const v = normalizePromptStatus(status);
+      return v.charAt(0).toUpperCase() + v.slice(1);
+    },
+    promptVarList(kind) {
+      return promptVarsFor(kind || "schema-mapping");
     },
 
     // ── LLM Configuration (FR-SR-11) ─────────────────────────
@@ -1739,20 +2121,84 @@ const app = createApp({
     },
 
     // ── Prompt Testing (FR-SR-10) ─────────────────────────────
-    runPromptTest() {
-      if (!this.promptTestSelectedPrompt || !this.promptTestSelectedLlm || !this.promptTestSampleInput) return;
-      this.promptTestRunning = true;
+    onPromptTestPromptChange() {
+      // Never carry generated-code results between versions or prompts.
+      this.promptTestVersions = [];
+      this.promptTestSelectedVersionId = "";
       this.promptTestResult = "";
       this.promptTestError = "";
-      // Send dry run request to backend — backend looks up prompt code from DB and executes it
+      this.promptTestErrorCode = "";
+      this.promptTestExecutionStatus = "idle";
+      this.promptTestRanVersionId = "";
+      this.promptTestResolvedFromBackend = "";
+      this.promptTestVersionsState = "idle";
+      this.refreshPromptTestVersions();
+    },
+    retryGenerationForTestedVersion() {
+      const rec = this.promptTestVersionRecord;
+      if (!rec) return;
+      this.retryPromptCodeGeneration({ id: rec.versionId || rec.id });
+    },
+    onPromptTestVersionChange() {
+      // Results belong to one exact version — discard anything from the previous one.
+      this.promptTestResult = "";
+      this.promptTestError = "";
+      this.promptTestErrorCode = "";
+      this.promptTestExecutionStatus = "idle";
+      this.promptTestRanVersionId = "";
+      this.promptTestResolvedFromBackend = "";
+    },
+    refreshPromptTestVersions() {
+      const p = this.prompts.find(x => x.id === this.promptTestSelectedPrompt);
+      if (!p) return;
+      const requestId = this.newRequestId("pvtest");
+      this.promptTestVersionsRequestId = requestId;
+      this.promptTestVersionsState = "loading";
+      uibuilderService.send({
+        type: "listPromptVersions",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { promptGroupId: p.promptId || p.id, requestId, consumer: "testing" },
+      });
+    },
+    runPromptTest() {
+      if (!this.promptTestSelectedPrompt || !this.promptTestSelectedLlm || !this.promptTestSampleInput) return;
+      if (this.promptTestValidationError) {
+        this.promptTestError = this.promptTestValidationError;
+        return;
+      }
+      const rec = this.promptTestVersionRecord;
+      const versionId = rec?.versionId || rec?.id || "";
+      if (!versionId) {
+        this.promptTestError = "Select a specific prompt version before running a test.";
+        this.promptTestExecutionStatus = "error";
+        return;
+      }
+
+      this.promptTestRunning = true;
+      this.promptTestExecutionStatus = "running";
+      this.promptTestResult = "";
+      this.promptTestError = "";
+      this.promptTestErrorCode = "";
+      this.promptTestRanVersionId = versionId;
+      this.promptTestTimeout = setTimeout(() => {
+        if (this.promptTestRunning) {
+          this.promptTestRunning = false;
+          this.promptTestExecutionStatus = "error";
+          this.promptTestError = "The server did not respond. Please try again.";
+        }
+      }, 60000);
+
       uibuilderService.send({
         type: "dryRunPrompt",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
         data: {
-          promptId: this.promptTestSelectedPrompt,
+          // Stable prompt identity AND the exact immutable version to execute.
+          promptGroupId: rec?.promptId || this.promptTestSelectedPrompt,
+          promptId: versionId,
+          versionId,
           llmConfigId: this.promptTestSelectedLlm,
-          sampleInput: this.promptTestSampleInput
-        }
+          sampleInput: this.promptTestSampleInput,
+        },
       });
     },
     openSaveTestCaseModal() {
@@ -1805,6 +2251,7 @@ const app = createApp({
 
     // ── Batch Re-transformation (FR-SR-13) ─────────────────
     openBatchRetransformModal() {
+      return;
       this.batchRetransform = {
         trigger: "prompt_change", scope: "all", catalogueFilter: "", queryFilter: "",
         dryRun: true, status: "idle", progress: 0, totalAssets: 0, processedAssets: 0,
@@ -1817,6 +2264,7 @@ const app = createApp({
       this.showBatchRetransformModal = false;
     },
     startBatchRetransform() {
+      return;
       const b = this.batchRetransform;
       b.status = "running";
       b.progress = 0;
@@ -1840,6 +2288,7 @@ const app = createApp({
       });
     },
     cancelBatchRetransform() {
+      return;
       // Send cancel to backend — UI updates when response arrives
       uibuilderService.send({
         type: "cancelBatchRetransform",
@@ -1853,11 +2302,14 @@ const app = createApp({
 
     // ── Transformation Audit Trail (Section B) ────────────────
     fetchAuditTrail() {
+      if (!this.hasAccess("schema_registry")) return;
+      const requestId = this.newRequestId("audit");
+      this.auditTrail.requestId = requestId;
       this.auditTrail.loading = true;
       this.auditTrail.error = "";
       if (this._auditTimeout) clearTimeout(this._auditTimeout);
       this._auditTimeout = setTimeout(() => {
-        if (this.auditTrail.loading) {
+        if (this.auditTrail.loading && this.auditTrail.requestId === requestId) {
           this.auditTrail.loading = false;
           this.auditTrail.error = "No response from backend — request timed out.";
         }
@@ -1866,12 +2318,28 @@ const app = createApp({
       uibuilderService.send({
         type: "listTransformationAudit",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: { filters, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
+        data: { filters, requestId, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
       });
     },
     applyAuditFilters() {
       this.auditTrail.pagination.page = 1;
       this.fetchAuditTrail();
+    },
+    goToAuditPage(page) {
+      const target = Math.min(Math.max(1, page), this.auditTrailTotalPages);
+      if (target === this.auditTrail.pagination.page) return;
+      this.auditTrail.pagination.page = target;
+      this.fetchAuditTrail();
+    },
+    // A completed harvest writes new audit evidence, so the cached list is stale.
+    invalidateAuditTrail() {
+      this.auditTrail.loaded = false;
+      this.auditIntegrity.result = null;
+      this.auditIntegrity.error = "";
+      if (this.currentPage === "schemaRegistry" && this.currentSchemaTab === "auditTrail") {
+        this.auditTrail.pagination.page = 1;
+        this.fetchAuditTrail();
+      }
     },
     exportAudit(format) {
       uibuilderService.send({
@@ -1879,6 +2347,98 @@ const app = createApp({
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
         data: { format, filters: { ...this.auditTrail.filters } }
       });
+    },
+
+    // ── NF-8: audit hash-chain integrity ──────────────────────
+    verifyAuditIntegrity() {
+      if (this.auditIntegrity.running) return;
+      const requestId = this.newRequestId("auditverify");
+      this.auditIntegrity.requestId = requestId;
+      this.auditIntegrity.running = true;
+      this.auditIntegrity.error = "";
+      this.auditIntegrity.result = null;
+      if (this._auditVerifyTimeout) clearTimeout(this._auditVerifyTimeout);
+      this._auditVerifyTimeout = setTimeout(() => {
+        if (this.auditIntegrity.running && this.auditIntegrity.requestId === requestId) {
+          this.auditIntegrity.running = false;
+          this.auditIntegrity.error = "Integrity verification timed out. No result was returned.";
+        }
+      }, 30000);
+      uibuilderService.send({
+        type: "verifyTransformationAuditChain",
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        data: { requestId },
+      });
+    },
+    // Per-row integrity, derived only from a real backend verification result.
+    auditRowIntegrity(row) {
+      if (!row || !row.recordHash || row.sequenceNumber == null) return "legacy";
+      const v = this.auditIntegrity.result;
+      if (!v) return "chained";
+      if (v.valid) return "verified";
+      if (v.firstBrokenSequence == null) return "chained";
+      return row.sequenceNumber < v.firstBrokenSequence ? "verified" : "broken";
+    },
+    auditIntegrityLabel(state) {
+      switch (state) {
+        case "verified": return "Verified";
+        case "broken": return "Broken";
+        case "chained": return "Not yet verified";
+        default: return "Legacy / Unverified";
+      }
+    },
+    auditIntegrityClass(state) {
+      switch (state) {
+        case "verified": return "green";
+        case "broken": return "red";
+        case "chained": return "blue";
+        default: return "gray";
+      }
+    },
+    // Required identifiers must never render as a bare dash on a success record.
+    auditIdDisplay(row, value) {
+      if (value !== null && value !== undefined && String(value).trim() !== "") return String(value);
+      const chained = !!(row && row.recordHash);
+      return chained ? "Missing" : "Missing — legacy record";
+    },
+    auditIdMissing(value) {
+      return value === null || value === undefined || String(value).trim() === "";
+    },
+    // The backend derives compliance on read; historical evidence stays intact.
+    auditRowStatus(row) {
+      return (row && (row.effectiveStatus || row.status)) || "unknown";
+    },
+    auditRowStatusClass(row) {
+      const s = this.auditRowStatus(row);
+      return s === "success" ? "pill-green" : s === "failed" ? "pill-red" : "pill-yellow";
+    },
+    auditRowDowngraded(row) {
+      return !!(row && row.originalStatus && row.effectiveStatus && row.originalStatus !== row.effectiveStatus);
+    },
+    shortHash(h) {
+      if (!h) return "";
+      const s = String(h);
+      return s.length <= 16 ? s : `${s.slice(0, 10)}…${s.slice(-6)}`;
+    },
+    openAuditRecord(row) {
+      this.auditRecordDetail = row;
+      this.showAuditRecordModal = true;
+    },
+    closeAuditRecord() {
+      this.showAuditRecordModal = false;
+      this.auditRecordDetail = null;
+    },
+    copyAuditValue(value, label) {
+      const text = String(value == null ? "" : value);
+      if (!text) return;
+      const done = () => this.addToast("success", `${label || "Value"} copied.`);
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => {
+          this.addToast("error", "Could not copy to clipboard.");
+        });
+      } else {
+        this.addToast("error", "Clipboard is not available in this browser.");
+      }
     },
 
     // ── Multi-Model Provider (FR-SR-12) ──────────────────────
@@ -2132,31 +2692,74 @@ const app = createApp({
     },
 
     // ── Prompt Versions (D3) ──────────────────────────────
+    newRequestId(prefix) {
+      return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    },
     openPromptVersionPanel(p) {
-      this.promptVersionPanelName = p.sourceSchema + " → " + p.targetSchema;
-      this.promptVersionPanelLoading = true;
+      // Always query by the STABLE prompt id, never the current version id.
+      const groupId = p.promptId || p.id;
+      this.promptVersionPanelName = p.name || `${p.sourceSchema} → ${p.targetSchema}`;
+      this.promptVersionPanelGroupId = groupId;
       this.showPromptVersionPanel = true;
+      // Clear previous dialog state before requesting a different prompt.
       this.promptVersions = [];
+      this.promptVersionActiveId = null;
+      this.promptVersionPanelError = "";
+      this.requestPromptVersions(groupId);
+    },
+    requestPromptVersions(groupId) {
+      const requestId = this.newRequestId("pvpanel");
+      this.promptVersionPanelRequestId = requestId;
+      this.promptVersionPanelState = "loading";
+      this.promptVersionPanelLoading = true;
+      this.promptVersionPanelError = "";
+      if (this.promptVersionPanelTimeout) clearTimeout(this.promptVersionPanelTimeout);
+      this.promptVersionPanelTimeout = setTimeout(() => {
+        // Only the newest in-flight request may flip the panel into error.
+        if (this.promptVersionPanelRequestId === requestId && this.promptVersionPanelState === "loading") {
+          this.promptVersionPanelState = "error";
+          this.promptVersionPanelLoading = false;
+          this.promptVersionPanelError = "Timed out loading version history.";
+        }
+      }, 20000);
       uibuilderService.send({
         type: "listPromptVersions",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: { sourceSchemaId: p.sourceSchema, targetSchemaId: p.targetSchema }
+        data: { promptGroupId: groupId, requestId, consumer: "panel" },
       });
     },
+    reloadPromptVersions() {
+      if (!this.promptVersionPanelGroupId) return;
+      this.requestPromptVersions(this.promptVersionPanelGroupId);
+    },
+    retryPromptVersions() {
+      this.reloadPromptVersions();
+    },
+    // Called after any mutation that can change version history.
+    invalidatePromptVersions() {
+      if (this.showPromptVersionPanel && this.promptVersionPanelGroupId) {
+        this.reloadPromptVersions();
+      }
+      if (this.promptTestSelectedPrompt) {
+        this.refreshPromptTestVersions();
+      }
+    },
     activatePromptVersion(v) {
-      uibuilderService.send({
-        type: "updatePromptStatus",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: { promptId: v.id, status: "active", sourceSchema: v.sourceSchema, targetSchema: v.targetSchema }
-      });
+      // Same shared lifecycle service as the table dropdown.
+      this.setPromptLifecycleStatus(
+        { ...v, promptId: v.promptId || this.promptVersionPanelGroupId },
+        "active"
+      );
     },
 
     // ── System Settings (E4) ────────────────────────────────
     fetchSystemSettings() {
+      if (!this.hasAccess("schema_registry")) return;
       uibuilderService.send({
         type: "getSystemSettings",
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
-        data: {}
+        data: {},
+        _silent: true
       });
     },
     setDefaultProvider(providerId) {
@@ -2324,6 +2927,13 @@ const app = createApp({
     openMappingShacl(row) {
       this.openMappingViewEdit(row);
     },
+    // NF-6: a saved shaclShapeSchemaId means one shape is attached, even when
+    // the legacy shaclCount column was never written.
+    mappingShaclCount(row) {
+      if (!row) return 0;
+      const attached = String(row.shaclShapeSchemaId || "").trim() ? 1 : 0;
+      return Math.max(Number(row.shaclCount) || 0, attached);
+    },
 
     // ── RDF Mapping Config (FR-SR-06 / FR-SR-07) ────────────
     openRdfMappingConfig(row) {
@@ -2416,6 +3026,7 @@ const app = createApp({
 
     // ── Harvest Wizard ─────────────────────────────────────────
     openHarvestWizard() {
+      if (!this.hasAccess("harvester")) return;
       this.showHarvestWizard = true;
       this.harvestWizardStep = 1;
       this.harvestWizardSearch = "";
@@ -2434,14 +3045,18 @@ const app = createApp({
       this.harvestWizardRows = [];
       this.harvestWizardRowsBase = [];
       // Ensure catalogsTable is fresh (needed for sourceData in startHarvest)
-      uibuilderService.send({
-        type: "getCatalogRegistry",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
-      });
+      if (this.hasAccess("catalogue_registry")) {
+        uibuilderService.send({
+          type: "getCatalogRegistry",
+          auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+          _silent: true
+        });
+      }
       // Load harvest-specific catalogue list
       uibuilderService.send({
         type: "getHarvestCatalogues",
-        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") }
+        auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
+        _silent: true
       });
     },
     closeHarvestWizard() { this.showHarvestWizard = false; this.harvestWizardStep = 1; },
@@ -2493,6 +3108,7 @@ const app = createApp({
           // Find the full catalogue record to include sourceData if present
           const fullCat = this.catalogsTable.find(c => c.id === r.id || c.uniqueId === r.id);
           return {
+            ...protocolHarvestConfig(fullCat, r.config),
             uniqueId: r.id,
             catalogName: r.catalog,
             strategy: r.strategy || "none",
@@ -2526,6 +3142,7 @@ const app = createApp({
           const regId = reg.uniqueId || reg.id || reg.catalogId;
           if (!regId || selectedIds.has(regId)) continue;
           selectedCatalogues.push({
+            ...protocolHarvestConfig(reg, null),
             uniqueId: regId,
             catalogName: reg.catalogName || reg.catalog || reg.name || regId,
             strategy: reg.strategy || "none",
@@ -2541,6 +3158,11 @@ const app = createApp({
         }
       }
 
+      Object.assign(this.activeHarvest, {
+        running: true, status: "running", result: "", progress: 0,
+        totalAssets: 0, processedAssets: 0, successCount: 0, errorCount: 0,
+        warningCount: 0, errors: [], catalogueStatus: {},
+      });
       this.isSubmittingHarvest = true;
       this.harvestSubmitError = "";
       // Set a timeout to detect silent backend failure
@@ -2589,10 +3211,13 @@ const app = createApp({
       h.processedAssets = data.processedAssets ?? h.processedAssets;
       h.successCount = data.successCount ?? h.successCount;
       h.errorCount = data.errorCount ?? h.errorCount;
+      h.warningCount = data.warningCount ?? h.warningCount;
+      h.result = data.result || h.result;
       h.startedAt = data.startedAt || h.startedAt;
       h.running = h.status === "running";
       h._runId = data.runId || h._runId;
       if (data.errors) h.errors = data.errors;
+      if (data.catalogueStatus) h.catalogueStatus = data.catalogueStatus;
     },
     pauseHarvest() {
       uibuilderService.send({
@@ -2622,9 +3247,11 @@ const app = createApp({
       this.activeHarvest.running = false;
     },
     loadHarvestData() {
-      uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
-      uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
-      uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") } });
+      if (!this.hasAccess("harvester")) return;
+      const auth = { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") };
+      uibuilderService.send({ type: "listHarvestRuns", auth, _silent: true });
+      uibuilderService.send({ type: "listHarvestLogs", auth, _silent: true });
+      uibuilderService.send({ type: "listHarvestProvenance", auth, _silent: true });
     },
     openClearHarvestHistoryModal() {
       this.showClearHarvestHistoryModal = true;
@@ -2708,9 +3335,7 @@ const app = createApp({
         auth: { userToken: getCookie("userToken"), clientId: getCookie("uibuilder-client-id") },
         data: { uniqueId: id }
       });
-      // Optimistically remove from table
-      this.catalogsTable = this.catalogsTable.filter(c => String(c.id) !== String(id) && String(c.uniqueId) !== String(id));
-      this.addToast("success", "Remote catalogue deleted successfully.");
+      this.pendingDeleteRemoteCatalogId = id;
     },
 
     // ── Monitoring ─────────────────────────────────────────────
@@ -2757,23 +3382,14 @@ const app = createApp({
     },
 
     // ── Password Change (Milestone 4) ─────────────────────────
-    changePassword() {
+    async changePassword() {
       this.passwordFormError = "";
       this.passwordFormSuccess = "";
-      if (this.passwordForm.newPassword.length < 8) {
-        this.passwordFormError = "New password must be at least 8 characters.";
-        return;
+      try {
+        await oidcService.beginLogin(this.oidcConfig, { action: "UPDATE_PASSWORD" });
+      } catch (error) {
+        this.passwordFormError = error?.message || "Keycloak password settings are unavailable.";
       }
-      if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-        this.passwordFormError = "Passwords do not match.";
-        return;
-      }
-      // Simulate password change
-      setTimeout(() => {
-        this.passwordFormSuccess = "Password updated successfully.";
-        this.passwordForm = { currentPassword: "", newPassword: "", confirmPassword: "" };
-        this.addToast("success", "Password changed successfully.");
-      }, 600);
     },
 
     // ── Access Info ─────────────────────────────────────────────
@@ -2804,9 +3420,14 @@ const app = createApp({
         return;
       }
       this.isLoggingIn = true;
+      const credentials = {
+        username: this.loginForm.username,
+        password: this.loginForm.password
+      };
       uibuilderService.send({
         type: "login",
-        data: { username: this.loginForm.username, password: this.loginForm.password }
+        data: credentials,
+        payload: { data: { ...credentials } }
       });
     },
     handleSignOut() {
@@ -2822,7 +3443,6 @@ const app = createApp({
       this.isLoggedIn = false;
       this.authToken = "";
       this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
-      this.loginForm = { username: "", password: "" };
       this.loginError = "";
       this.loginErrorCode = "";
     },
@@ -2832,39 +3452,56 @@ const app = createApp({
     initDashboardData() {
       const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
       // Hydrate session to get full permissions
-      uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth: auth });
-      // Load all data after successful login
-      uibuilderService.send({ type: "listPrompts", data: {} });
-      uibuilderService.send({ type: "listTestCases", data: {} });
-      uibuilderService.send({ type: "listLlmConfigs", data: {} });
-      uibuilderService.send({ type: "listProviders", data: {} });
-      uibuilderService.send({ type: "listLocalSchemas", data: {} });
-      uibuilderService.send({ type: "listMappings", data: {} });
-      uibuilderService.send({ type: "listRemoteSchemas", data: {} });
-      uibuilderService.send({ type: "getCatalogRegistry", auth: auth });
-      uibuilderService.send({ type: "listAssetTypes", auth: auth, data: {} });
-      // Only load admin data if user has adminTools access
-      const aa = this.currentUser.accessAreas || [];
-      if (aa.includes('adminTools') || this.userAccess.includes('admin_tools')) {
-        uibuilderService.send({ type: "listUsers", auth: auth });
-        uibuilderService.send({ type: "listRoles", auth: auth });
+      uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth: auth, _silent: true });
+
+      if (this.hasAccess("local_catalogue")) {
+        this.loadLocalCatalogs();
+        this.loadLocalProvenance();
       }
-      this.loadHarvestData();
+
+      if (this.hasAccess("schema_registry")) {
+        [
+          "listPrompts",
+          "listTestCases",
+          "listLlmConfigs",
+          "listProviders",
+          "listLocalSchemas",
+          "listMappings",
+          "listRemoteSchemas"
+        ].forEach(type => uibuilderService.send({ type, auth, data: {}, _silent: true }));
+      }
+
+      if (this.hasAccess("catalogue_registry")) {
+        uibuilderService.send({ type: "getCatalogRegistry", auth, _silent: true });
+        uibuilderService.send({ type: "listAssetTypes", auth, data: {}, _silent: true });
+      }
+
+      if (this.hasAccess("admin_tools")) {
+        uibuilderService.send({ type: "listUsers", auth, _silent: true });
+        uibuilderService.send({ type: "listRoles", auth, _silent: true });
+      }
+
+      if (this.hasAccess("harvester")) {
+        this.loadHarvestData();
+      }
     },
   },
 
   mounted() {
     uibuilderService.start();
 
-    // Check for existing session token
-    const storedToken = localStorage.getItem("authToken");
-    if (storedToken) {
-      this.isCheckingAuth = true;
-      uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
-    } else {
-      this.isCheckingAuth = false;
-      this.isLoggedIn = false;
-    }
+    // Defer initial auth messages until after onMessage() is registered below.
+    setTimeout(() => {
+      uibuilderService.send({ type: "getOidcConfig" });
+      const storedToken = localStorage.getItem("authToken");
+      if (storedToken) {
+        this.isCheckingAuth = true;
+        uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
+      } else {
+        this.isCheckingAuth = false;
+        this.isLoggedIn = false;
+      }
+    }, 0);
 
     uibuilderService.onMessage((msg) => {
       console.log(msg);
@@ -2961,6 +3598,11 @@ const app = createApp({
 
       if (resp?.action === "testRemoteCatalogConnection") {
         if (this._testConnTimeout) { clearTimeout(this._testConnTimeout); this._testConnTimeout = null; }
+        const stale = !(this._testedConnectionKey === this.connectionTestKey());
+        if (stale) {
+          this.resetConnectionTest();
+          return;
+        }
         this.testConnectionResult = {
           status: resp.status || "error",
           message: resp.message || "",
@@ -2986,6 +3628,7 @@ const app = createApp({
           this.addToast("success", "Remote catalogue registered successfully.");
         } else {
           this.registerRemoteCatalogError = resp?.message || "Register remote catalog failed";
+          this.catalogFieldErrors = resp?.fieldErrors || {};
           this.addToast("error", this.registerRemoteCatalogError);
         }
       }
@@ -3020,13 +3663,21 @@ const app = createApp({
           this.addToast("success", "Remote catalogue updated successfully.");
         } else {
           this.updateRemoteCatalogError = resp?.message || "Update failed";
+          this.catalogFieldErrors = resp?.fieldErrors || {};
+          this.addToast("error", this.updateRemoteCatalogError);
         }
       }
 
-      if (resp?.action === "deleteRemoteCatalog" && resp?.status === "success") {
-        const id = resp?.uniqueId || msg?.data?.uniqueId;
-        if (id) {
-          this.catalogsTable = this.catalogsTable.filter(c => String(c.id) !== String(id) && String(c.uniqueId) !== String(id));
+      if (resp?.action === "deleteRemoteCatalog") {
+        const id = resp?.uniqueId || msg?.data?.uniqueId || this.pendingDeleteRemoteCatalogId;
+        this.pendingDeleteRemoteCatalogId = null;
+        if (resp?.status === "success") {
+          if (id) {
+            this.catalogsTable = this.catalogsTable.filter(c => String(c.id) !== String(id) && String(c.uniqueId) !== String(id));
+          }
+          this.addToast("success", "Remote catalogue deleted successfully.");
+        } else {
+          this.addToast("error", resp?.message || "The catalogue could not be deleted.");
         }
       }
 
@@ -3064,6 +3715,8 @@ const app = createApp({
             domain: item.baseEndpoint || "-",
             updated: item.updatedAt || "-",
             integrationStatus: item.enabled !== false ? "Active" : "Inactive",
+            protocol: item.protocol || "",
+            config: item,
           }));
           this.harvestWizardRows = [...this.harvestWizardRowsBase];
         }
@@ -3072,11 +3725,18 @@ const app = createApp({
       if (resp?.action === "startHarvest") {
         if (this._harvestTimeout) { clearTimeout(this._harvestTimeout); this._harvestTimeout = null; }
         this.isSubmittingHarvest = false;
-        if (resp?.status === "success") {
+        const _run0 = resp.run || {};
+        const _errCount = _run0.errorCount || resp.errorCount || 0;
+        const _firstErr = (Array.isArray(resp.errors) && resp.errors[0]) ? resp.errors[0] : (Array.isArray(_run0.errors) && _run0.errors[0]) ? _run0.errors[0] : null;
+        if (resp?.status === "success" || resp?.status === "warning") {
           const run = resp.run || {};
           const runStatus = run.status || "completed";
           const assetCount = run.assetsAdded || run.totalAssets || 0;
-          if (assetCount > 0) {
+          const _warnCount = run.warningCount || resp.warningCount || 0;
+          const _partial = resp.partial === true || run.result === "Partial" || _warnCount > 0;
+          if (resp?.status === "warning" || _errCount > 0 || _partial) {
+            this.addToast("warning", (resp?.message || `Harvest ${runStatus} with ${_errCount} error(s) and ${_warnCount} warning(s).`) + (_firstErr ? " - " + _firstErr.message : ""));
+          } else if (assetCount > 0) {
             this.addToast("success", `Harvest ${runStatus}: ${assetCount} assets imported from ${run.catalogueName || "catalogue"}.`);
           } else {
             this.addToast("warning", `Harvest ${runStatus} but 0 assets were found. If harvesting an API source, the endpoint may be unreachable from this environment (CORS). Try uploading the API response as a JSON file when registering the catalogue.`);
@@ -3086,13 +3746,16 @@ const app = createApp({
             this.applyHarvestProgress({
               runId: run.uniqueId,
               status: runStatus,
+              result: run.result || (_errCount > 0 ? "Partial" : _partial ? "Partial" : "Success"),
               catalogueName: run.catalogueName || "Harvest",
-              progress: runStatus === "completed" ? 100 : 0,
+              progress: String(runStatus).indexOf("completed") === 0 ? 100 : 0,
               totalAssets: run.totalAssets || 0,
               processedAssets: run.totalAssets || 0,
               successCount: run.successCount || 0,
               errorCount: run.errorCount || 0,
+              warningCount: run.warningCount || 0,
               startedAt: run.startedAt || "",
+              errors: Array.isArray(resp.errors) ? resp.errors : (Array.isArray(run.errors) ? run.errors : []),
             });
           }
           // Directly populate local catalogue from the harvest response
@@ -3126,9 +3789,21 @@ const app = createApp({
           this.loadHarvestData();
           this.loadLocalCatalogs();
           this.loadLocalProvenance();
+          this.invalidateAuditTrail();
         } else {
-          this.harvestSubmitError = resp?.message || "Harvest failed to start";
-          this.addToast("error", this.harvestSubmitError);
+          this.harvestSubmitError = resp?.message || "Harvest failed.";
+          this.addToast("error", (resp?.message || "Harvest failed.") + (_firstErr ? " - " + _firstErr.message : ""));
+          if (_run0.uniqueId) {
+            this.applyHarvestProgress({
+              runId: _run0.uniqueId, status: _run0.status || "failed", result: _run0.result || "Failed",
+              catalogueName: _run0.catalogueName || "Harvest", progress: 100,
+              totalAssets: _run0.totalAssets || 0, processedAssets: _run0.totalAssets || 0,
+              successCount: _run0.successCount || 0, errorCount: _errCount, startedAt: _run0.startedAt || "",
+              errors: Array.isArray(resp.errors) ? resp.errors : (Array.isArray(_run0.errors) ? _run0.errors : []),
+            });
+          }
+          this.loadHarvestData();
+          this.invalidateAuditTrail();
         }
       }
 
@@ -3164,6 +3839,10 @@ const app = createApp({
           assetsAdded: r.assetsAdded != null ? `+${r.assetsAdded}` : "-",
           duration: r.duration || "-",
           result: r.result || r.status || "-",
+          errorCount: r.errorCount || 0,
+          warningCount: r.warningCount || 0,
+          errors: Array.isArray(r.errors) ? r.errors : [],
+          catalogueStatus: r.catalogueStatus || {},
           _run: r,
         }));
         this.pagination.harvest.page = 1;
@@ -3182,8 +3861,11 @@ const app = createApp({
             status: resp.run.status || "-",
             successCount: resp.run.successCount || 0,
             errorCount: resp.run.errorCount || 0,
+            warningCount: resp.run.warningCount || 0,
+            errors: Array.isArray(resp.run.errors) ? resp.run.errors : [],
+            catalogueStatus: resp.run.catalogueStatus || {},
             assets: Array.isArray(resp.run.assets) ? resp.run.assets : [],
-            logs: Array.isArray(resp.logs) ? resp.logs : [],
+            logs: Array.isArray(resp.logs) ? resp.logs : (Array.isArray(resp.run.logs) ? resp.run.logs : []),
             provenance: Array.isArray(resp.provenance) ? resp.provenance : [],
           };
         }
@@ -3318,17 +4000,11 @@ const app = createApp({
 
       // ── updateUser response ───────────────────────────────────
       if (resp?.action === "updateUser" && (resp?.ok || resp?.status === "success")) {
-        // Close modal FIRST, then upsert into store ONCE
         this.isEditUserModal = false;
         this.isSavingUser = false;
         this.addToast("success", "User updated.");
-        // Upsert returned user into list by _id (no API call)
-        if (resp.user) {
-          const uid = resp.user._id || resp.user.uniqueId;
-          const idx = this.users.findIndex(u => (u._id || u.uniqueId) === uid);
-          if (idx >= 0) { this.users.splice(idx, 1, { ...this.users[idx], ...resp.user }); }
-          else { this.users.push(resp.user); }
-        }
+        const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie("uibuilder-client-id") };
+        uibuilderService.send({ type: "listUsers", auth });
       }
       if (resp?.action === "updateUser" && resp?.error) {
         this.isSavingUser = false;
@@ -3400,6 +4076,14 @@ const app = createApp({
       }
 
       // ── Auth Response Handlers ─────────────────────────────────
+      if (resp?.action === "getOidcConfig") {
+        this.oidcConfig = {
+          ...this.oidcConfig,
+          ...resp,
+          enabled: resp.status === "success" && resp.enabled === true
+        };
+      }
+
       if (resp?.action === "login") {
         this.isLoggingIn = false;
         if (resp.status === "success" && resp.token) {
@@ -3429,9 +4113,9 @@ const app = createApp({
           }
           this.isLoggedIn = true;
           this.isCheckingAuth = false;
-          this.loginForm = { username: "", password: "" };
           this.loginError = "";
           this.loginErrorCode = "";
+          this.loginForm.password = "";
           this.currentPage = "localCatalogue";
           this.initDashboardData();
           this.fetchSystemSettings();
@@ -3519,7 +4203,8 @@ const app = createApp({
 
       // ── Permission denied handler ──────────────────────────────
       // Only toast permission_denied for user-initiated actions, not silent background calls
-      if (resp?.error === "permission_denied" && !msg?._silent) {
+      const isSilentPermissionCheck = msg?._silent === true || resp?._silent === true;
+      if (resp?.error === "permission_denied" && !isSilentPermissionCheck) {
         this.addToast("error", resp.message || "Permission denied for " + (resp.action || "this operation"));
       }
       if (resp?.error === "not_authenticated" || resp?.error === "account_disabled") {
@@ -3554,31 +4239,91 @@ const app = createApp({
         }
       }
 
+      if (resp?.action === "createPrompt" && resp?.status === "error") {
+        this.finishPromptSave();
+        this.promptFieldErrors = resp.fieldErrors || {};
+        this.promptFormError = resp.message || "Prompt creation failed.";
+        this.addToast("error", resp.message || "Prompt creation failed.");
+      }
+
       if (resp?.action === "createPrompt" && resp?.status === "success") {
+        this.finishPromptSave();
         const prompt = resp.prompt;
         if (prompt) {
-          // Check if already exists (avoid duplicates)
           const existing = this.prompts.findIndex(p => p.id === prompt.id);
           if (existing === -1) {
             this.prompts.push(prompt);
           }
-          this.addToast("success", "Prompt created \u2014 generating code...");
         }
+        (resp.warnings || []).forEach(w => this.addToast("warning", w));
+        this.addToast("success", "Prompt created.");
+        this.closePromptModal();
+        this.fetchPrompts();
+        this.invalidatePromptVersions();
       }
 
       if (resp?.action === "codeGenerated" && resp?.status === "success") {
         const idx = this.prompts.findIndex(p => p.id === resp.promptId);
         if (idx !== -1) {
+          // NF-7: code generation never changes the prompt lifecycle status.
           this.prompts.splice(idx, 1, {
             ...this.prompts[idx],
             generatedCode: resp.generatedCode,
+            generationStatus: "completed",
             codeGenerationStatus: "completed",
-            status: "active",
+            generationError: "",
+            generationErrorCode: "",
             lastGeneratedAt: resp.lastGeneratedAt,
             updatedAt: resp.updatedAt,
           });
         }
-        this.addToast("success", "Code generated \u2014 prompt is now active.");
+        this.addToast("success", "Code generated.");
+        // Generated code changed for this exact version — refresh dependent state.
+        this.fetchPrompts();
+        this.invalidatePromptVersions();
+      }
+
+      if (resp?.action === "codeGenerated" && resp?.status === "error") {
+        const idx = this.prompts.findIndex(p => p.id === resp.promptId);
+        const message = providerErrorMessage(resp.errorCode, resp.message);
+        if (idx !== -1) {
+          // Generation always terminates; the prompt and its history are untouched.
+          this.prompts.splice(idx, 1, {
+            ...this.prompts[idx],
+            generationStatus: "error",
+            codeGenerationStatus: "error",
+            generationError: message,
+            generationErrorCode: resp.errorCode || "provider_error",
+            updatedAt: resp.updatedAt,
+          });
+        }
+        this.addToast("error", message);
+        this.fetchPrompts();
+        this.invalidatePromptVersions();
+      }
+
+      if (resp?.action === "retryPromptCodeGeneration" && resp?.status === "error") {
+        this.addToast("error", resp.message || "Could not restart code generation.");
+        const idx = this.prompts.findIndex(p => p.id === resp.versionId);
+        if (idx !== -1) {
+          this.prompts.splice(idx, 1, { ...this.prompts[idx], generationStatus: "error" });
+        }
+      }
+
+      if (resp?.action === "testProviderConnection") {
+        this.providerTestingId = "";
+        this.providerTestResult = {
+          ok: !!resp.ok,
+          code: resp.code || "",
+          message: resp.ok ? resp.message : providerErrorMessage(resp.code, resp.message),
+          providerId: resp.providerId || "",
+          providerName: resp.providerName || "",
+          endpoint: resp.endpoint || "",
+          model: resp.model || "",
+          httpStatus: resp.httpStatus || 0,
+          latencyMs: resp.latencyMs ?? null,
+        };
+        this.addToast(resp.ok ? "success" : "error", this.providerTestResult.message);
       }
 
       if (resp?.action === "listPrompts" && resp?.status === "success") {
@@ -3600,36 +4345,67 @@ const app = createApp({
       }
 
       if (resp?.action === "updatePrompt" && resp?.status === "error") {
+        this.finishPromptSave();
+        this.promptFieldErrors = resp.fieldErrors || {};
         this.promptFormError = resp.message || "Update failed.";
         this.addToast("error", resp.message || "Prompt update failed.");
       }
 
       if (resp?.action === "updatePrompt" && resp?.status === "success") {
-        const uIdx = this.prompts.findIndex(p => p.id === resp.promptId);
-        if (uIdx !== -1) {
-          const updates = { updatedAt: resp.updatedAt };
-          if (resp.version !== undefined) updates.version = resp.version;
-          if (resp.sourceSchema !== undefined) updates.sourceSchema = resp.sourceSchema;
-          if (resp.targetSchema !== undefined) updates.targetSchema = resp.targetSchema;
-          if (resp.template !== undefined) updates.template = resp.template;
-          if (resp.examples !== undefined) updates.examples = resp.examples;
-          if (resp.constraints !== undefined) updates.constraints = resp.constraints;
-          if (resp.promptStatus !== undefined) updates.status = resp.promptStatus;
-          if (resp.code !== undefined) updates.generatedCode = resp.code;
-          this.prompts.splice(uIdx, 1, { ...this.prompts[uIdx], ...updates });
-        }
-        this.addToast("success", "Prompt updated.");
+        this.finishPromptSave();
+        (resp.warnings || []).forEach(w => this.addToast("warning", w));
+        this.addToast(
+          "success",
+          resp.versionCreated
+            ? `Version ${resp.prompt?.version} created — previous versions kept.`
+            : "Prompt updated."
+        );
+        this.closePromptModal();
+        this.fetchPrompts();
+        this.invalidatePromptVersions();
       }
 
       if (resp?.action === "updatePromptStatus" && resp?.status === "error") {
-        this.addToast("error", resp.message || "Status update failed.");
+        // Roll the optimistic change back and surface the backend's reason.
+        const vid = resp.versionId || resp.promptId;
+        if (vid && this.lifecyclePending[vid] !== undefined) {
+          this.rollbackLifecycle(vid, resp.message || "Status update failed.");
+        } else {
+          this.lifecycleError = resp.message || "Status update failed.";
+          this.addToast("error", this.lifecycleError);
+        }
       }
 
       if (resp?.action === "updatePromptStatus" && resp?.status === "success") {
-        const sIdx = this.prompts.findIndex(p => p.id === resp.promptId);
-        if (sIdx !== -1) {
-          this.prompts.splice(sIdx, 1, { ...this.prompts[sIdx], status: resp.newStatus, updatedAt: resp.updatedAt });
+        const vid = resp.versionId;
+        this.clearLifecyclePending(vid);
+        this.lifecycleError = "";
+
+        // Adopt the canonical persisted status returned by the server.
+        const canonical = resp.version || null;
+        if (canonical) {
+          const pi = this.prompts.findIndex(p => (p.versionId || p.id) === vid);
+          if (pi !== -1) this.prompts.splice(pi, 1, { ...this.prompts[pi], ...canonical });
+          if (this.promptForm && this.promptForm.id === vid) {
+            this.promptForm.status = canonical.status;
+          }
         }
+        if (Array.isArray(resp.versions)) {
+          if (this.promptVersionPanelGroupId === resp.promptId) {
+            this.promptVersions = resp.versions;
+            this.promptVersionActiveId = resp.activeVersionId || null;
+            this.promptVersionPanelState = resp.versions.length ? "success" : "empty";
+          }
+          const selected = this.prompts.find(p => p.id === this.promptTestSelectedPrompt);
+          if (selected && (selected.promptId || selected.id) === resp.promptId) {
+            this.promptTestVersions = resp.versions;
+          }
+        }
+
+        this.addToast("success", `Version v${resp.version?.version ?? ""} is now ${resp.newStatus}.`);
+        // Refresh list/detail/version-history/testing state from the server.
+        this.fetchPrompts();
+        this.invalidatePromptVersions();
       }
 
       if (resp?.action === "deletePrompt" && resp?.status === "success") {
@@ -3638,13 +4414,27 @@ const app = createApp({
       }
 
       if (resp?.action === "dryRunPrompt") {
-        if (resp.status === "success") {
-          this.promptTestResult = resp.result || "";
+        // A run is only "Complete" when the backend returns a validated result.
+        // A missing/invalid/failed result is never rendered as {}.
+        const valid = resp.status === "success" && resp.executionStatus !== "error" &&
+          typeof resp.result === "string" && resp.result.trim().length > 0;
+        if (valid) {
+          this.promptTestResult = resp.result;
+          this.promptTestError = "";
+          this.promptTestExecutionStatus = "success";
         } else {
+          this.promptTestResult = "";
           this.promptTestError = resp.message || "Dry run failed.";
+          this.promptTestErrorCode = resp.code || "execution_error";
+          this.promptTestExecutionStatus = "error";
         }
+        this.promptTestRanVersionId = resp.versionId || this.promptTestSelectedVersionId;
         this.promptTestResolvedFromBackend = resp.resolvedPrompt || "";
         this.promptTestRunning = false;
+        if (this.promptTestTimeout) {
+          clearTimeout(this.promptTestTimeout);
+          this.promptTestTimeout = null;
+        }
       }
 
       if (resp?.action === "saveTestCase" && resp?.status === "success") {
@@ -3833,9 +4623,37 @@ const app = createApp({
       }
 
       // ── Prompt Version Response (D3) ──────────────────────────
-      if (resp?.action === "listPromptVersions" && resp?.ok) {
-        this.promptVersions = Array.isArray(resp.versions) ? resp.versions : [];
-        this.promptVersionPanelLoading = false;
+      if (resp?.action === "listPromptVersions") {
+        const versions = Array.isArray(resp.versions) ? resp.versions : [];
+        // Route by consumer, and discard stale replies via the request id.
+        // Without this, a Prompt Testing reply could blank the Versions dialog.
+        if (resp.consumer === "testing") {
+          if (resp.requestId === this.promptTestVersionsRequestId) {
+            if (resp.ok) {
+              this.promptTestVersions = versions;
+              this.promptTestVersionsState = versions.length ? "success" : "empty";
+              const active = versions.find(v => v.versionId === resp.activeVersionId);
+              this.promptTestSelectedVersionId = (active || versions[0])?.versionId || "";
+            } else {
+              this.promptTestVersionsState = "error";
+            }
+          }
+        } else if (resp.requestId === this.promptVersionPanelRequestId) {
+          if (this.promptVersionPanelTimeout) {
+            clearTimeout(this.promptVersionPanelTimeout);
+            this.promptVersionPanelTimeout = null;
+          }
+          this.promptVersionPanelLoading = false;
+          if (resp.ok) {
+            this.promptVersions = versions;
+            this.promptVersionActiveId = resp.activeVersionId || null;
+            this.promptVersionPanelState = versions.length ? "success" : "empty";
+            this.promptVersionPanelError = "";
+          } else {
+            this.promptVersionPanelState = "error";
+            this.promptVersionPanelError = resp.message || "Failed to load version history.";
+          }
+        }
       }
 
       // ── System Settings Response (E4) ─────────────────────────
@@ -3972,15 +4790,36 @@ const app = createApp({
       // ── Transformation Audit Trail Response Handlers ────────────
 
       if (resp?.action === "listTransformationAudit") {
+        // Ignore a response that a newer request has already superseded.
+        if (resp.requestId && this.auditTrail.requestId && resp.requestId !== this.auditTrail.requestId) return;
         if (this._auditTimeout) { clearTimeout(this._auditTimeout); this._auditTimeout = null; }
         this.auditTrail.loading = false;
         this.auditTrail.loaded = true;
         if (resp.ok !== false) {
           this.auditTrail.rows = Array.isArray(resp.rows) ? resp.rows : [];
+          this.auditTrail.error = "";
           this.auditTrail.pagination.total = resp.total ?? this.auditTrail.rows.length;
           this.auditTrail.pagination.page = resp.page ?? 1;
+          if (resp.perPage) this.auditTrail.pagination.perPage = resp.perPage;
         } else {
-          this.auditTrail.error = resp.error || resp.code || "Failed to load audit trail.";
+          this.auditTrail.rows = [];
+          this.auditTrail.error = resp.message || resp.error || resp.code || "Failed to load audit trail.";
+        }
+      }
+
+      if (resp?.action === "verifyTransformationAuditChain") {
+        if (resp.requestId && this.auditIntegrity.requestId && resp.requestId !== this.auditIntegrity.requestId) return;
+        if (this._auditVerifyTimeout) { clearTimeout(this._auditVerifyTimeout); this._auditVerifyTimeout = null; }
+        this.auditIntegrity.running = false;
+        if (resp.ok !== false) {
+          // Store the backend result verbatim; the UI never decides validity itself.
+          this.auditIntegrity.result = resp;
+          this.auditIntegrity.error = "";
+          this.addToast(resp.valid ? "success" : "error", resp.message || (resp.valid ? "Audit chain verified." : "Audit chain is broken."));
+        } else {
+          this.auditIntegrity.result = null;
+          this.auditIntegrity.error = resp.message || resp.error || resp.code || "Integrity verification failed.";
+          this.addToast("error", this.auditIntegrity.error);
         }
       }
 
@@ -4044,8 +4883,6 @@ const app = createApp({
 
     this.setPerPageByViewport();
     window.addEventListener("resize", this.onResize);
-    this.loadLocalCatalogs();
-    this.loadLocalProvenance();
     window.addEventListener("scroll", this.updateMenuPosition, true);
     window.addEventListener("resize", this.updateMenuPosition);
   },

@@ -90,12 +90,25 @@ export default {
         const m = this.mappingRows.find(x => x && x.id === id);
         if (m && m.transformationStrategy) return m.transformationStrategy;
       }
-      return r.transformationStrategy || (r.transformedForm ? 'Applied' : '\u2014');
+      const raw = String(r.transformationStrategy || '').trim();
+      const labels = {
+        rdf: 'Deterministic RDF',
+        deterministic: 'Deterministic RDF',
+        ai: 'AI-driven',
+        hybrid: 'Hybrid AI Mapping',
+        'json-field': 'JSON Field Mapping'
+      };
+      return labels[raw.toLowerCase()] || raw || (r.transformedForm ? 'Applied' : '\u2014');
     },
     assetDetailMappingStatus() {
       const r = this.assetDetailRow || {};
+      const raw = String(r.transformationStatus || '').trim().toLowerCase();
+      if (raw === 'success' || raw === 'completed') return 'Success';
+      if (raw === 'failed' || raw === 'error') return 'Error';
+      if (raw === 'skipped') return 'Skipped';
+      if (raw === 'pending') return 'Pending';
       if (r.transformedForm) return 'Success';
-      if (r.transformError) return 'Error';
+      if (r.transformationError || r.transformError) return 'Error';
       return 'Pending';
     },
     assetDetailDescription() {
