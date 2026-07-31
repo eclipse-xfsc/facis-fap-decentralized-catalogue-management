@@ -140,6 +140,8 @@
     // Dashboard / Auth
     getDashboard: "dashboard",
     login: "auth",
+    getOidcConfig: "auth",
+    oidcExchange: "auth",
     checkAuth: "auth",
     logOut: "auth",
     // Admin Tools
@@ -229,6 +231,11 @@
     validateSampleAsset: "schema-registry",
     listTransformationAudit: "schema-registry",
     exportTransformationAudit: "schema-registry",
+    updateTransformationAudit: "schema-registry",
+    deleteTransformationAudit: "schema-registry",
+    verifyTransformationAuditChain: "schema-registry",
+    testProviderConnection: "schema-registry",
+    retryPromptCodeGeneration: "schema-registry",
     listPromptVersions: "schema-registry",
     getLlmUsage: "schema-registry",
     getSystemSettings: "schema-registry",
@@ -255,6 +262,30 @@
   }
   function createMockResponder(msg) {
     if (!msg) return;
+    if (msg.type === "login") {
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "login",
+            status: "error",
+            error: "backend_required",
+            message: "Keycloak login requires the Node-RED/uibuilder backend."
+          }
+        }
+      });
+    }
+    if (msg.type === "getOidcConfig") {
+      dispatchMsg({
+        payload: {
+          response: {
+            action: "getOidcConfig",
+            status: "error",
+            enabled: false,
+            message: "Keycloak login requires the Node-RED/uibuilder backend."
+          }
+        }
+      });
+    }
     if (msg.type === "getDashboard") {
       dispatchMsg({
         payload: {
@@ -610,55 +641,12 @@
         }
       });
     }
-    if (msg.type === "login") {
-      const d = msg.data || {};
-      if (d.username === "admin" && d.password === "1234") {
-        const token = "mock-token-" + Date.now().toString(36);
-        dispatchMsg({ payload: { response: {
-          action: "login",
-          status: "success",
-          token,
-          user: {
-            username: "admin",
-            role: "Administrator",
-            email: "admin@facis.eu",
-            access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
-            accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
-            roles: ["admin"],
-            permissions: ["*"]
-          }
-        } } });
-      } else {
-        dispatchMsg({ payload: { response: {
-          action: "login",
-          status: "error",
-          message: "Invalid username or password."
-        } } });
-      }
-    }
     if (msg.type === "checkAuth") {
-      const token = msg.data?.token || "";
-      if (token && token.startsWith("mock-token-")) {
-        dispatchMsg({ payload: { response: {
-          action: "checkAuth",
-          status: "success",
-          user: {
-            username: "admin",
-            role: "Administrator",
-            email: "admin@facis.eu",
-            access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
-            accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
-            roles: ["admin"],
-            permissions: ["*"]
-          }
-        } } });
-      } else {
-        dispatchMsg({ payload: { response: {
-          action: "checkAuth",
-          status: "error",
-          message: "Session expired or invalid."
-        } } });
-      }
+      dispatchMsg({ payload: { response: {
+        action: "checkAuth",
+        status: "error",
+        message: "Keycloak login requires the Node-RED/uibuilder backend."
+      } } });
     }
     if (msg.type === "logOut") {
       dispatchMsg({ payload: { response: {
@@ -1199,9 +1187,10 @@
       if (msg && msg.type && !msg.route) {
         const route = resolveRoute(msg.type);
         if (route) msg.route = route;
+        else console.error('[facis-service] no route mapped for msg.type "' + msg.type + '"; the backend will never receive it.');
       }
       const token = typeof localStorage !== "undefined" && localStorage.getItem("authToken") || typeof document !== "undefined" && getCookie("userToken") || "";
-      if (token && msg.type !== "login") {
+      if (token) {
         msg._token = token;
         if (!msg.data) msg.data = {};
         if (!msg.data.token) msg.data.token = token;
@@ -1224,6 +1213,102 @@
     },
     isMock() {
       return _isMock;
+    }
+  };
+
+  // src/services/oidc.service.js
+  var CALLBACK_STATE_KEY = "facis_oidc_callback";
+  var CALLBACK_MAX_AGE_MS = 10 * 60 * 1e3;
+  function toBase64Url(bytes) {
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+  function randomValue(size = 32) {
+    const bytes = new Uint8Array(size);
+    window.crypto.getRandomValues(bytes);
+    return toBase64Url(bytes);
+  }
+  async function sha256Base64Url(value) {
+    const encoded = new TextEncoder().encode(value);
+    const digest = await window.crypto.subtle.digest("SHA-256", encoded);
+    return toBase64Url(new Uint8Array(digest));
+  }
+  function currentRedirectUri() {
+    return window.location.origin + window.location.pathname;
+  }
+  function removeCallbackParameters() {
+    const url = new URL(window.location.href);
+    ["code", "state", "session_state", "iss", "kc_action_status", "error", "error_description", "error_uri"].forEach((key) => url.searchParams.delete(key));
+    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+  }
+  var oidcService = {
+    async beginLogin(config2, options = {}) {
+      if (!config2?.enabled || !config2.authorizationEndpoint || !config2.clientId) {
+        throw new Error(config2?.message || "Keycloak/OIDC is not configured.");
+      }
+      const verifier = randomValue(64);
+      const challenge = await sha256Base64Url(verifier);
+      const state = randomValue();
+      const nonce = randomValue();
+      const redirectUri = config2.redirectUri || currentRedirectUri();
+      sessionStorage.setItem(CALLBACK_STATE_KEY, JSON.stringify({
+        state,
+        nonce,
+        verifier,
+        redirectUri,
+        createdAt: Date.now()
+      }));
+      const url = new URL(config2.authorizationEndpoint);
+      url.searchParams.set("client_id", config2.clientId);
+      url.searchParams.set("redirect_uri", redirectUri);
+      url.searchParams.set("response_type", "code");
+      url.searchParams.set("scope", config2.scope || "openid profile email");
+      url.searchParams.set("state", state);
+      url.searchParams.set("nonce", nonce);
+      url.searchParams.set("code_challenge", challenge);
+      url.searchParams.set("code_challenge_method", "S256");
+      if (options.action) url.searchParams.set("kc_action", options.action);
+      window.location.assign(url.toString());
+    },
+    consumeCallback() {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const error = url.searchParams.get("error");
+      if (!code && !error) return null;
+      let saved = null;
+      try {
+        saved = JSON.parse(sessionStorage.getItem(CALLBACK_STATE_KEY) || "null");
+      } catch (error_) {
+        saved = null;
+      }
+      sessionStorage.removeItem(CALLBACK_STATE_KEY);
+      removeCallbackParameters();
+      if (error) {
+        return { error, message: url.searchParams.get("error_description") || "Keycloak sign-in failed." };
+      }
+      if (!saved || !saved.state || saved.state !== url.searchParams.get("state")) {
+        return { error: "invalid_state", message: "The OIDC callback state is invalid." };
+      }
+      if (!saved.createdAt || Date.now() - saved.createdAt > CALLBACK_MAX_AGE_MS) {
+        return { error: "callback_expired", message: "The OIDC sign-in request has expired." };
+      }
+      return {
+        code,
+        verifier: saved.verifier,
+        nonce: saved.nonce,
+        redirectUri: saved.redirectUri
+      };
+    },
+    completeLogout(config2) {
+      if (!config2?.endSessionEndpoint) return false;
+      const url = new URL(config2.endSessionEndpoint);
+      url.searchParams.set("client_id", config2.clientId);
+      url.searchParams.set("post_logout_redirect_uri", config2.redirectUri || currentRedirectUri());
+      window.location.assign(url.toString());
+      return true;
     }
   };
 
@@ -1277,7 +1362,7 @@
     return pos;
   }
   function prevClusterBreak(str, pos, includeExtending) {
-    while (pos > 0) {
+    while (pos > 1) {
       let found = nextClusterBreak(str, pos - 2, includeExtending);
       if (found < pos) return found;
       pos--;
@@ -1322,7 +1407,7 @@
     /**
     Replace a range of the text with the given content.
     */
-    replace(from, to, text) {
+    replace(from, to, text2) {
       [from, to] = clip(this, from, to);
       let parts = [];
       this.decompose(
@@ -1332,10 +1417,10 @@
         2
         /* Open.To */
       );
-      if (text.length)
-        text.decompose(
+      if (text2.length)
+        text2.decompose(
           0,
-          text.length,
+          text2.length,
           parts,
           1 | 2
           /* Open.To */
@@ -1347,7 +1432,7 @@
         1
         /* Open.From */
       );
-      return TextNode.from(parts, this.length - (to - from) + text.length);
+      return TextNode.from(parts, this.length - (to - from) + text2.length);
     }
     /**
     Append another document to this one.
@@ -1443,18 +1528,18 @@
     /**
     Create a `Text` instance for the given array of lines.
     */
-    static of(text) {
-      if (text.length == 0)
+    static of(text2) {
+      if (text2.length == 0)
         throw new RangeError("A document must have at least one line");
-      if (text.length == 1 && !text[0])
+      if (text2.length == 1 && !text2[0])
         return _Text.empty;
-      return text.length <= 32 ? new TextLeaf(text) : TextNode.from(TextLeaf.split(text, []));
+      return text2.length <= 32 ? new TextLeaf(text2) : TextNode.from(TextLeaf.split(text2, []));
     }
   };
   var TextLeaf = class _TextLeaf extends Text {
-    constructor(text, length = textLength(text)) {
+    constructor(text2, length = textLength(text2)) {
       super();
-      this.text = text;
+      this.text = text2;
       this.length = length;
     }
     get lines() {
@@ -1473,26 +1558,26 @@
       }
     }
     decompose(from, to, target, open) {
-      let text = from <= 0 && to >= this.length ? this : new _TextLeaf(sliceText(this.text, from, to), Math.min(to, this.length) - Math.max(0, from));
+      let text2 = from <= 0 && to >= this.length ? this : new _TextLeaf(sliceText(this.text, from, to), Math.min(to, this.length) - Math.max(0, from));
       if (open & 1) {
         let prev = target.pop();
-        let joined = appendText(text.text, prev.text.slice(), 0, text.length);
+        let joined = appendText(text2.text, prev.text.slice(), 0, text2.length);
         if (joined.length <= 32) {
-          target.push(new _TextLeaf(joined, prev.length + text.length));
+          target.push(new _TextLeaf(joined, prev.length + text2.length));
         } else {
           let mid = joined.length >> 1;
           target.push(new _TextLeaf(joined.slice(0, mid)), new _TextLeaf(joined.slice(mid)));
         }
       } else {
-        target.push(text);
+        target.push(text2);
       }
     }
-    replace(from, to, text) {
-      if (!(text instanceof _TextLeaf))
-        return super.replace(from, to, text);
+    replace(from, to, text2) {
+      if (!(text2 instanceof _TextLeaf))
+        return super.replace(from, to, text2);
       [from, to] = clip(this, from, to);
-      let lines = appendText(this.text, appendText(text.text, sliceText(this.text, 0, from)), to);
-      let newLen = this.length + text.length - (to - from);
+      let lines = appendText(this.text, appendText(text2.text, sliceText(this.text, 0, from)), to);
+      let newLen = this.length + text2.length - (to - from);
       if (lines.length <= 32)
         return new _TextLeaf(lines, newLen);
       return TextNode.from(_TextLeaf.split(lines, []), newLen);
@@ -1517,9 +1602,9 @@
     scanIdentical() {
       return 0;
     }
-    static split(text, target) {
+    static split(text2, target) {
       let part = [], len = -1;
-      for (let line of text) {
+      for (let line of text2) {
         part.push(line);
         len += line.length + 1;
         if (part.length == 32) {
@@ -1564,24 +1649,24 @@
         pos = end + 1;
       }
     }
-    replace(from, to, text) {
+    replace(from, to, text2) {
       [from, to] = clip(this, from, to);
-      if (text.lines < this.lines)
+      if (text2.lines < this.lines)
         for (let i = 0, pos = 0; i < this.children.length; i++) {
           let child = this.children[i], end = pos + child.length;
           if (from >= pos && to <= end) {
-            let updated = child.replace(from - pos, to - pos, text);
+            let updated = child.replace(from - pos, to - pos, text2);
             let totalLines = this.lines - child.lines + updated.lines;
             if (updated.lines < totalLines >> 5 - 1 && updated.lines > totalLines >> 5 + 1) {
               let copy = this.children.slice();
               copy[i] = updated;
-              return new _TextNode(copy, this.length - (to - from) + text.length);
+              return new _TextNode(copy, this.length - (to - from) + text2.length);
             }
             return super.replace(pos, end, updated);
           }
           pos = end + 1;
         }
-      return super.replace(from, to, text);
+      return super.replace(from, to, text2);
     }
     sliceString(from, to = this.length, lineSep = "\n") {
       [from, to] = clip(this, from, to);
@@ -1664,15 +1749,15 @@
     }
   };
   Text.empty = /* @__PURE__ */ new TextLeaf([""], 0);
-  function textLength(text) {
+  function textLength(text2) {
     let length = -1;
-    for (let line of text)
+    for (let line of text2)
       length += line.length + 1;
     return length;
   }
-  function appendText(text, target, from = 0, to = 1e9) {
-    for (let pos = 0, i = 0, first = true; i < text.length && pos <= to; i++) {
-      let line = text[i], end = pos + line.length;
+  function appendText(text2, target, from = 0, to = 1e9) {
+    for (let pos = 0, i = 0, first = true; i < text2.length && pos <= to; i++) {
+      let line = text2[i], end = pos + line.length;
       if (end >= from) {
         if (end > to)
           line = line.slice(0, to - pos);
@@ -1688,17 +1773,17 @@
     }
     return target;
   }
-  function sliceText(text, from, to) {
-    return appendText(text, [""], from, to);
+  function sliceText(text2, from, to) {
+    return appendText(text2, [""], from, to);
   }
   var RawTextCursor = class {
-    constructor(text, dir = 1) {
+    constructor(text2, dir = 1) {
       this.dir = dir;
       this.done = false;
       this.lineBreak = false;
       this.value = "";
-      this.nodes = [text];
-      this.offsets = [dir > 0 ? 1 : (text instanceof TextLeaf ? text.text.length : text.children.length) << 1];
+      this.nodes = [text2];
+      this.offsets = [dir > 0 ? 1 : (text2 instanceof TextLeaf ? text2.text.length : text2.children.length) << 1];
     }
     nextInner(skip, dir) {
       this.done = this.lineBreak = false;
@@ -1755,11 +1840,11 @@
     }
   };
   var PartialTextCursor = class {
-    constructor(text, start, end) {
+    constructor(text2, start, end) {
       this.value = "";
       this.done = false;
-      this.cursor = new RawTextCursor(text, start > end ? -1 : 1);
-      this.pos = start > end ? text.length : 0;
+      this.cursor = new RawTextCursor(text2, start > end ? -1 : 1);
+      this.pos = start > end ? text2.length : 0;
       this.from = Math.min(start, end);
       this.to = Math.max(start, end);
     }
@@ -1835,11 +1920,11 @@
     /**
     @internal
     */
-    constructor(from, to, number2, text) {
+    constructor(from, to, number2, text2) {
       this.from = from;
       this.to = to;
       this.number = number2;
-      this.text = text;
+      this.text = text2;
     }
     /**
     The length of the line (not including any line break after it).
@@ -1848,9 +1933,9 @@
       return this.to - this.from;
     }
   };
-  function clip(text, from, to) {
-    from = Math.max(0, Math.min(text.length, from));
-    return [from, Math.max(from, Math.min(text.length, to))];
+  function clip(text2, from, to) {
+    from = Math.max(0, Math.min(text2.length, from));
+    return [from, Math.max(from, Math.min(text2.length, to))];
   }
   function findClusterBreak2(str, pos, forward = true, includeExtending = true) {
     return findClusterBreak(str, pos, forward, includeExtending);
@@ -2068,7 +2153,7 @@
     apply(doc2) {
       if (this.length != doc2.length)
         throw new RangeError("Applying change set to a document with the wrong length");
-      iterChanges(this, (fromA, toA, fromB, _toB, text) => doc2 = doc2.replace(fromB, fromB + (toA - fromA), text), false);
+      iterChanges(this, (fromA, toA, fromB, _toB, text2) => doc2 = doc2.replace(fromB, fromB + (toA - fromA), text2), false);
       return doc2;
     }
     mapDesc(other, before = false) {
@@ -2312,18 +2397,18 @@
         posA += len;
         posB += len;
       } else {
-        let endA = posA, endB = posB, text = Text.empty;
+        let endA = posA, endB = posB, text2 = Text.empty;
         for (; ; ) {
           endA += len;
           endB += ins;
           if (ins && inserted)
-            text = text.append(inserted[i - 2 >> 1]);
+            text2 = text2.append(inserted[i - 2 >> 1]);
           if (individual || i == desc.sections.length || desc.sections[i + 1] < 0)
             break;
           len = desc.sections[i++];
           ins = desc.sections[i++];
         }
-        f(posA, endA, posB, endB, text);
+        f(posA, endA, posB, endB, text2);
         posA = endA;
         posB = endB;
       }
@@ -2472,10 +2557,11 @@
     }
   };
   var SelectionRange = class _SelectionRange {
-    constructor(from, to, flags) {
+    constructor(from, to, flags, goalColumn) {
       this.from = from;
       this.to = to;
       this.flags = flags;
+      this.goalColumn = goalColumn;
     }
     /**
     The anchor of the range—the side that doesn't move when you
@@ -2507,22 +2593,22 @@
       return this.flags & 8 ? -1 : this.flags & 16 ? 1 : 0;
     }
     /**
+    A flag that, when set, makes some selection-extending commands
+    treat the range's head and anchor as exchangeable, so that for
+    example Shift-ArrowUp will make the lower side of the selection
+    the anchor, even if that was the head before. Used to implement
+    MacOS-style undirectional selections.
+    */
+    get undirectional() {
+      return (this.flags & 64) > 0;
+    }
+    /**
     The bidirectional text level associated with this cursor, if
     any.
     */
     get bidiLevel() {
       let level = this.flags & 7;
       return level == 7 ? null : level;
-    }
-    /**
-    The goal column (stored vertical offset) associated with a
-    cursor. This is used to preserve the vertical position when
-    [moving](https://codemirror.net/6/docs/ref/#view.EditorView.moveVertically) across
-    lines of different length.
-    */
-    get goalColumn() {
-      let value = this.flags >> 6;
-      return value == 16777215 ? void 0 : value;
     }
     /**
     Map this range through a change, producing a valid range in the
@@ -2536,7 +2622,7 @@
         from = change.mapPos(this.from, 1);
         to = change.mapPos(this.to, -1);
       }
-      return from == this.from && to == this.to ? this : new _SelectionRange(from, to, this.flags);
+      return from == this.from && to == this.to ? this : new _SelectionRange(from, to, this.flags, this.goalColumn);
     }
     /**
     Extend this range to cover at least `from` to `to`.
@@ -2571,8 +2657,8 @@
     /**
     @internal
     */
-    static create(from, to, flags) {
-      return new _SelectionRange(from, to, flags);
+    static create(from, to, flags, goalColumn) {
+      return new _SelectionRange(from, to, flags, goalColumn);
     }
   };
   var EditorSelection = class _EditorSelection {
@@ -2674,16 +2760,25 @@
     safely ignore the optional arguments in most situations.
     */
     static cursor(pos, assoc = 0, bidiLevel, goalColumn) {
-      return SelectionRange.create(pos, pos, (assoc == 0 ? 0 : assoc < 0 ? 8 : 16) | (bidiLevel == null ? 7 : Math.min(6, bidiLevel)) | (goalColumn !== null && goalColumn !== void 0 ? goalColumn : 16777215) << 6);
+      return SelectionRange.create(pos, pos, (assoc == 0 ? 0 : assoc < 0 ? 8 : 16) | (bidiLevel == null ? 7 : Math.min(6, bidiLevel)), goalColumn);
     }
     /**
     Create a selection range.
     */
     static range(anchor, head, goalColumn, bidiLevel, assoc) {
-      let flags = (goalColumn !== null && goalColumn !== void 0 ? goalColumn : 16777215) << 6 | (bidiLevel == null ? 7 : Math.min(6, bidiLevel));
+      let flags = bidiLevel == null ? 7 : Math.min(6, bidiLevel);
       if (!assoc && anchor != head)
         assoc = head < anchor ? 1 : -1;
-      return head < anchor ? SelectionRange.create(head, anchor, 32 | 16 | flags) : SelectionRange.create(anchor, head, (!assoc ? 0 : assoc < 0 ? 8 : 16) | flags);
+      if (assoc)
+        flags |= assoc < 0 ? 8 : 16;
+      return head < anchor ? SelectionRange.create(head, anchor, flags | 32, goalColumn) : SelectionRange.create(anchor, head, flags, goalColumn);
+    }
+    /**
+    Create an [undirectional](https://codemirror.net/6/docs/ref/#state.SelectionRange.undirectional)
+    selection range.
+    */
+    static undirectionalRange(from, to) {
+      return SelectionRange.create(from, to, 64, void 0);
     }
     /**
     @internal
@@ -2825,6 +2920,9 @@
           return 1;
         }
       };
+    }
+    get extension() {
+      return this;
     }
   };
   function compareArray(a, b, compare2) {
@@ -3000,6 +3098,9 @@
       this.inner = inner;
       this.prec = prec2;
     }
+    get extension() {
+      return this;
+    }
   };
   var Compartment = class _Compartment {
     /**
@@ -3028,6 +3129,9 @@
     constructor(compartment, inner) {
       this.compartment = compartment;
       this.inner = inner;
+    }
+    get extension() {
+      return this;
     }
   };
   var Configuration = class _Configuration {
@@ -3136,6 +3240,8 @@
       } else {
         let content2 = ext.extension;
         if (!content2)
+          throw new Error(`Unrecognized extension value in extension set (${ext}).`);
+        if (content2 == ext)
           throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`);
         inner(content2, prec2);
       }
@@ -3578,12 +3684,12 @@
     Create a [transaction spec](https://codemirror.net/6/docs/ref/#state.TransactionSpec) that
     replaces every selection range with the given content.
     */
-    replaceSelection(text) {
-      if (typeof text == "string")
-        text = this.toText(text);
+    replaceSelection(text2) {
+      if (typeof text2 == "string")
+        text2 = this.toText(text2);
       return this.changeByRange((range) => ({
-        changes: { from: range.from, to: range.to, insert: text },
-        range: EditorSelection.cursor(range.from + text.length)
+        changes: { from: range.from, to: range.to, insert: text2 },
+        range: EditorSelection.cursor(range.from + text2.length)
       }));
     }
     /**
@@ -3802,18 +3908,18 @@
     this returns null.
     */
     wordAt(pos) {
-      let { text, from, length } = this.doc.lineAt(pos);
+      let { text: text2, from, length } = this.doc.lineAt(pos);
       let cat = this.charCategorizer(pos);
       let start = pos - from, end = pos - from;
       while (start > 0) {
-        let prev = findClusterBreak2(text, start, false);
-        if (cat(text.slice(prev, start)) != CharCategory.Word)
+        let prev = findClusterBreak2(text2, start, false);
+        if (cat(text2.slice(prev, start)) != CharCategory.Word)
           break;
         start = prev;
       }
       while (end < length) {
-        let next = findClusterBreak2(text, end);
-        if (cat(text.slice(end, next)) != CharCategory.Word)
+        let next = findClusterBreak2(text2, end);
+        if (cat(text2.slice(end, next)) != CharCategory.Word)
           break;
         end = next;
       }
@@ -4770,10 +4876,10 @@
         if (root.adoptedStyleSheets.indexOf(this.sheet) < 0)
           root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
       } else {
-        let text = "";
+        let text2 = "";
         for (let i = 0; i < this.modules.length; i++)
-          text += this.modules[i].getRules() + "\n";
-        this.styleTag.textContent = text;
+          text2 += this.modules[i].getRules() + "\n";
+        this.styleTag.textContent = text2;
         let target = root.head || root;
         if (this.styleTag.parentNode != target)
           target.insertBefore(this.styleTag, target.firstChild);
@@ -5266,10 +5372,11 @@
       ranges.push(from, to);
   }
   var BlockWrapper = class _BlockWrapper extends RangeValue {
-    constructor(tagName, attributes) {
+    constructor(tagName, attributes, rank) {
       super();
       this.tagName = tagName;
       this.attributes = attributes;
+      this.rank = rank;
     }
     eq(other) {
       return other == this || other instanceof _BlockWrapper && this.tagName == other.tagName && attrsEq(this.attributes, other.attributes);
@@ -5279,7 +5386,7 @@
     attributes.
     */
     static create(spec) {
-      return new _BlockWrapper(spec.tagName, spec.attributes || noAttrs);
+      return new _BlockWrapper(spec.tagName, spec.attributes || noAttrs, spec.rank == null ? 50 : Math.max(0, Math.min(spec.rank, 100)));
     }
     /**
     Create a range set from the given block wrapper ranges.
@@ -5356,8 +5463,11 @@
   function maxOffset(node) {
     return node.nodeType == 3 ? node.nodeValue.length : node.childNodes.length;
   }
-  function flattenRect(rect, left) {
-    let x = left ? rect.left : rect.right;
+  function flattenRect(rect, toLeft) {
+    let { left, right } = rect;
+    if (left == right)
+      return rect;
+    let x = toLeft ? left : right;
     return { left: x, right: x, top: rect.top, bottom: rect.bottom };
   }
   function windowRect(win) {
@@ -5411,11 +5521,11 @@
         }
         let moveX = 0, moveY = 0;
         if (y == "nearest") {
-          if (rect.top < bounding.top) {
+          if (rect.top < bounding.top + yMargin) {
             moveY = rect.top - (bounding.top + yMargin);
             if (side > 0 && rect.bottom > bounding.bottom + moveY)
               moveY = rect.bottom - bounding.bottom + yMargin;
-          } else if (rect.bottom > bounding.bottom) {
+          } else if (rect.bottom > bounding.bottom - yMargin) {
             moveY = rect.bottom - bounding.bottom + yMargin;
             if (side < 0 && rect.top - moveY < bounding.top)
               moveY = rect.top - (bounding.top + yMargin);
@@ -5426,11 +5536,11 @@
           moveY = targetTop - bounding.top;
         }
         if (x == "nearest") {
-          if (rect.left < bounding.left) {
+          if (rect.left < bounding.left + xMargin) {
             moveX = rect.left - (bounding.left + xMargin);
             if (side > 0 && rect.right > bounding.right + moveX)
               moveX = rect.right - bounding.right + xMargin;
-          } else if (rect.right > bounding.right) {
+          } else if (rect.right > bounding.right - xMargin) {
             moveX = rect.right - bounding.right + xMargin;
             if (side < 0 && rect.left < bounding.left + moveX)
               moveX = rect.left - (bounding.left + xMargin);
@@ -6011,9 +6121,9 @@
       return EditorSelection.cursor(nextSpan.side(!forward, dir) + line.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
     return EditorSelection.cursor(nextIndex + line.from, span.forward(forward, dir) ? -1 : 1, span.level);
   }
-  function autoDirection(text, from, to) {
+  function autoDirection(text2, from, to) {
     for (let i = from; i < to; i++) {
-      let type = charType(text.charCodeAt(i));
+      let type = charType(text2.charCodeAt(i));
       if (type == 1)
         return LTR;
       if (type == 2 || type == 4)
@@ -6038,7 +6148,7 @@
   });
   var scrollHandler = /* @__PURE__ */ Facet.define();
   var ScrollTarget = class _ScrollTarget {
-    constructor(range, y = "nearest", x = "nearest", yMargin = 5, xMargin = 5, isSnapshot = false) {
+    constructor(range, y, x, yMargin, xMargin, isSnapshot = false) {
       this.range = range;
       this.y = y;
       this.x = x;
@@ -6439,7 +6549,7 @@
     covers(side) {
       return true;
     }
-    coordsIn(pos, side) {
+    coordsIn(pos, side, rtl) {
       return null;
     }
     domPosFor(off, side) {
@@ -6647,7 +6757,7 @@
           if (end >= pos2) {
             if (child.isComposite()) {
               scan(child, pos2 - off);
-            } else if ((!after || after.isHidden && (side > 0 || forCoords && onSameLine(after, child))) && (end > pos2 || child.flags & 32)) {
+            } else if ((!after || after.isHidden && (side > 0 && !(after.flags & 32) || forCoords && onSameLine(after, child))) && (end > pos2 || child.flags & 32)) {
               after = child;
               afterOff = pos2 - off;
             } else if (off < pos2 || child.flags & 16 && !child.isHidden) {
@@ -6662,11 +6772,11 @@
       let target = (side < 0 ? before : after) || before || after;
       return target ? { tile: target, offset: target == before ? beforeOff : afterOff } : null;
     }
-    coordsIn(pos, side) {
+    coordsIn(pos, side, rtl) {
       let found = this.resolveInline(pos, side, true);
       if (!found)
         return fallbackRect(this);
-      return found.tile.coordsIn(Math.max(0, found.offset), side);
+      return found.tile.coordsIn(Math.max(0, found.offset), side, rtl);
     }
     domIn(pos, side) {
       let found = this.resolveInline(pos, side);
@@ -6716,9 +6826,9 @@
     }
   };
   var TextTile = class _TextTile extends Tile {
-    constructor(dom, text) {
-      super(dom, text.length);
-      this.text = text;
+    constructor(dom, text2) {
+      super(dom, text2.length);
+      this.text = text2;
     }
     sync(track) {
       if (this.flags & 2)
@@ -6736,7 +6846,7 @@
     toString() {
       return JSON.stringify(this.text);
     }
-    coordsIn(pos, side) {
+    coordsIn(pos, side, rtl) {
       let length = this.dom.nodeValue.length;
       if (pos > length)
         pos = length;
@@ -6763,10 +6873,10 @@
       let rect = rects[(flatten2 ? flatten2 < 0 : side >= 0) ? 0 : rects.length - 1];
       if (browser.safari && !flatten2 && rect.width == 0)
         rect = Array.prototype.find.call(rects, (r) => r.width) || rect;
-      return flatten2 ? flattenRect(rect, flatten2 < 0) : rect || null;
+      return rtl == null ? rect : flattenRect(rect, (flatten2 ? flatten2 > 0 : side < 0) == rtl);
     }
-    static of(text, dom) {
-      let tile = new _TextTile(dom || document.createTextNode(text), text);
+    static of(text2, dom) {
+      let tile = new _TextTile(dom || document.createTextNode(text2), text2);
       if (!dom)
         tile.flags |= 2;
       return tile;
@@ -6845,8 +6955,9 @@
     get overrideDOMText() {
       return Text.empty;
     }
-    coordsIn(pos) {
-      return this.dom.getBoundingClientRect();
+    coordsIn(pos, side, rtl) {
+      let rect = this.dom.getBoundingClientRect();
+      return rtl == null ? rect : flattenRect(rect, side > 0 == rtl);
     }
   };
   var TilePointer = class {
@@ -6936,23 +7047,23 @@
       this.wrappers = [];
       this.wrapperPos = 0;
     }
-    addText(text, marks2, openStart, tile) {
+    addText(text2, marks2, openStart, tile) {
       var _a2;
       this.flushBuffer();
       let parent = this.ensureMarks(marks2, openStart);
       let prev = parent.lastChild;
-      if (prev && prev.isText() && !(prev.flags & 8) && prev.length + text.length < 512) {
+      if (prev && prev.isText() && !(prev.flags & 8) && prev.length + text2.length < 512) {
         this.cache.reused.set(
           prev,
           2
           /* Reused.DOM */
         );
-        let tile2 = parent.children[parent.children.length - 1] = new TextTile(prev.dom, prev.text + text);
+        let tile2 = parent.children[parent.children.length - 1] = new TextTile(prev.dom, prev.text + text2);
         tile2.parent = parent;
       } else {
-        parent.append(tile || TextTile.of(text, (_a2 = this.cache.find(TextTile)) === null || _a2 === void 0 ? void 0 : _a2.dom));
+        parent.append(tile || TextTile.of(text2, (_a2 = this.cache.find(TextTile)) === null || _a2 === void 0 ? void 0 : _a2.dom));
       }
-      this.pos += text.length;
+      this.pos += text2.length;
       this.afterWidget = null;
     }
     addComposition(composition, context) {
@@ -6996,9 +7107,10 @@
           2
           /* Reused.DOM */
         );
-      let text = new TextTile(composition.text, composition.text.nodeValue);
-      text.flags |= 8;
-      head.append(text);
+      let text2 = new TextTile(composition.text, composition.text.nodeValue);
+      text2.flags |= 8;
+      this.pos = composition.range.toB;
+      head.append(text2);
     }
     addInlineWidget(widget, marks2, openStart) {
       let noSpace = this.afterWidget && widget.flags & 48 && (this.afterWidget.flags & 48) == (widget.flags & 48);
@@ -7102,7 +7214,8 @@
           this.wrappers.splice(i, 1);
       for (let cur2 = this.blockWrappers; cur2.value && cur2.from <= this.pos; cur2.next())
         if (cur2.to >= this.pos) {
-          let wrap = new OpenWrapper(cur2.from, cur2.to, cur2.value, cur2.rank), i = this.wrappers.length;
+          let rank = cur2.rank * 102 + cur2.value.rank;
+          let wrap = new OpenWrapper(cur2.from, cur2.to, cur2.value, rank), i = this.wrappers.length;
           while (i > 0 && (this.wrappers[i - 1].rank - wrap.rank || this.wrappers[i - 1].to - wrap.to) < 0)
             i--;
           this.wrappers.splice(i, 0, wrap);
@@ -7204,7 +7317,7 @@
     find(cls, test, type = 2) {
       let i = cls.bucket;
       let bucket = this.buckets[i], off = this.index[i];
-      for (let j = bucket.length - 1; j >= 0; j--) {
+      for (let j = 0; j < bucket.length; j++) {
         let index = (j + off) % bucket.length, tile = bucket[index];
         if ((!test || test(tile)) && !this.reused.has(tile)) {
           bucket.splice(index, 1);
@@ -7313,6 +7426,7 @@
         if (composition && next.fromA <= composition.range.fromA && next.toA >= composition.range.toA) {
           this.forward(next.fromA, composition.range.fromA, composition.range.fromA < composition.range.toA ? 1 : -1);
           this.emit(posB, composition.range.fromB);
+          this.builder.flushBuffer();
           this.cache.clear();
           this.builder.addComposition(composition, compositionContext);
           this.text.skip(composition.range.toB - composition.range.fromB);
@@ -7408,7 +7522,7 @@
     }
     emit(from, to) {
       let pendingLineAttrs = null;
-      let b = this.builder, markCount = 0;
+      let b = this.builder, markCount = -1;
       let openEnd = RangeSet.spans(this.decorations, from, to, {
         point: (from2, to2, deco, active, openStart, index) => {
           if (deco instanceof PointDecoration) {
@@ -7455,10 +7569,13 @@
             }
             pendingLineAttrs = null;
           }
+          markCount = active.length;
         }
       });
-      b.addLineStartIfNotCovered(pendingLineAttrs);
-      this.openWidget = openEnd > markCount;
+      if (markCount > -1)
+        this.openWidget = openEnd > markCount;
+      if (!this.openWidget)
+        b.addLineStartIfNotCovered(pendingLineAttrs);
       this.openMarks = openEnd;
     }
     forward(from, to, side = 1) {
@@ -7470,9 +7587,9 @@
         this.old.advance(5, side, this.reuseWalker);
       }
     }
-    getCompositionContext(text) {
+    getCompositionContext(text2) {
       let marks2 = [], line = null;
-      for (let parent = text.parentNode; ; parent = parent.parentNode) {
+      for (let parent = text2.parentNode; ; parent = parent.parentNode) {
         let tile = Tile.get(parent);
         if (parent == this.view.contentDOM)
           break;
@@ -7711,9 +7828,9 @@
             if (browser.gecko) {
               let nextTo = nextToUneditable(anchor.node, anchor.offset);
               if (nextTo && nextTo != (1 | 2)) {
-                let text = (nextTo == 1 ? textNodeBefore : textNodeAfter)(anchor.node, anchor.offset);
-                if (text)
-                  anchor = new DOMPos(text.node, text.offset);
+                let text2 = (nextTo == 1 ? textNodeBefore : textNodeAfter)(anchor.node, anchor.offset);
+                if (text2)
+                  anchor = new DOMPos(text2.node, text2.offset);
               }
             }
             rawSel.collapse(anchor.node, anchor.offset);
@@ -7825,7 +7942,7 @@
     domAtPos(pos, side) {
       let { tile, offset } = this.tile.resolveBlock(pos, side);
       if (tile.isWidget())
-        return tile.domPosFor(pos, side);
+        return tile.domPosFor(offset, side);
       return tile.domIn(offset, side);
     }
     inlineDOMNearPos(pos, side) {
@@ -7861,14 +7978,16 @@
         after = null;
       return before && side < 0 || !after ? before.domIn(beforeOff, side) : after.domIn(afterOff, side);
     }
-    coordsAt(pos, side) {
+    // Get the coord of the element at the given side of the given
+    // position. If rtl is given, flatten it using that text direction.
+    coordsAt(pos, side, rtl) {
       let { tile, offset } = this.tile.resolveBlock(pos, side);
       if (tile.isWidget()) {
         if (tile.widget instanceof BlockGapWidget)
           return null;
         return tile.coordsInWidget(offset, side, true);
       }
-      return tile.coordsIn(offset, side);
+      return tile.coordsIn(offset, side, rtl);
     }
     lineAt(pos, side) {
       let { tile } = this.tile.resolveBlock(pos, side);
@@ -8039,7 +8158,6 @@
       this.blockWrappers = this.view.state.facet(blockWrappers).map((v) => typeof v == "function" ? v(this.view) : v);
     }
     scrollIntoView(target) {
-      var _a2;
       if (target.isSnapshot) {
         let ref = this.view.viewState.lineBlockAt(target.range.head);
         this.view.scrollDOM.scrollTop = ref.top - target.yMargin;
@@ -8055,7 +8173,7 @@
         }
       }
       let { range } = target;
-      let rect = this.coordsAt(range.head, (_a2 = range.assoc) !== null && _a2 !== void 0 ? _a2 : range.empty ? 0 : range.head > range.anchor ? -1 : 1), other;
+      let rect = this.coordsAt(range.head, range.assoc || (range.head > range.anchor ? -1 : 1)), other;
       if (!rect)
         return;
       if (!range.empty && (other = this.coordsAt(range.anchor, range.anchor > range.head ? -1 : 1)))
@@ -8127,10 +8245,10 @@
     let found = findCompositionNode(view, headPos);
     if (!found)
       return null;
-    let { node: textNode, from, to } = found, text = textNode.nodeValue;
-    if (/[\n\r]/.test(text))
+    let { node: textNode, from, to } = found, text2 = textNode.nodeValue;
+    if (/[\n\r]/.test(text2))
       return null;
-    if (view.state.doc.sliceString(found.from, found.to) != text)
+    if (view.state.doc.sliceString(found.from, found.to) != text2)
       return null;
     let inv = changes.invertedDesc;
     return { range: new ChangedRange(inv.mapPos(from), inv.mapPos(to), from, to), text: textNode };
@@ -8249,7 +8367,7 @@
         break;
       to = next;
     }
-    return EditorSelection.range(from + line.from, to + line.from);
+    return EditorSelection.undirectionalRange(from + line.from, to + line.from);
   }
   function posAtCoordsImprecise(view, contentRect, block, x, y) {
     let into = Math.round((x - contentRect.left) * view.defaultCharacterWidth);
@@ -8384,8 +8502,12 @@
       } else {
         let from = skipAtomicRanges(atoms, range.from, -1);
         let to = skipAtomicRanges(atoms, range.to, 1);
-        if (from != range.from || to != range.to)
-          updated = EditorSelection.range(range.from == range.anchor ? from : to, range.from == range.head ? from : to);
+        if (from != range.from || to != range.to) {
+          if (range.undirectional)
+            updated = EditorSelection.undirectionalRange(range.from, range.to);
+          else
+            updated = EditorSelection.range(range.from == range.anchor ? from : to, range.from == range.head ? from : to);
+        }
       }
       if (updated) {
         if (!ranges)
@@ -8473,13 +8595,12 @@
     }
     // Scan through the rectangles for the content of a tile with inline
     // content, looking for one that overlaps the queried position
-    // vertically andis
-    // closest horizontally. The caller is responsible for dividing its
-    // content into N pieces, and pass an array with N+1 positions
-    // (including the position after the last piece). For a text tile,
-    // these will be character clusters, for a composite tile, these
-    // will be child tiles.
-    scan(positions, getRects) {
+    // vertically and is closest horizontally. The caller is responsible
+    // for dividing its content into N pieces, and pass an array with
+    // N+1 positions (including the position after the last piece). For
+    // a text tile, these will be character clusters, for a composite
+    // tile, these will be child tiles.
+    scan(positions, getRects, recursed = false) {
       let lo = 0, hi = positions.length - 1, seen = /* @__PURE__ */ new Set();
       let bidi = this.bidiIn(positions[0], positions[hi]);
       let above, below;
@@ -8532,9 +8653,22 @@
           }
       }
       if (!closestRect) {
+        if (!below && !above)
+          return { i: positions[0], after: false };
         let side = above && (!below || this.y - above.bottom < below.top - this.y) ? above : below;
         this.y = (side.top + side.bottom) / 2;
-        return this.scan(positions, getRects);
+        return this.scan(positions, getRects, true);
+      }
+      if (closestDx && !recursed) {
+        let { top: top2, bottom } = closestRect;
+        if (above && above.bottom > (top2 + top2 + bottom) / 3) {
+          this.y = above.bottom - 1;
+          return this.scan(positions, getRects, true);
+        }
+        if (below && below.top < (top2 + bottom + bottom) / 3) {
+          this.y = below.top + 1;
+          return this.scan(positions, getRects, true);
+        }
       }
       let ltr = (bidi ? this.dirAt(positions[closestI], 1) : this.baseDir) == Direction.LTR;
       return {
@@ -8589,8 +8723,8 @@
       this.text = "";
       this.lineSeparator = view.state.facet(EditorState.lineSeparator);
     }
-    append(text) {
-      this.text += text;
+    append(text2) {
+      this.text += text2;
     }
     lineBreak() {
       this.text += LineBreakPlaceholder;
@@ -8618,20 +8752,20 @@
       return this;
     }
     readTextNode(node) {
-      let text = node.nodeValue;
+      let text2 = node.nodeValue;
       for (let point of this.points)
         if (point.node == node)
-          point.pos = this.text.length + Math.min(point.offset, text.length);
+          point.pos = this.text.length + Math.min(point.offset, text2.length);
       for (let off = 0, re = this.lineSeparator ? null : /\r\n?|\n/g; ; ) {
         let nextBreak = -1, breakSize = 1, m;
         if (this.lineSeparator) {
-          nextBreak = text.indexOf(this.lineSeparator, off);
+          nextBreak = text2.indexOf(this.lineSeparator, off);
           breakSize = this.lineSeparator.length;
-        } else if (m = re.exec(text)) {
+        } else if (m = re.exec(text2)) {
           nextBreak = m.index;
           breakSize = m[0].length;
         }
-        this.append(text.slice(off, nextBreak < 0 ? text.length : nextBreak));
+        this.append(text2.slice(off, nextBreak < 0 ? text2.length : nextBreak));
         if (nextBreak < 0)
           break;
         this.lineBreak();
@@ -8730,7 +8864,7 @@
         let head = iHead && iHead.node == domSel.focusNode && iHead.offset == domSel.focusOffset || !contains(view.contentDOM, domSel.focusNode) ? curSel.main.head : view.docView.posFromDOM(domSel.focusNode, domSel.focusOffset);
         let anchor = iAnchor && iAnchor.node == domSel.anchorNode && iAnchor.offset == domSel.anchorOffset || !contains(view.contentDOM, domSel.anchorNode) ? curSel.main.anchor : view.docView.posFromDOM(domSel.anchorNode, domSel.anchorOffset);
         let vp = view.viewport;
-        if ((browser.ios || browser.chrome) && curSel.main.empty && head != anchor && (vp.from > 0 || vp.to < view.state.doc.length)) {
+        if ((browser.ios || browser.chrome) && head != anchor && Math.min(head, anchor) <= curSel.main.from && Math.max(head, anchor) >= curSel.main.to && (vp.from > 0 || vp.to < view.state.doc.length)) {
           let from = Math.min(head, anchor), to = Math.max(head, anchor);
           let offFrom = vp.from - from, offTo = vp.to - to;
           if ((offFrom == 0 || offFrom == 1 || from == 0) && (offTo == 0 || offTo == -1 || to == view.state.doc.length)) {
@@ -8854,12 +8988,12 @@
     // after a completion when you press enter
     (change.from == sel.from || change.from == sel.from - 1 && view.state.sliceDoc(change.from, sel.from) == " ") && change.insert.length == 1 && change.insert.lines == 2 && dispatchKey(view.contentDOM, "Enter", 13) || (change.from == sel.from - 1 && change.to == sel.to && change.insert.length == 0 || lastKey == 8 && change.insert.length < change.to - change.from && change.to > sel.head) && dispatchKey(view.contentDOM, "Backspace", 8) || change.from == sel.from && change.to == sel.to + 1 && change.insert.length == 0 && dispatchKey(view.contentDOM, "Delete", 46)))
       return true;
-    let text = change.insert.toString();
+    let text2 = change.insert.toString();
     if (view.inputState.composing >= 0)
       view.inputState.composing++;
     let defaultTr;
     let defaultInsert = () => defaultTr || (defaultTr = applyDefaultInsert(view, change, newSel));
-    if (!view.state.facet(inputHandler).some((h) => h(view, change.from, change.to, text, defaultInsert)))
+    if (!view.state.facet(inputHandler).some((h) => h(view, change.from, change.to, text2, defaultInsert)))
       view.dispatch(defaultInsert());
     return true;
   }
@@ -8986,6 +9120,7 @@
       this.view = view;
       this.lastKeyCode = 0;
       this.lastKeyTime = 0;
+      this.touchActive = false;
       this.lastTouchTime = 0;
       this.lastTouchX = 0;
       this.lastTouchY = 0;
@@ -8994,6 +9129,7 @@
       this.lastScrollLeft = 0;
       this.lastWheelEvent = 0;
       this.pendingIOSKey = void 0;
+      this.lastIOSMomentumScroll = 0;
       this.tabFocusMode = -1;
       this.lastSelectionOrigin = null;
       this.lastSelectionTime = 0;
@@ -9070,9 +9206,11 @@
         this.view.observer.delayAndroidKey(event.key, event.keyCode);
         return true;
       }
-      let pending;
-      if (browser.ios && !event.synthetic && !event.altKey && !event.metaKey && !event.shiftKey && ((pending = PendingKeys.find((key) => key.keyCode == event.keyCode)) && !event.ctrlKey || EmacsyPendingKeys.indexOf(event.key) > -1 && event.ctrlKey)) {
-        this.pendingIOSKey = pending || event;
+      if (browser.ios && !event.synthetic && !event.altKey && !event.metaKey && (PendingKeys.some((key) => key.keyCode == event.keyCode) && !event.ctrlKey || EmacsyPendingKeys.indexOf(event.key) > -1 && event.ctrlKey)) {
+        let mods = { ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey, shiftKey: event.shiftKey };
+        if (mods.shiftKey && browser.ios && !/^(off|none)$/.test(this.view.contentDOM.autocapitalize) && iosVirtualKeyboardOpen(this.view.win))
+          mods.shiftKey = false;
+        this.pendingIOSKey = { key: event.key, keyCode: event.keyCode, mods };
         setTimeout(() => this.flushIOSKey(), 250);
         return true;
       }
@@ -9087,7 +9225,7 @@
       if (key.key == "Enter" && change && change.from < change.to && /^\S+$/.test(change.insert.toString()))
         return false;
       this.pendingIOSKey = void 0;
-      return dispatchKey(this.view.contentDOM, key.key, key.keyCode, key instanceof KeyboardEvent ? key : void 0);
+      return dispatchKey(this.view.contentDOM, key.key, key.keyCode, key.mods);
     }
     ignoreDuringComposition(event) {
       if (!/^key/.test(event.type) || event.synthetic)
@@ -9119,6 +9257,11 @@
         this.mouseSelection.destroy();
     }
   };
+  function iosVirtualKeyboardOpen(win) {
+    if (!win.visualViewport)
+      return false;
+    return win.visualViewport.height * win.visualViewport.scale / win.document.documentElement.clientHeight < 0.85;
+  }
   function bindHandler(plugin, handler) {
     return (view, event) => {
       try {
@@ -9318,16 +9461,16 @@
       doPaste(view, target.value);
     }, 50);
   }
-  function textFilter(state, facet, text) {
+  function textFilter(state, facet, text2) {
     for (let filter of state.facet(facet))
-      text = filter(text, state);
-    return text;
+      text2 = filter(text2, state);
+    return text2;
   }
   function doPaste(view, input) {
     input = textFilter(view.state, clipboardInputFilter, input);
-    let { state } = view, changes, i = 1, text = state.toText(input);
-    let byLine = text.lines == state.selection.ranges.length;
-    let linewise = lastLinewiseCopy != null && state.selection.ranges.every((r) => r.empty) && lastLinewiseCopy == text.toString();
+    let { state } = view, changes, i = 1, text2 = state.toText(input);
+    let byLine = text2.lines == state.selection.ranges.length;
+    let linewise = lastLinewiseCopy != null && state.selection.ranges.every((r) => r.empty) && lastLinewiseCopy == text2.toString();
     if (linewise) {
       let lastLine = -1;
       changes = state.changeByRange((range) => {
@@ -9335,7 +9478,7 @@
         if (line.from == lastLine)
           return { range };
         lastLine = line.from;
-        let insert2 = state.toText((byLine ? text.line(i++).text : input) + state.lineBreak);
+        let insert2 = state.toText((byLine ? text2.line(i++).text : input) + state.lineBreak);
         return {
           changes: { from: line.from, insert: insert2 },
           range: EditorSelection.cursor(range.from + insert2.length)
@@ -9343,14 +9486,14 @@
       });
     } else if (byLine) {
       changes = state.changeByRange((range) => {
-        let line = text.line(i++);
+        let line = text2.line(i++);
         return {
           changes: { from: range.from, to: range.to, insert: line.text },
           range: EditorSelection.cursor(range.from + line.length)
         };
       });
     } else {
-      changes = state.replaceSelection(text);
+      changes = state.replaceSelection(text2);
     }
     view.dispatch(changes, {
       userEvent: "input.paste",
@@ -9358,8 +9501,11 @@
     });
   }
   observers.scroll = (view) => {
-    view.inputState.lastScrollTop = view.scrollDOM.scrollTop;
-    view.inputState.lastScrollLeft = view.scrollDOM.scrollLeft;
+    let iState = view.inputState;
+    iState.lastScrollTop = view.scrollDOM.scrollTop;
+    iState.lastScrollLeft = view.scrollDOM.scrollLeft;
+    if (browser.ios && !iState.touchActive)
+      iState.lastIOSMomentumScroll = Date.now();
   };
   observers.wheel = observers.mousewheel = (view) => {
     view.inputState.lastWheelEvent = Date.now();
@@ -9372,6 +9518,7 @@
   };
   observers.touchstart = (view, e) => {
     let iState = view.inputState, touch = e.targetTouches[0];
+    iState.touchActive = true;
     iState.lastTouchTime = Date.now();
     if (touch) {
       iState.lastTouchX = touch.clientX;
@@ -9381,6 +9528,9 @@
   };
   observers.touchmove = (view) => {
     view.inputState.setSelectionOrigin("select.pointer");
+  };
+  observers.touchend = (view, e) => {
+    view.inputState.touchActive = false;
   };
   handlers.mousedown = (view, event) => {
     view.observer.flush();
@@ -9424,7 +9574,7 @@
       let from = visual ? visual.posAtStart : line.from, to = visual ? visual.posAtEnd : line.to;
       if (to < view.state.doc.length && to == line.to)
         to++;
-      return EditorSelection.range(from, to);
+      return EditorSelection.undirectionalRange(from, to);
     }
   }
   var BadMouseDetail = browser.ie && browser.ie_version <= 11;
@@ -9483,7 +9633,7 @@
       if (tile && tile.isWidget()) {
         let from = tile.posAtStart, to = from + tile.length;
         if (from >= range.to || to <= range.from)
-          range = EditorSelection.range(from, to);
+          range = EditorSelection.undirectionalRange(from, to);
       }
     }
     let { inputState } = view;
@@ -9500,14 +9650,14 @@
     view.inputState.draggedContent = null;
     return false;
   };
-  function dropText(view, event, text, direct) {
-    text = textFilter(view.state, clipboardInputFilter, text);
-    if (!text)
+  function dropText(view, event, text2, direct) {
+    text2 = textFilter(view.state, clipboardInputFilter, text2);
+    if (!text2)
       return;
     let dropPos = view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
     let { draggedContent } = view.inputState;
     let del = direct && draggedContent && dragMovesSelection(view, event) ? { from: draggedContent.from, to: draggedContent.to } : null;
-    let ins = { from: dropPos, insert: text };
+    let ins = { from: dropPos, insert: text2 };
     let changes = view.state.changes(del ? [del, ins] : ins);
     view.focus();
     view.dispatch({
@@ -9524,26 +9674,26 @@
       return true;
     let files = event.dataTransfer.files;
     if (files && files.length) {
-      let text = Array(files.length), read = 0;
+      let text2 = Array(files.length), read = 0;
       let finishFile = () => {
         if (++read == files.length)
-          dropText(view, event, text.filter((s) => s != null).join(view.state.lineBreak), false);
+          dropText(view, event, text2.filter((s) => s != null).join(view.state.lineBreak), false);
       };
       for (let i = 0; i < files.length; i++) {
         let reader = new FileReader();
         reader.onerror = finishFile;
         reader.onload = () => {
           if (!/[\x00-\x08\x0e-\x1f]{2}/.test(reader.result))
-            text[i] = reader.result;
+            text2[i] = reader.result;
           finishFile();
         };
         reader.readAsText(files[i]);
       }
       return true;
     } else {
-      let text = event.dataTransfer.getData("Text");
-      if (text) {
-        dropText(view, event, text, true);
+      let text2 = event.dataTransfer.getData("Text");
+      if (text2) {
+        dropText(view, event, text2, true);
         return true;
       }
     }
@@ -9562,15 +9712,15 @@
       return false;
     }
   };
-  function captureCopy(view, text) {
+  function captureCopy(view, text2) {
     let parent = view.dom.parentNode;
     if (!parent)
       return;
     let target = parent.appendChild(document.createElement("textarea"));
     target.style.cssText = "position: fixed; left: -10000px; top: 10px";
-    target.value = text;
+    target.value = text2;
     target.focus();
-    target.selectionEnd = text.length;
+    target.selectionEnd = text2.length;
     target.selectionStart = 0;
     setTimeout(() => {
       target.remove();
@@ -9602,10 +9752,10 @@
   handlers.copy = handlers.cut = (view, event) => {
     if (!hasSelection(view.contentDOM, view.observer.selectionRange))
       return false;
-    let { text, ranges, linewise } = copiedRange(view.state);
-    if (!text && !linewise)
+    let { text: text2, ranges, linewise } = copiedRange(view.state);
+    if (!text2 && !linewise)
       return false;
-    lastLinewiseCopy = linewise ? text : null;
+    lastLinewiseCopy = linewise ? text2 : null;
     if (event.type == "cut" && !view.state.readOnly)
       view.dispatch({
         changes: ranges,
@@ -9615,10 +9765,10 @@
     let data = brokenClipboardAPI ? null : event.clipboardData;
     if (data) {
       data.clearData();
-      data.setData("text/plain", text);
+      data.setData("text/plain", text2);
       return true;
     } else {
-      captureCopy(view, text);
+      captureCopy(view, text2);
       return false;
     }
   };
@@ -9694,11 +9844,11 @@
       view.inputState.insertingTextAt = Date.now();
     }
     if (event.inputType == "insertReplacementText" && view.observer.editContext) {
-      let text = (_a2 = event.dataTransfer) === null || _a2 === void 0 ? void 0 : _a2.getData("text/plain"), ranges = event.getTargetRanges();
-      if (text && ranges.length) {
+      let text2 = (_a2 = event.dataTransfer) === null || _a2 === void 0 ? void 0 : _a2.getData("text/plain"), ranges = event.getTargetRanges();
+      if (text2 && ranges.length) {
         let r = ranges[0];
         let from = view.posAtDOM(r.startContainer, r.startOffset), to = view.posAtDOM(r.endContainer, r.endOffset);
-        applyDOMChangeInner(view, { from, to, insert: view.state.toText(text) }, null);
+        applyDOMChangeInner(view, { from, to, insert: view.state.toText(text2) }, null);
         return true;
       }
     }
@@ -9783,7 +9933,7 @@
     }
     refresh(whiteSpace, lineHeight, charWidth, textHeight, lineLength, knownHeights) {
       let lineWrapping = wrappingWhiteSpace.indexOf(whiteSpace) > -1;
-      let changed = Math.abs(lineHeight - this.lineHeight) > 0.3 || this.lineWrapping != lineWrapping || Math.abs(charWidth - this.charWidth) > 0.1;
+      let changed = Math.abs(lineHeight - this.lineHeight) > 0.3 || this.lineWrapping != lineWrapping;
       this.lineWrapping = lineWrapping;
       this.lineHeight = lineHeight;
       this.charWidth = charWidth;
@@ -11142,7 +11292,7 @@
       display: "block",
       whiteSpace: "pre",
       wordWrap: "normal",
-      // https://github.com/codemirror/dev/issues/456
+      // Issue #456
       boxSizing: "border-box",
       minHeight: "100%",
       padding: "4px 0",
@@ -11167,6 +11317,8 @@
       padding: "0 2px 0 6px"
     },
     ".cm-layer": {
+      userSelect: "none",
+      // #1708
       position: "absolute",
       left: 0,
       top: 0,
@@ -11931,7 +12083,6 @@
       for (let event in this.handlers)
         context.addEventListener(event, this.handlers[event]);
       this.measureReq = { read: (view2) => {
-        this.editContext.updateControlBounds(view2.contentDOM.getBoundingClientRect());
         let sel = getSelection(view2.root);
         if (sel && sel.rangeCount)
           this.editContext.updateSelectionBounds(sel.getRangeAt(0).getBoundingClientRect());
@@ -12209,7 +12360,8 @@
             scrollTarget = scrollTarget.map(tr.changes);
           if (tr.scrollIntoView) {
             let { main } = tr.state.selection;
-            scrollTarget = new ScrollTarget(main.empty ? main : EditorSelection.cursor(main.head, main.head > main.anchor ? -1 : 1));
+            let { x, y } = this.state.facet(_EditorView.cursorScrollMargin);
+            scrollTarget = new ScrollTarget(main.empty ? main : EditorSelection.cursor(main.head, main.head > main.anchor ? -1 : 1), "nearest", "nearest", y, x);
           }
           for (let e of tr.effects)
             if (e.is(scrollIntoView))
@@ -12421,7 +12573,7 @@
               } else {
                 let newAnchorHeight = scrollAnchorPos < 0 ? this.viewState.heightMap.height : this.viewState.lineBlockAt(scrollAnchorPos).top;
                 let diff = (newAnchorHeight - scrollAnchorHeight) / this.scaleY;
-                if ((diff > 1 || diff < -1) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
+                if ((diff > 1 || diff < -1) && !(browser.ios && this.inputState.lastIOSMomentumScroll > Date.now() - 100) && (scroll == this.scrollDOM || this.hasFocus || Math.max(this.inputState.lastWheelEvent, this.inputState.lastTouchTime) > Date.now() - 100)) {
                   scrollOffset = scrollOffset + diff;
                   if (scroll)
                     scroll.scrollTop += diff;
@@ -12712,12 +12864,9 @@
     */
     coordsAtPos(pos, side = 1) {
       this.readMeasured();
-      let rect = this.docView.coordsAt(pos, side);
-      if (!rect || rect.left == rect.right)
-        return rect;
       let line = this.state.doc.lineAt(pos), order = this.bidiSpans(line);
       let span = order[BidiSpan.find(order, pos - line.from, -1, side)];
-      return flattenRect(rect, span.dir == Direction.LTR == side > 0);
+      return this.docView.coordsAt(pos, side, span.dir == Direction.RTL);
     }
     /**
     Return the rectangle around a given character. If `pos` does not
@@ -12853,7 +13002,8 @@
     cause it to scroll the given position or range into view.
     */
     static scrollIntoView(pos, options = {}) {
-      return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos, options.y, options.x, options.yMargin, options.xMargin));
+      var _a2, _b, _c, _d;
+      return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos, (_a2 = options.y) !== null && _a2 !== void 0 ? _a2 : "nearest", (_b = options.x) !== null && _b !== void 0 ? _b : "nearest", (_c = options.yMargin) !== null && _c !== void 0 ? _c : 5, (_d = options.xMargin) !== null && _d !== void 0 ? _d : 5));
     }
     /**
     Return an effect that resets the editor to its current (at the
@@ -12919,7 +13069,7 @@
     }
     /**
     Create a theme extension. The first argument can be a
-    [`style-mod`](https://github.com/marijnh/style-mod#documentation)
+    [`style-mod`](https://code.haverbeke.berlin/marijn/style-mod#documentation)
     style spec providing the styles for the theme. These will be
     prefixed with a generated class for the style.
     
@@ -12981,6 +13131,18 @@
   EditorView.outerDecorations = outerDecorations;
   EditorView.atomicRanges = atomicRanges;
   EditorView.bidiIsolatedRanges = bidiIsolatedRanges;
+  EditorView.cursorScrollMargin = /* @__PURE__ */ Facet.define({
+    combine: (inputs) => {
+      let x = 5, y = 5;
+      for (let i of inputs) {
+        if (typeof i == "number")
+          x = y = i;
+        else
+          ({ x, y } = i);
+      }
+      return { x, y };
+    }
+  });
   EditorView.scrollMargins = scrollMargins;
   EditorView.darkTheme = darkTheme;
   EditorView.cspNonce = /* @__PURE__ */ Facet.define({ combine: (values) => values.length ? values[0] : "" });
@@ -13426,7 +13588,7 @@
           old = next;
         }
         this.drawn = markers;
-        if (browser.safari && browser.safari_version >= 26)
+        if (browser.webkit)
           this.dom.style.display = this.dom.firstChild ? "" : "none";
       }
     }
@@ -14484,11 +14646,13 @@
       arrow: tooltips.some((t2) => t2.arrow)
     };
   });
+  var hoverPlugin = /* @__PURE__ */ Facet.define();
   var HoverPlugin = class {
-    constructor(view, source, field, setHover, hoverTime) {
+    constructor(view, source, field, locked, setHover, hoverTime) {
       this.view = view;
       this.source = source;
       this.field = field;
+      this.locked = locked;
       this.setHover = setHover;
       this.hoverTime = hoverTime;
       this.hoverTimeout = -1;
@@ -14499,7 +14663,7 @@
       view.dom.addEventListener("mouseleave", this.mouseleave = this.mouseleave.bind(this));
       view.dom.addEventListener("mousemove", this.mousemove = this.mousemove.bind(this));
     }
-    update() {
+    update(update) {
       if (this.pending) {
         this.pending = null;
         clearTimeout(this.restartTimeout);
@@ -14539,18 +14703,28 @@
         let rtl = bidi && bidi.dir == Direction.RTL ? -1 : 1;
         side = lastMove.x < posCoords.left ? -rtl : rtl;
       }
+      this.activateHover(view, pos, side);
+    }
+    activateHover(view, pos, side, locked) {
       let open = this.source(view, pos, side);
-      if (open === null || open === void 0 ? void 0 : open.then) {
+      let done = (value) => {
+        if (value && !(Array.isArray(value) && !value.length)) {
+          let tooltips = Array.isArray(value) ? value : [value];
+          if (locked)
+            this.locked.set(tooltips, locked);
+          view.dispatch({ effects: this.setHover.of(tooltips) });
+        }
+      };
+      if (open && "then" in open) {
         let pending = this.pending = { pos };
         open.then((result) => {
           if (this.pending == pending) {
             this.pending = null;
-            if (result && !(Array.isArray(result) && !result.length))
-              view.dispatch({ effects: this.setHover.of(Array.isArray(result) ? result : [result]) });
+            done(result);
           }
         }, (e) => logException(view.state, e, "hover tooltip"));
-      } else if (open && !(Array.isArray(open) && !open.length)) {
-        view.dispatch({ effects: this.setHover.of(Array.isArray(open) ? open : [open]) });
+      } else {
+        done(open);
       }
     }
     get tooltip() {
@@ -14564,7 +14738,7 @@
       if (this.hoverTimeout < 0)
         this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
       let { active, tooltip } = this;
-      if (active.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
+      if (active.length && !this.locked.has(active) && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
         let { pos } = active[0] || this.pending, end = (_b = (_a2 = active[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b !== void 0 ? _b : pos;
         if (pos == end ? this.view.posAtCoords(this.lastMove) != pos : !isOverRange(this.view, pos, end, event.clientX, event.clientY)) {
           this.view.dispatch({ effects: this.setHover.of([]) });
@@ -14576,7 +14750,7 @@
       clearTimeout(this.hoverTimeout);
       this.hoverTimeout = -1;
       let { active } = this;
-      if (active.length) {
+      if (active.length && !this.locked.has(active)) {
         let { tooltip } = this;
         let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget);
         if (!inTooltip)
@@ -14588,7 +14762,8 @@
     watchTooltipLeave(tooltip) {
       let watch = (event) => {
         tooltip.removeEventListener("mouseleave", watch);
-        if (this.active.length && !this.view.dom.contains(event.relatedTarget))
+        let { active } = this;
+        if (active.length && !this.locked.has(active) && !this.view.dom.contains(event.relatedTarget))
           this.view.dispatch({ effects: this.setHover.of([]) });
       };
       tooltip.addEventListener("mouseleave", watch);
@@ -14620,56 +14795,78 @@
   }
   function hoverTooltip(source, options = {}) {
     let setHover = StateEffect.define();
+    let locked = /* @__PURE__ */ new WeakMap();
     let hoverState = StateField.define({
       create() {
         return [];
       },
       update(value, tr) {
+        let lock = locked.get(value);
         if (value.length) {
           if (options.hideOnChange && (tr.docChanged || tr.selection))
             value = [];
+          else if (lock && lock(tr))
+            value = [];
           else if (options.hideOn)
             value = value.filter((v) => !options.hideOn(tr, v));
-          if (tr.docChanged) {
-            let mapped = [];
-            for (let tooltip of value) {
-              let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel);
-              if (newPos != null) {
-                let copy = Object.assign(/* @__PURE__ */ Object.create(null), tooltip);
-                copy.pos = newPos;
-                if (copy.end != null)
-                  copy.end = tr.changes.mapPos(copy.end);
-                mapped.push(copy);
-              }
+        }
+        if (tr.docChanged && value.length) {
+          let mapped = [];
+          for (let tooltip of value) {
+            let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel);
+            if (newPos != null) {
+              let copy = Object.assign(/* @__PURE__ */ Object.create(null), tooltip);
+              copy.pos = newPos;
+              if (copy.end != null)
+                copy.end = tr.changes.mapPos(copy.end);
+              mapped.push(copy);
             }
-            value = mapped;
           }
+          value = mapped;
         }
         for (let effect of tr.effects) {
-          if (effect.is(setHover))
+          if (effect.is(setHover)) {
             value = effect.value;
-          if (effect.is(closeHoverTooltipEffect))
+            lock = void 0;
+          }
+          if (effect.is(closeHoverTooltipEffect) && !effect.value || effect.value == hoverState)
             value = [];
         }
+        if (value.length && lock)
+          locked.set(value, lock);
         return value;
       },
       provide: (f) => showHoverTooltip.from(f)
     });
+    const plugin = ViewPlugin.define((view) => new HoverPlugin(
+      view,
+      source,
+      hoverState,
+      locked,
+      setHover,
+      options.hoverTime || 300
+      /* Hover.Time */
+    ));
     return {
       active: hoverState,
       extension: [
         hoverState,
-        ViewPlugin.define((view) => new HoverPlugin(
-          view,
-          source,
-          hoverState,
-          setHover,
-          options.hoverTime || 300
-          /* Hover.Time */
-        )),
+        plugin,
+        hoverPlugin.of(plugin),
         showHoverTooltipHost
       ]
     };
+  }
+  function activateHover(view, pos, side, options = {}) {
+    var _a2;
+    let plugins = view.state.facet(hoverPlugin).map((p) => view.plugin(p)).filter((p) => !!p);
+    if (options.tooltip && options.tooltip.active) {
+      let found = plugins.find((p) => p.field == options.tooltip.active);
+      if (found)
+        plugins = [found];
+    }
+    for (let plugin of plugins)
+      plugin.activateHover(view, pos, side, (_a2 = options.until) !== null && _a2 !== void 0 ? _a2 : (() => false));
   }
   function getTooltip(view, tooltip) {
     let plugin = view.plugin(tooltipPlugin);
@@ -18412,18 +18609,18 @@
     textAfterPos(pos, bias = 1) {
       if (this.options.simulateDoubleBreak && pos == this.options.simulateBreak)
         return "";
-      let { text, from } = this.lineAt(pos, bias);
-      return text.slice(pos - from, Math.min(text.length, pos + 100 - from));
+      let { text: text2, from } = this.lineAt(pos, bias);
+      return text2.slice(pos - from, Math.min(text2.length, pos + 100 - from));
     }
     /**
     Find the column for the given position.
     */
     column(pos, bias = 1) {
-      let { text, from } = this.lineAt(pos, bias);
-      let result = this.countColumn(text, pos - from);
+      let { text: text2, from } = this.lineAt(pos, bias);
+      let result = this.countColumn(text2, pos - from);
       let override = this.options.overrideIndentation ? this.options.overrideIndentation(from) : -1;
       if (override > -1)
-        result += override - this.countColumn(text, text.search(/\S|$/));
+        result += override - this.countColumn(text2, text2.search(/\S|$/));
       return result;
     }
     /**
@@ -18437,14 +18634,14 @@
     Find the indentation column of the line at the given point.
     */
     lineIndent(pos, bias = 1) {
-      let { text, from } = this.lineAt(pos, bias);
+      let { text: text2, from } = this.lineAt(pos, bias);
       let override = this.options.overrideIndentation;
       if (override) {
         let overriden = override(from);
         if (overriden > -1)
           return overriden;
       }
-      return this.countColumn(text, text.search(/\S|$/));
+      return this.countColumn(text2, text2.search(/\S|$/));
     }
     /**
     Returns the [simulated line
@@ -18692,11 +18889,10 @@
       if (tr.isUserEvent("delete"))
         tr.changes.iterChangedRanges((fromA, toA) => folded = clearTouchedFolds(folded, fromA, toA));
       folded = folded.map(tr.changes);
+      let rangesToFold = [];
       for (let e of tr.effects) {
         if (e.is(foldEffect) && !foldExists(folded, e.value.from, e.value.to)) {
-          let { preparePlaceholder } = tr.state.facet(foldConfig);
-          let widget = !preparePlaceholder ? foldWidget : Decoration.replace({ widget: new PreparedFoldWidget(preparePlaceholder(tr.state, e.value)) });
-          folded = folded.update({ add: [widget.range(e.value.from, e.value.to)] });
+          rangesToFold.push(e.value);
         } else if (e.is(unfoldEffect)) {
           folded = folded.update({
             filter: (from, to) => e.value.from != from || e.value.to != to,
@@ -18704,6 +18900,14 @@
             filterTo: e.value.to
           });
         }
+      }
+      if (rangesToFold.length) {
+        let { preparePlaceholder } = tr.state.facet(foldConfig);
+        let decorations2 = rangesToFold.map((value) => {
+          let widget = !preparePlaceholder ? foldWidget : Decoration.replace({ widget: new PreparedFoldWidget(preparePlaceholder(tr.state, value)) });
+          return widget.range(value.from, value.to);
+        });
+        folded = folded.update({ add: decorations2 });
       }
       if (tr.selection)
         folded = clearTouchedFolds(folded, tr.selection.main.head);
@@ -18993,7 +19197,7 @@
     or array of tags in their `tag` property, and either a single
     `class` property providing a static CSS class (for highlighter
     that rely on external styling), or a
-    [`style-mod`](https://github.com/marijnh/style-mod#documentation)-style
+    [`style-mod`](https://code.haverbeke.berlin/marijn/style-mod#documentation)-style
     set of CSS properties (which define the styling for those tags).
     
     The CSS rules created for a highlighter will be emitted in the
@@ -19267,6 +19471,8 @@
     return { start: firstToken, matched: false };
   }
   function matchPlainBrackets(state, pos, dir, tree, tokenType, maxScanDistance, brackets) {
+    if (dir < 0 ? !pos : pos == state.doc.length)
+      return null;
     let startCh = dir < 0 ? state.sliceDoc(pos - 1, pos) : state.sliceDoc(pos, pos + 1);
     let bracket2 = brackets.indexOf(startCh);
     if (bracket2 < 0 || bracket2 % 2 == 0 != dir > 0)
@@ -19274,12 +19480,12 @@
     let startToken = { from: dir < 0 ? pos - 1 : pos, to: dir > 0 ? pos + 1 : pos };
     let iter = state.doc.iterRange(pos, dir > 0 ? state.doc.length : 0), depth = 0;
     for (let distance = 0; !iter.next().done && distance <= maxScanDistance; ) {
-      let text = iter.value;
+      let text2 = iter.value;
       if (dir < 0)
-        distance += text.length;
+        distance += text2.length;
       let basePos = pos + distance * dir;
-      for (let pos2 = dir > 0 ? 0 : text.length - 1, end = dir > 0 ? text.length : -1; pos2 != end; pos2 += dir) {
-        let found = brackets.indexOf(text[pos2]);
+      for (let pos2 = dir > 0 ? 0 : text2.length - 1, end = dir > 0 ? text2.length : -1; pos2 != end; pos2 += dir) {
+        let found = brackets.indexOf(text2[pos2]);
         if (found < 0 || tree.resolveInner(basePos + pos2, 1).type != tokenType)
           continue;
         if (found % 2 == 0 == dir > 0) {
@@ -19291,7 +19497,7 @@
         }
       }
       if (dir > 0)
-        distance += text.length;
+        distance += text2.length;
     }
     return iter.done ? { start: startToken, matched: false } : null;
   }
@@ -19929,8 +20135,10 @@
     return true;
   }
   var cursorMatchingBracket = ({ state, dispatch }) => toMatchingBracket(state, dispatch, false);
-  function extendSel(target, how) {
+  function extendSel(target, forward, how) {
     let selection = updateSel(target.state.selection, (range) => {
+      if (range.undirectional && range.head >= range.anchor != forward)
+        range = EditorSelection.range(range.head, range.anchor);
       let head = how(range);
       return EditorSelection.range(range.anchor, head.head, head.goalColumn, head.bidiLevel || void 0, head.assoc);
     });
@@ -19940,33 +20148,45 @@
     return true;
   }
   function selectByChar(view, forward) {
-    return extendSel(view, (range) => view.moveByChar(range, forward));
+    return extendSel(view, forward, (range) => view.moveByChar(range, forward));
   }
   var selectCharLeft = (view) => selectByChar(view, !ltrAtCursor(view));
   var selectCharRight = (view) => selectByChar(view, ltrAtCursor(view));
   function selectByGroup(view, forward) {
-    return extendSel(view, (range) => view.moveByGroup(range, forward));
+    return extendSel(view, forward, (range) => view.moveByGroup(range, forward));
   }
   var selectGroupLeft = (view) => selectByGroup(view, !ltrAtCursor(view));
   var selectGroupRight = (view) => selectByGroup(view, ltrAtCursor(view));
-  var selectSyntaxLeft = (view) => extendSel(view, (range) => moveBySyntax(view.state, range, !ltrAtCursor(view)));
-  var selectSyntaxRight = (view) => extendSel(view, (range) => moveBySyntax(view.state, range, ltrAtCursor(view)));
+  var selectSyntaxLeft = (view) => {
+    let forward = !ltrAtCursor(view);
+    return extendSel(view, forward, (range) => moveBySyntax(view.state, range, forward));
+  };
+  var selectSyntaxRight = (view) => {
+    let forward = ltrAtCursor(view);
+    return extendSel(view, forward, (range) => moveBySyntax(view.state, range, forward));
+  };
   function selectByLine(view, forward) {
-    return extendSel(view, (range) => view.moveVertically(range, forward));
+    return extendSel(view, forward, (range) => view.moveVertically(range, forward));
   }
   var selectLineUp = (view) => selectByLine(view, false);
   var selectLineDown = (view) => selectByLine(view, true);
   function selectByPage(view, forward) {
-    return extendSel(view, (range) => view.moveVertically(range, forward, pageInfo(view).height));
+    return extendSel(view, forward, (range) => view.moveVertically(range, forward, pageInfo(view).height));
   }
   var selectPageUp = (view) => selectByPage(view, false);
   var selectPageDown = (view) => selectByPage(view, true);
-  var selectLineBoundaryForward = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, true));
-  var selectLineBoundaryBackward = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, false));
-  var selectLineBoundaryLeft = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, !ltrAtCursor(view)));
-  var selectLineBoundaryRight = (view) => extendSel(view, (range) => moveByLineBoundary(view, range, ltrAtCursor(view)));
-  var selectLineStart = (view) => extendSel(view, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).from));
-  var selectLineEnd = (view) => extendSel(view, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).to));
+  var selectLineBoundaryForward = (view) => extendSel(view, true, (range) => moveByLineBoundary(view, range, true));
+  var selectLineBoundaryBackward = (view) => extendSel(view, false, (range) => moveByLineBoundary(view, range, false));
+  var selectLineBoundaryLeft = (view) => {
+    let forward = !ltrAtCursor(view);
+    return extendSel(view, forward, (range) => moveByLineBoundary(view, range, forward));
+  };
+  var selectLineBoundaryRight = (view) => {
+    let forward = ltrAtCursor(view);
+    return extendSel(view, forward, (range) => moveByLineBoundary(view, range, forward));
+  };
+  var selectLineStart = (view) => extendSel(view, false, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).from));
+  var selectLineEnd = (view) => extendSel(view, true, (range) => EditorSelection.cursor(view.lineBlockAt(range.head).to));
   var cursorDocStart = ({ state, dispatch }) => {
     dispatch(setSel(state, { anchor: 0 }));
     return true;
@@ -20460,14 +20680,14 @@
     [`.normalize("NFKD")`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize)
     (when supported).
     */
-    constructor(text, query, from = 0, to = text.length, normalize, test) {
+    constructor(text2, query, from = 0, to = text2.length, normalize, test) {
       this.test = test;
-      this.value = { from: 0, to: 0 };
+      this.value = { from: 0, to: 0, precise: false };
       this.done = false;
       this.matches = [];
       this.buffer = "";
       this.bufferPos = 0;
-      this.iter = text.iterRange(from, to);
+      this.iter = text2.iterRange(from, to);
       this.bufferStart = from;
       this.normalize = normalize ? (x) => normalize(basicNormalize(x)) : basicNormalize;
       this.query = this.normalize(query);
@@ -20510,43 +20730,44 @@
         this.bufferPos += codePointSize2(next);
         let norm = this.normalize(str);
         if (norm.length)
-          for (let i = 0, pos = start; ; i++) {
+          for (let i = 0, pos = start, posPrecise = true; ; i++) {
             let code = norm.charCodeAt(i);
-            let match = this.match(code, pos, this.bufferPos + this.bufferStart);
-            if (i == norm.length - 1) {
-              if (match) {
-                this.value = match;
-                return this;
-              }
-              break;
+            let match = this.match(code, pos, posPrecise, this.bufferPos + this.bufferStart, i == norm.length - 1);
+            if (match) {
+              this.value = match;
+              return this;
             }
-            if (pos == start && i < str.length && str.charCodeAt(i) == code)
+            if (i == norm.length - 1)
+              break;
+            if (posPrecise && i < str.length && str.charCodeAt(i) == code)
               pos++;
+            else
+              posPrecise = false;
           }
       }
     }
-    match(code, pos, end) {
+    match(code, pos, posPrecise, end, endPrecise) {
       let match = null;
-      for (let i = 0; i < this.matches.length; i += 2) {
-        let index = this.matches[i], keep = false;
-        if (this.query.charCodeAt(index) == code) {
-          if (index == this.query.length - 1) {
-            match = { from: this.matches[i + 1], to: end };
+      for (let i = 0; i < this.matches.length; ) {
+        let partial = this.matches[i], keep = false;
+        if (this.query.charCodeAt(partial.index) == code) {
+          if (partial.index == this.query.length - 1) {
+            match = { from: partial.from, to: end, precise: endPrecise && partial.precise };
           } else {
-            this.matches[i]++;
+            partial.index++;
             keep = true;
           }
         }
-        if (!keep) {
-          this.matches.splice(i, 2);
-          i -= 2;
-        }
+        if (keep)
+          i++;
+        else
+          this.matches.splice(i, 1);
       }
       if (this.query.charCodeAt(0) == code) {
         if (this.query.length == 1)
-          match = { from: pos, to: end };
+          match = { from: pos, to: end, precise: posPrecise && endPrecise };
         else
-          this.matches.push(1, pos);
+          this.matches.push({ from: pos, index: 1, precise: posPrecise });
       }
       if (match && this.test && !this.test(match.from, match.to, this.buffer, this.bufferStart))
         match = null;
@@ -20557,7 +20778,7 @@
     SearchCursor.prototype[Symbol.iterator] = function() {
       return this;
     };
-  var empty = { from: -1, to: -1, match: /* @__PURE__ */ /.*/.exec("") };
+  var empty = { from: -1, to: -1, match: /* @__PURE__ */ /.*/.exec(""), precise: true };
   var baseFlags = "gm" + (/x/.unicode == null ? "" : "u");
   var RegExpCursor = class {
     /**
@@ -20565,20 +20786,20 @@
     document. `query` should be the raw pattern (as you'd pass it to
     `new RegExp`).
     */
-    constructor(text, query, options, from = 0, to = text.length) {
-      this.text = text;
+    constructor(text2, query, options, from = 0, to = text2.length) {
+      this.text = text2;
       this.to = to;
       this.curLine = "";
       this.done = false;
       this.value = empty;
       if (/\\[sWDnr]|\n|\r|\[\^/.test(query))
-        return new MultilineRegExpCursor(text, query, options, from, to);
+        return new MultilineRegExpCursor(text2, query, options, from, to);
       this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
       this.test = options === null || options === void 0 ? void 0 : options.test;
-      this.iter = text.iter();
-      let startLine = text.lineAt(from);
+      this.iter = text2.iter();
+      let startLine = text2.lineAt(from);
       this.curLineStart = startLine.from;
-      this.matchPos = toCharEnd(text, from);
+      this.matchPos = toCharEnd(text2, from);
       this.getLine(this.curLineStart);
     }
     getLine(skip) {
@@ -20612,7 +20833,7 @@
           if (from == this.curLineStart + this.curLine.length)
             this.nextLine();
           if ((from < to || from > this.value.to) && (!this.test || this.test(from, to, match))) {
-            this.value = { from, to, match };
+            this.value = { from, to, precise: true, match };
             return this;
           }
           off = this.matchPos - this.curLineStart;
@@ -20628,9 +20849,9 @@
   };
   var flattened = /* @__PURE__ */ new WeakMap();
   var FlattenedDoc = class _FlattenedDoc {
-    constructor(from, text) {
+    constructor(from, text2) {
       this.from = from;
-      this.text = text;
+      this.text = text2;
     }
     get to() {
       return this.from + this.text.length;
@@ -20644,27 +20865,27 @@
       }
       if (cached.from == from && cached.to == to)
         return cached;
-      let { text, from: cachedFrom } = cached;
+      let { text: text2, from: cachedFrom } = cached;
       if (cachedFrom > from) {
-        text = doc2.sliceString(from, cachedFrom) + text;
+        text2 = doc2.sliceString(from, cachedFrom) + text2;
         cachedFrom = from;
       }
       if (cached.to < to)
-        text += doc2.sliceString(cached.to, to);
-      flattened.set(doc2, new _FlattenedDoc(cachedFrom, text));
-      return new _FlattenedDoc(from, text.slice(from - cachedFrom, to - cachedFrom));
+        text2 += doc2.sliceString(cached.to, to);
+      flattened.set(doc2, new _FlattenedDoc(cachedFrom, text2));
+      return new _FlattenedDoc(from, text2.slice(from - cachedFrom, to - cachedFrom));
     }
   };
   var MultilineRegExpCursor = class {
-    constructor(text, query, options, from, to) {
-      this.text = text;
+    constructor(text2, query, options, from, to) {
+      this.text = text2;
       this.to = to;
       this.done = false;
       this.value = empty;
-      this.matchPos = toCharEnd(text, from);
+      this.matchPos = toCharEnd(text2, from);
       this.re = new RegExp(query, baseFlags + ((options === null || options === void 0 ? void 0 : options.ignoreCase) ? "i" : ""));
       this.test = options === null || options === void 0 ? void 0 : options.test;
-      this.flat = FlattenedDoc.get(text, from, this.chunkEnd(
+      this.flat = FlattenedDoc.get(text2, from, this.chunkEnd(
         from + 5e3
         /* Chunk.Base */
       ));
@@ -20683,7 +20904,7 @@
         if (match) {
           let from = this.flat.from + match.index, to = from + match[0].length;
           if ((this.flat.to >= this.to || match.index + match[0].length <= this.flat.text.length - 10) && (!this.test || this.test(from, to, match))) {
-            this.value = { from, to, match };
+            this.value = { from, to, precise: true, match };
             this.matchPos = toCharEnd(this.text, to + (from == to ? 1 : 0));
             return this;
           }
@@ -20709,10 +20930,10 @@
       return false;
     }
   }
-  function toCharEnd(text, pos) {
-    if (pos >= text.length)
+  function toCharEnd(text2, pos) {
+    if (pos >= text2.length)
       return pos;
-    let line = text.lineAt(pos), next;
+    let line = text2.lineAt(pos), next;
     while (pos < line.to && (next = line.text.charCodeAt(pos - line.from)) >= 56320 && next < 57344)
       pos++;
     return pos;
@@ -20920,8 +21141,8 @@
     /**
     @internal
     */
-    unquote(text) {
-      return this.literal ? text : text.replace(/\\([nrt\\])/g, (_, ch) => ch == "n" ? "\n" : ch == "r" ? "\r" : ch == "t" ? "	" : "\\");
+    unquote(text2) {
+      return this.literal ? text2 : text2.replace(/\\([nrt\\])/g, (_, ch) => ch == "n" ? "\n" : ch == "r" ? "\r" : ch == "t" ? "	" : "\\");
     }
     /**
     Compare this query to another query.
@@ -21237,7 +21458,9 @@
     let next = match;
     let changes = [], selection, replacement;
     let effects = [];
-    if (next.from == from && next.to == to) {
+    if (!next.precise) {
+      next = query.nextMatch(state, next.from, next.to);
+    } else if (next.from == from && next.to == to) {
       replacement = state.toText(query.getReplacement(next));
       changes.push({ from: next.from, to: next.to, insert: replacement });
       next = query.nextMatch(state, next.from, next.to);
@@ -21260,10 +21483,12 @@
   var replaceAll = /* @__PURE__ */ searchCommand((view, { query }) => {
     if (view.state.readOnly)
       return false;
-    let changes = query.matchAll(view.state, 1e9).map((match) => {
-      let { from, to } = match;
-      return { from, to, insert: query.getReplacement(match) };
-    });
+    let changes = [];
+    for (let match of query.matchAll(view.state, 1e9)) {
+      let { from, to, precise } = match;
+      if (precise)
+        changes.push({ from, to, insert: query.getReplacement(match) });
+    }
     if (!changes.length)
       return false;
     let announceText = view.state.phrase("replaced $ matches", changes.length) + ".";
@@ -21468,22 +21693,22 @@
   function announceMatch(view, { from, to }) {
     let line = view.state.doc.lineAt(from), lineEnd = view.state.doc.lineAt(to).to;
     let start = Math.max(line.from, from - AnnounceMargin), end = Math.min(lineEnd, to + AnnounceMargin);
-    let text = view.state.sliceDoc(start, end);
+    let text2 = view.state.sliceDoc(start, end);
     if (start != line.from) {
       for (let i = 0; i < AnnounceMargin; i++)
-        if (!Break.test(text[i + 1]) && Break.test(text[i])) {
-          text = text.slice(i);
+        if (!Break.test(text2[i + 1]) && Break.test(text2[i])) {
+          text2 = text2.slice(i);
           break;
         }
     }
     if (end != lineEnd) {
-      for (let i = text.length - 1; i > text.length - AnnounceMargin; i--)
-        if (!Break.test(text[i - 1]) && Break.test(text[i])) {
-          text = text.slice(0, i);
+      for (let i = text2.length - 1; i > text2.length - AnnounceMargin; i--)
+        if (!Break.test(text2[i - 1]) && Break.test(text2[i])) {
+          text2 = text2.slice(0, i);
           break;
         }
     }
-    return EditorView.announce.of(`${view.state.phrase("current match")}. ${text} ${view.state.phrase("on line")} ${line.number}.`);
+    return EditorView.announce.of(`${view.state.phrase("current match")}. ${text2} ${view.state.phrase("on line")} ${line.number}.`);
   }
   var baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
     ".cm-panel.cm-search": {
@@ -21646,13 +21871,13 @@
     return new RegExp(`${addStart ? "^" : ""}(?:${source})${addEnd ? "$" : ""}`, (_a2 = expr.flags) !== null && _a2 !== void 0 ? _a2 : expr.ignoreCase ? "i" : "");
   }
   var pickedCompletion = /* @__PURE__ */ Annotation.define();
-  function insertCompletionText(state, text, from, to) {
+  function insertCompletionText(state, text2, from, to) {
     let { main } = state.selection, fromOff = from - main.from, toOff = to - main.from;
     return {
       ...state.changeByRange((range) => {
         if (range != main && from != to && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to))
           return { range };
-        let lines = state.toText(text);
+        let lines = state.toText(text2);
         return {
           changes: { from: range.from + fromOff, to: to == main.from ? range.to : range.from + toOff, insert: lines },
           range: EditorSelection.cursor(range.from + fromOff + lines.length)
@@ -21934,8 +22159,8 @@
       let off2 = Math.floor(selected / max);
       return { from: off2 * max, to: (off2 + 1) * max };
     }
-    let off = Math.floor((total - selected) / max);
-    return { from: total - (off + 1) * max, to: total - off * max };
+    let off = Math.ceil((total - selected) / max);
+    return { from: total - off * max, to: total - (off - 1) * max };
   }
   var CompletionTooltip = class {
     constructor(view, stateField, applyCompletion2) {
@@ -22483,7 +22708,7 @@
           0
           /* State.Inactive */
         );
-      return new _ActiveResult(this.source, this.explicit, mapping.mapPos(this.limit), this.result, mapping.mapPos(this.from), mapping.mapPos(this.to, 1));
+      return new _ActiveResult(this.source, this.explicit, mapping.mapPos(this.limit), result, mapping.mapPos(this.from), mapping.mapPos(this.to, 1));
     }
     touches(tr) {
       return tr.changes.touchesRange(this.from, this.to);
@@ -22492,8 +22717,8 @@
   function checkValid(validFor, state, from, to) {
     if (!validFor)
       return false;
-    let text = state.sliceDoc(from, to);
-    return typeof validFor == "function" ? validFor(text, from, to, state) : ensureAnchor(validFor, true).test(text);
+    let text2 = state.sliceDoc(from, to);
+    return typeof validFor == "function" ? validFor(text2, from, to, state) : ensureAnchor(validFor, true).test(text2);
   }
   var setActiveEffect = /* @__PURE__ */ StateEffect.define({
     map(sources, mapping) {
@@ -22791,7 +23016,8 @@
       content: '"\xB7\xB7\xB7"',
       opacity: 0.5,
       display: "block",
-      textAlign: "center"
+      textAlign: "center",
+      cursor: "pointer"
     },
     ".cm-tooltip.cm-completionInfo": {
       position: "absolute",
@@ -22892,21 +23118,21 @@
       this.fieldPositions = fieldPositions;
     }
     instantiate(state, pos) {
-      let text = [], lineStart = [pos];
+      let text2 = [], lineStart = [pos];
       let lineObj = state.doc.lineAt(pos), baseIndent = /^\s*/.exec(lineObj.text)[0];
       for (let line of this.lines) {
-        if (text.length) {
+        if (text2.length) {
           let indent = baseIndent, tabs = /^\t*/.exec(line)[0].length;
           for (let i = 0; i < tabs; i++)
             indent += state.facet(indentUnit);
           lineStart.push(pos + indent.length - tabs);
           line = indent + line.slice(tabs);
         }
-        text.push(line);
+        text2.push(line);
         pos += line.length + 1;
       }
       let ranges = this.fieldPositions.map((pos2) => new FieldRange(pos2.field, lineStart[pos2.line] + pos2.from, lineStart[pos2.line] + pos2.to));
-      return { text, ranges };
+      return { text: text2, ranges };
     }
     static parse(template) {
       let fields = [];
@@ -22914,6 +23140,8 @@
       for (let line of template.split(/\r\n?|\n/)) {
         while (m = /[#$]\{(?:(\d+)(?::([^{}]*))?|((?:\\[{}]|[^{}])*))\}/.exec(line)) {
           let seq = m[1] ? +m[1] : null, rawName = m[2] || m[3] || "", found = -1;
+          if (seq === 0)
+            seq = 1e9;
           let name2 = rawName.replace(/\\[{}]/g, (m2) => m2[1]);
           for (let i = 0; i < fields.length; i++) {
             if (seq != null ? fields[i].seq == seq : name2 ? fields[i].name == name2 : false)
@@ -23013,10 +23241,10 @@
   function snippet(template) {
     let snippet2 = Snippet.parse(template);
     return (editor, completion, from, to) => {
-      let { text, ranges } = snippet2.instantiate(editor.state, from);
+      let { text: text2, ranges } = snippet2.instantiate(editor.state, from);
       let { main } = editor.state.selection;
       let spec = {
-        changes: { from, to: to == main.from ? main.to : to, insert: Text.of(text) },
+        changes: { from, to: to == main.from ? main.to : to, insert: Text.of(text2) },
         scrollIntoView: true,
         annotations: completion ? [pickedCompletion.of(completion), Transaction.userEvent.of("input.complete")] : void 0
       };
@@ -23511,7 +23739,7 @@
     return {
       pos: start,
       end,
-      above: view.state.doc.lineAt(start).to < end,
+      above: true,
       create() {
         return { dom: diagnosticsTooltip(view, found) };
       }
@@ -23547,6 +23775,10 @@
         return false;
     }
     view.dispatch({ selection: { anchor: next.from, head: next.to }, scrollIntoView: true });
+    activateHover(view, next.from, 1, {
+      tooltip: lintHover,
+      until: (tr) => tr.docChanged || tr.newSelection.main.head < next.from || tr.newSelection.main.head > next.to
+    });
     return true;
   };
   var lintKeymap = [
@@ -23846,7 +24078,7 @@
       backgroundRepeat: "repeat-x",
       paddingBottom: "0.7px"
     },
-    ".cm-lintRange-error": { backgroundImage: /* @__PURE__ */ underline("#d11") },
+    ".cm-lintRange-error": { backgroundImage: /* @__PURE__ */ underline("#f11") },
     ".cm-lintRange-warning": { backgroundImage: /* @__PURE__ */ underline("orange") },
     ".cm-lintRange-info": { backgroundImage: /* @__PURE__ */ underline("#999") },
     ".cm-lintRange-hint": { backgroundImage: /* @__PURE__ */ underline("#66d") },
@@ -23927,6 +24159,7 @@
     }
     return sev;
   }
+  var lintHover = /* @__PURE__ */ hoverTooltip(lintTooltip, { hideOn: hideTooltip });
   var lintExtensions = [
     lintState,
     /* @__PURE__ */ EditorView.decorations.compute([lintState], (state) => {
@@ -23935,7 +24168,7 @@
         activeMark.range(selected.from, selected.to)
       ]);
     }),
-    /* @__PURE__ */ hoverTooltip(lintTooltip, { hideOn: hideTooltip }),
+    lintHover,
     baseTheme5
   ];
 
@@ -24032,6 +24265,8 @@
       if (dPrec)
         this.score += dPrec;
       if (depth == 0) {
+        if (type < parser2.minRepeatTerm && this.reducePos < this.pos)
+          this.reducePos = this.pos;
         this.pushState(parser2.getGoto(this.state, type, true), this.reducePos);
         if (type < parser2.minRepeatTerm)
           this.storeNode(type, this.reducePos, this.reducePos, lookaheadRecord ? 8 : 4, true);
@@ -24039,7 +24274,10 @@
         return;
       }
       let base2 = this.stack.length - (depth - 1) * 3 - (action & 262144 ? 6 : 0);
-      let start = base2 ? this.stack[base2 - 2] : this.p.ranges[0].from, size = this.reducePos - start;
+      let start = base2 ? this.stack[base2 - 2] : this.p.ranges[0].from;
+      if (type < parser2.minRepeatTerm && start == this.reducePos && this.reducePos < this.pos)
+        this.reducePos = this.pos;
+      let size = this.reducePos - start;
       if (size >= 2e3 && !((_a2 = this.p.parser.nodeSet.types[type]) === null || _a2 === void 0 ? void 0 : _a2.isAnonymous)) {
         if (start == this.p.lastBigReductionStart) {
           this.p.bigReductionCount++;
@@ -24075,16 +24313,12 @@
     */
     storeNode(term, start, end, size = 4, mustSink = false) {
       if (term == 0 && (!this.stack.length || this.stack[this.stack.length - 1] < this.buffer.length + this.bufferBase)) {
-        let cur2 = this, top2 = this.buffer.length;
-        if (top2 == 0 && cur2.parent) {
-          top2 = cur2.bufferBase - cur2.parent.bufferBase;
-          cur2 = cur2.parent;
-        }
-        if (top2 > 0 && cur2.buffer[top2 - 4] == 0 && cur2.buffer[top2 - 1] > -1) {
+        let top2 = this.buffer.length;
+        if (top2 > 0 && this.buffer[top2 - 4] == 0 && this.buffer[top2 - 1] > -1) {
           if (start == end)
             return;
-          if (cur2.buffer[top2 - 2] >= start) {
-            cur2.buffer[top2 - 2] = end;
+          if (this.buffer[top2 - 2] >= start) {
+            this.buffer[top2 - 2] = end;
             return;
           }
         }
@@ -24188,6 +24422,8 @@
     split() {
       let parent = this;
       let off = parent.buffer.length;
+      if (off && parent.buffer[off - 4] == 0)
+        off -= 4;
       while (off > 0 && parent.buffer[off - 2] > parent.reducePos)
         off -= 4;
       let buffer = parent.buffer.slice(off), base2 = parent.bufferBase + off;
@@ -26218,8 +26454,8 @@
     return "";
   }
   var android2 = typeof navigator == "object" && /* @__PURE__ */ /Android\b/.test(navigator.userAgent);
-  var autoCloseTags = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to, text, defaultInsert) => {
-    if ((android2 ? view.composing : view.compositionStarted) || view.state.readOnly || from != to || text != ">" && text != "/" || !javascriptLanguage.isActiveAt(view.state, from, -1))
+  var autoCloseTags = /* @__PURE__ */ EditorView.inputHandler.of((view, from, to, text2, defaultInsert) => {
+    if ((android2 ? view.composing : view.compositionStarted) || view.state.readOnly || from != to || text2 != ">" && text2 != "/" || !javascriptLanguage.isActiveAt(view.state, from, -1))
       return false;
     let base2 = defaultInsert(), { state } = base2;
     let closeTags = state.changeByRange((range) => {
@@ -26227,16 +26463,16 @@
       let { head } = range, around = syntaxTree(state).resolveInner(head - 1, -1), name2;
       if (around.name == "JSXStartTag")
         around = around.parent;
-      if (state.doc.sliceString(head - 1, head) != text || around.name == "JSXAttributeValue" && around.to > head) ;
-      else if (text == ">" && around.name == "JSXFragmentTag") {
+      if (state.doc.sliceString(head - 1, head) != text2 || around.name == "JSXAttributeValue" && around.to > head) ;
+      else if (text2 == ">" && around.name == "JSXFragmentTag") {
         return { range, changes: { from: head, insert: `</>` } };
-      } else if (text == "/" && around.name == "JSXStartCloseTag") {
+      } else if (text2 == "/" && around.name == "JSXStartCloseTag") {
         let empty2 = around.parent, base3 = empty2.parent;
         if (base3 && empty2.from == head - 2 && ((name2 = elementName(state.doc, base3.firstChild, head)) || ((_a2 = base3.firstChild) === null || _a2 === void 0 ? void 0 : _a2.name) == "JSXFragmentTag")) {
           let insert2 = `${name2}>`;
           return { range: EditorSelection.cursor(head + insert2.length, -1), changes: { from: head, insert: insert2 } };
         }
-      } else if (text == ">") {
+      } else if (text2 == ">") {
         let openTag = findOpenTag(around);
         if (openTag && openTag.name == "JSXOpenTag" && !/^\/?>|^<\//.test(state.doc.sliceString(head, head + 2)) && (name2 = elementName(state.doc, openTag, head)))
           return { range, changes: { from: head, insert: `</${name2}>` } };
@@ -26262,6 +26498,7 @@
       loginError: "",
       loginErrorCode: "",
       loginForm: { username: "", password: "" },
+      oidcConfig: { enabled: false },
       authToken: "",
       // Current user with RBAC permissions (populated from hydrateSession)
       currentUser: {
@@ -26334,15 +26571,30 @@
         catalogId: "",
         catalogName: "",
         owner: "",
-        protocol: "Query interface",
+        protocol: "query-interface",
         baseEndpoint: "",
         mimeType: "application/sparql-results+json",
+        // Query interface / SPARQL (FR-CR-01)
         queryEndpoint: "",
         queryLanguages: "",
+        queryLanguage: "rest-json",
+        queryMethod: "GET",
+        queryText: "",
+        queryParameterName: "query",
+        requestContentType: "application/sparql-query",
+        resultMimeType: "application/sparql-results+json",
+        resultMode: "sparql-select",
+        resultRootPath: "",
+        resultIdVariable: "",
+        resultNameVariable: "",
+        resultTypeVariable: "",
         // OAI-PMH fields
         metadataPrefix: "oai_dc",
         setSpec: "",
-        resumptionToken: false,
+        setSpecEnabled: false,
+        resumptionToken: true,
+        resumptionTokenEnabled: true,
+        maxPages: 50,
         // DCAT fields
         dcatCatalogUri: "",
         linkedDataEndpoint: "",
@@ -26638,17 +26890,25 @@ ex:publisher a ex:Property .`,
       isEditingPrompt: false,
       promptForm: {
         id: null,
+        promptId: null,
         name: "",
-        version: "1.0",
+        version: "1.0.0",
         status: "draft",
         sourceSchema: "",
         targetSchema: "",
         template: "",
         examples: "",
         constraints: "",
-        author: ""
+        providerId: "",
+        author: "",
+        kind: "schema-mapping",
+        generationStatus: "idle"
       },
       promptFormError: "",
+      promptFieldErrors: {},
+      promptFormWarnings: [],
+      isSavingPrompt: false,
+      promptSaveTimeout: null,
       promptSearch: "",
       isEnhancingPrompt: false,
       isGeneratingCode: false,
@@ -26675,6 +26935,17 @@ ex:publisher a ex:Property .`,
       llmConfigError: "",
       // Prompt Testing (FR-SR-10)
       promptTestSelectedPrompt: "",
+      promptTestSelectedVersionId: "",
+      promptTestVersions: [],
+      promptTestVersionsState: "idle",
+      promptTestVersionsRequestId: "",
+      promptTestExecutionStatus: "idle",
+      promptTestErrorCode: "",
+      promptTestRanVersionId: "",
+      promptTestTimeout: null,
+      // Provider test-connection (server-side, sanitised result only)
+      providerTestResult: null,
+      providerTestingId: "",
       promptTestSelectedLlm: "",
       promptTestSampleInput: "",
       promptTestRunning: false,
@@ -26697,7 +26968,7 @@ ex:publisher a ex:Property .`,
       },
       users: [],
       dcmRoles: [],
-      // Role definitions from dcm_roles collection
+      // Realm role definitions loaded from Keycloak
       harvestRecords: [],
       showClearHarvestHistoryModal: false,
       clearHarvestHistoryRunning: false,
@@ -26724,10 +26995,12 @@ ex:publisher a ex:Property .`,
       pendingRemoteCatalog: null,
       isRegisteringRemoteCatalog: false,
       registerRemoteCatalogError: "",
+      catalogFieldErrors: {},
       originalRemoteCatalogForm: null,
       isUpdatingRemoteCatalog: false,
       updateRemoteCatalogError: "",
       pendingUpdateRemoteCatalogId: null,
+      pendingDeleteRemoteCatalogId: null,
       // Harvest scope
       harvestScope: {
         selected: [],
@@ -26795,8 +27068,19 @@ ex:publisher a ex:Property .`,
         pagination: { page: 1, perPage: 20, total: 0 },
         loading: false,
         error: "",
-        loaded: false
+        loaded: false,
+        requestId: null
       },
+      // NF-8: audit hash-chain integrity. `result` is only ever populated from a
+      // real backend verification response — never simulated in the frontend.
+      auditIntegrity: {
+        running: false,
+        error: "",
+        result: null,
+        requestId: null
+      },
+      showAuditRecordModal: false,
+      auditRecordDetail: null,
       // Multi-Model Provider Support (FR-SR-12)
       // Providers are loaded from MongoDB on mount
       llmProviders: [],
@@ -26860,8 +27144,19 @@ ex:publisher a ex:Property .`,
       validateSampleForm: { assetBody: "", result: null, loading: false },
       showPromptVersionPanel: false,
       promptVersionPanelName: "",
+      promptVersionPanelGroupId: "",
+      // Explicit state machine: idle | loading | success | empty | error
+      promptVersionPanelState: "idle",
+      promptVersionPanelError: "",
+      promptVersionPanelRequestId: "",
+      promptVersionPanelTimeout: null,
+      // Lifecycle status changes: versionId -> previous status (for rollback)
+      lifecyclePending: {},
+      lifecycleTimeouts: {},
+      lifecycleError: "",
       promptVersionPanelLoading: false,
       promptVersions: [],
+      promptVersionActiveId: null,
       systemSettings: {},
       showDeleteSchemaConfirm: false,
       deleteSchemaTargetId: null,
@@ -26889,6 +27184,7 @@ ex:publisher a ex:Property .`,
       showHarvestRunDetail: false,
       harvestRunDetailData: null,
       harvestDetailTab: "assets",
+      harvestLogLevelFilter: "all",
       // Live harvest progress
       activeHarvest: {
         running: false,
@@ -26898,9 +27194,12 @@ ex:publisher a ex:Property .`,
         processedAssets: 0,
         successCount: 0,
         errorCount: 0,
+        warningCount: 0,
+        result: "",
         status: "idle",
         startedAt: "",
-        errors: []
+        errors: [],
+        catalogueStatus: {}
       },
       _harvestInterval: null,
       // Test Connection feedback
@@ -26994,16 +27293,26 @@ ex:publisher a ex:Property .`,
     return "gray";
   }
   function resultClass(result) {
-    if (result === "Success") return "green";
-    if (result === "Warning") return "yellow";
-    if (result === "Error") return "red";
+    const v = String(result || "").trim().toLowerCase();
+    if (v === "success") return "green";
+    if (v === "partial" || v === "warning" || v === "completed_with_errors") return "yellow";
+    if (v === "failed" || v === "error") return "red";
     return "gray";
   }
   function logPillClass(level) {
-    if (level === "Info") return "blue";
-    if (level === "Warning") return "yellow";
-    if (level === "Error") return "red";
+    const v = String(level || "").trim().toLowerCase();
+    if (v === "info") return "blue";
+    if (v === "warn" || v === "warning") return "yellow";
+    if (v === "error" || v === "fatal") return "red";
     return "gray";
+  }
+  function resultLabel(result) {
+    const v = String(result || "").trim().toLowerCase();
+    if (v === "completed_with_errors") return "Completed with errors";
+    if (v === "failed") return "Failed";
+    if (v === "partial") return "Partial";
+    if (v === "success") return "Success";
+    return result || "-";
   }
   function namespaceClass(ns) {
     const v = String(ns || "").trim().toLowerCase();
@@ -27083,14 +27392,236 @@ ex:publisher a ex:Property .`,
     if (perms.includes("*")) return true;
     return perms.includes(area + "." + action);
   }
-  function parseJsonLine(text) {
-    const match = text.match(/^(\s*)"([^"]+)"\s*:\s*"([^"]*)"(.*)$/);
+  function parseJsonLine(text2) {
+    const match = text2.match(/^(\s*)"([^"]+)"\s*:\s*"([^"]*)"(.*)$/);
     if (!match) return null;
     return {
       indent: match[1],
       key: match[2],
       value: match[3],
       suffix: match[4]
+    };
+  }
+
+  // src/utils/promptVars.js
+  var PROMPT_LIFECYCLE_STATUSES = ["draft", "active", "deprecated", "archived"];
+  var SCHEMA_MAPPING_VARS = [
+    {
+      name: "SOURCE_ASSET",
+      required: true,
+      description: "The raw source asset being transformed. Substituted at transform and dry-run time.",
+      example: '{"id":"ds-1","title":"Air quality 2024"}'
+    },
+    {
+      name: "SOURCE_SCHEMA",
+      required: false,
+      description: "Identifier of the source schema this prompt maps from.",
+      example: "DCAT-AP 2.1.1"
+    },
+    {
+      name: "TARGET_SCHEMA",
+      required: false,
+      description: "Identifier of the target schema this prompt maps to.",
+      example: "ISO 19115"
+    },
+    {
+      name: "EXAMPLES",
+      required: false,
+      description: "The Examples field of this prompt version.",
+      example: "input: {...} -> output: {...}"
+    },
+    {
+      name: "CONSTRAINTS",
+      required: false,
+      description: "The Constraints field of this prompt version.",
+      example: "Return valid JSON only. Never invent identifiers."
+    }
+  ];
+  var API_MAPPING_VARS = [
+    { name: "catalogue_name", required: false, description: "Name of the target catalogue.", example: "Diamant Cloud" },
+    { name: "catalogue_endpoint", required: false, description: "Base endpoint of the target catalogue.", example: "https://api.example.org/v1" },
+    { name: "catalogue_auth", required: false, description: "Auth mode configured for the catalogue.", example: "static-token" },
+    { name: "catalogue_interface_type", required: false, description: "Interface type of the catalogue.", example: "Query interface" },
+    { name: "local_type_name", required: false, description: "Local asset type name.", example: "Dataset" },
+    { name: "local_type_description", required: false, description: "Local asset type description.", example: "A published data product" },
+    { name: "remote_type", required: false, description: "Remote asset type identifier.", example: "dcat:Dataset" }
+  ];
+  function promptVarsFor(kind) {
+    return kind === "api-mapping" ? API_MAPPING_VARS : SCHEMA_MAPPING_VARS;
+  }
+  function promptVarTokens(kind) {
+    return promptVarsFor(kind).map((v) => `{${v.name}}`);
+  }
+  function validatePromptTemplate(template, kind) {
+    const allowed = promptVarsFor(kind);
+    const allowedNames = allowed.map((v) => v.name);
+    const used = [];
+    const unknown = [];
+    const re = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+    let m;
+    while ((m = re.exec(String(template || ""))) !== null) {
+      if (!used.includes(m[1])) used.push(m[1]);
+      if (!allowedNames.includes(m[1]) && !unknown.includes(m[1])) unknown.push(m[1]);
+    }
+    const missingRequired = allowed.filter((v) => v.required && !used.includes(v.name)).map((v) => v.name);
+    return { unknown, missingRequired, used };
+  }
+  function unknownVarMessage(unknown, kind) {
+    const plural = unknown.length > 1 ? "s" : "";
+    return `Unknown template variable${plural}: ${unknown.map((u) => `{${u}}`).join(", ")}. Supported variable${plural}: ${promptVarTokens(kind).join(", ")}.`;
+  }
+  function missingVarMessage(missing, kind) {
+    const plural = missing.length > 1 ? "s" : "";
+    return `Missing required template variable${plural}: ${missing.map((u) => `{${u}}`).join(", ")}. Add ${missing.length > 1 ? "them" : "it"} to the template so the ${kind === "api-mapping" ? "catalogue" : "source asset"} is passed to the model.`;
+  }
+  function normalizePromptStatus(status) {
+    const v = String(status == null ? "" : status).trim().toLowerCase();
+    if (PROMPT_LIFECYCLE_STATUSES.includes(v)) return v;
+    const legacy = {
+      "writing code": "draft",
+      writing_code: "draft",
+      generating: "draft",
+      processing: "draft",
+      pending: "draft",
+      error: "draft",
+      failed: "draft",
+      completed: "active",
+      complete: "active",
+      published: "active",
+      enabled: "active",
+      inactive: "deprecated",
+      disabled: "deprecated"
+    };
+    return legacy[v] || "draft";
+  }
+  var PROVIDER_ERROR_MESSAGES = {
+    provider_not_selected: "No LLM provider selected. Choose a provider on this prompt, or set a default in Schema Registry \u2192 Providers.",
+    provider_not_found: "The provider saved on this prompt no longer exists. Select a different provider in Schema Registry \u2192 Providers.",
+    provider_inactive: "The provider saved on this prompt is not active. Activate it in Schema Registry \u2192 Providers, or choose another.",
+    credential_missing: "This provider has no API key stored. Add a key in Schema Registry \u2192 Providers, then retry generation.",
+    credential_invalid: "The stored API key for this provider could not be decrypted or was rejected. Re-enter the key in Schema Registry \u2192 Providers.",
+    provider_unreachable: "The provider endpoint could not be reached. Check the endpoint URL and network access, then retry.",
+    provider_error: "The provider returned an error. Check the provider configuration and model name, then retry."
+  };
+  function providerErrorMessage(code, fallback) {
+    return PROVIDER_ERROR_MESSAGES[code] || fallback || "Code generation failed.";
+  }
+
+  // src/utils/protocols.js
+  var PROTOCOLS2 = [
+    { value: "query-interface", label: "Query interface" },
+    { value: "dcat", label: "DCAT" },
+    { value: "oai-pmh", label: "OAI-PMH" }
+  ];
+  var QUERY_LANGUAGES2 = [
+    { value: "rest-json", label: "REST / JSON (no query language)" },
+    { value: "sparql", label: "SPARQL" },
+    { value: "graphql", label: "GraphQL" },
+    { value: "custom-query", label: "Custom query" }
+  ];
+  var RESULT_MODES2 = [
+    { value: "sparql-select", label: "SPARQL SELECT bindings" },
+    { value: "rdf", label: "RDF graph (CONSTRUCT / DESCRIBE)" },
+    { value: "custom-json", label: "Custom JSON" }
+  ];
+  function normaliseProtocol2(value) {
+    const s = String(value == null ? "" : value).trim().toLowerCase().replace(/[\s_]+/g, "-");
+    if (!s) return "query-interface";
+    if (s === "oai-pmh" || s === "oaipmh" || s === "oai") return "oai-pmh";
+    if (s === "dcat" || s === "dcat-ap" || s === "linked-data") return "dcat";
+    if (s === "query-interface" || s === "query" || s === "sparql") return "query-interface";
+    return s;
+  }
+  function normaliseQueryLanguage(value) {
+    const s = String(value == null ? "" : value).trim().toLowerCase();
+    if (!s) return "rest-json";
+    if (s.includes("sparql")) return "sparql";
+    if (s.includes("graphql")) return "graphql";
+    if (s.includes("custom")) return "custom-query";
+    return "rest-json";
+  }
+  function isExecutableQueryLanguage2(lang) {
+    return ["sparql", "graphql", "custom-query"].includes(normaliseQueryLanguage(lang));
+  }
+  function expectedMimeType(config2) {
+    const c = config2 || {};
+    const configured = String(c.mimeType || "").trim();
+    const result = String(c.resultMimeType || "").trim();
+    if (isExecutableQueryLanguage2(c.queryLanguage || c.queryLanguages)) {
+      return result || configured || "application/sparql-results+json";
+    }
+    if (configured) return configured;
+    if (result && !/sparql-results/i.test(result)) return result;
+    return "application/json";
+  }
+  var text = (v) => v === void 0 || v === null ? "" : String(v).trim();
+  function validateProtocolConfig2(form) {
+    const errors = {};
+    const protocol = normaliseProtocol2(form.protocol);
+    if (!PROTOCOLS2.some((p) => p.value === protocol)) {
+      errors.protocol = `Unsupported protocol "${form.protocol}".`;
+      return errors;
+    }
+    if (form.sourceData) return errors;
+    if (protocol === "oai-pmh") {
+      if (!text(form.baseEndpoint)) errors.baseEndpoint = "OAI-PMH requires a base endpoint.";
+      else if (!/^https?:\/\/\S+$/i.test(text(form.baseEndpoint))) errors.baseEndpoint = "Base endpoint must be an absolute http(s) URL.";
+      if (!text(form.metadataPrefix)) errors.metadataPrefix = "OAI-PMH requires a metadata prefix.";
+      const pages = form.maxPages === "" || form.maxPages === null || form.maxPages === void 0 ? 50 : Number(form.maxPages);
+      if (!Number.isInteger(pages) || pages < 1) errors.maxPages = "Maximum page limit must be a whole number of at least 1.";
+      if (form.setSpecEnabled && !text(form.setSpec)) errors.setSpec = "A set specification is enabled but empty.";
+    } else if (protocol === "dcat") {
+      const uri = text(form.dcatCatalogUri) || text(form.baseEndpoint);
+      if (!uri) errors.dcatCatalogUri = "DCAT requires a catalogue URI or base endpoint.";
+      else if (!/^https?:\/\/\S+$/i.test(uri)) errors.dcatCatalogUri = "The catalogue URI must be an absolute http(s) URL.";
+    } else {
+      const endpoint = text(form.queryEndpoint) || text(form.baseEndpoint);
+      if (!endpoint) errors.queryEndpoint = "A query interface requires a query endpoint.";
+      else if (!/^https?:\/\/\S+$/i.test(endpoint)) errors.queryEndpoint = "The query endpoint must be an absolute http(s) URL.";
+      const lang = text(form.queryLanguage);
+      if (!lang) errors.queryLanguage = "Select the query language, or REST/JSON for a plain endpoint.";
+      else if (isExecutableQueryLanguage2(lang)) {
+        const method = text(form.queryMethod).toUpperCase() || "GET";
+        if (!text(form.queryText)) errors.queryText = "An executable query is required.";
+        if (method !== "GET" && method !== "POST") errors.queryMethod = "Use GET or POST.";
+        const form_encoded = text(form.requestContentType).toLowerCase().includes("x-www-form-urlencoded");
+        if ((method === "GET" || form_encoded) && !text(form.queryParameterName)) {
+          errors.queryParameterName = "A query parameter name is required for GET and form-encoded POST requests.";
+        }
+        if (!text(form.resultMimeType)) errors.resultMimeType = "An expected result MIME type is required.";
+        const mode = text(form.resultMode);
+        if (!mode) errors.resultMode = "Select how query results should be processed.";
+        else if (mode === "sparql-select" && !text(form.resultIdVariable)) errors.resultIdVariable = "SELECT harvesting needs the variable holding the asset identifier.";
+        else if (mode === "custom-json" && !text(form.resultRootPath)) errors.resultRootPath = "Custom JSON results need the result root path.";
+      }
+    }
+    return errors;
+  }
+  function protocolHarvestConfig(base2, override) {
+    const cfg = Object.assign({}, base2 || {}, override || {});
+    return {
+      protocol: normaliseProtocol2(cfg.protocol),
+      queryEndpoint: cfg.queryEndpoint || "",
+      queryLanguage: normaliseQueryLanguage(cfg.queryLanguage || cfg.queryLanguages),
+      queryMethod: String(cfg.queryMethod || "GET").toUpperCase(),
+      queryText: cfg.queryText || "",
+      queryParameterName: cfg.queryParameterName || "query",
+      requestContentType: cfg.requestContentType || "",
+      resultMimeType: cfg.resultMimeType || "",
+      resultMode: cfg.resultMode || "",
+      resultRootPath: cfg.resultRootPath || "",
+      resultIdVariable: cfg.resultIdVariable || "",
+      resultNameVariable: cfg.resultNameVariable || "",
+      resultTypeVariable: cfg.resultTypeVariable || "",
+      metadataPrefix: cfg.metadataPrefix || "",
+      setSpec: cfg.setSpecEnabled === false ? "" : cfg.setSpec || "",
+      resumptionTokenEnabled: cfg.resumptionTokenEnabled !== false,
+      maxPages: Number(cfg.maxPages) || 50,
+      dcatCatalogUri: cfg.dcatCatalogUri || "",
+      mimeType: cfg.mimeType || "",
+      strategy: cfg.strategy || "none",
+      namespacesToPreserve: cfg.namespacesToPreserve || [],
+      shaclShapeId: cfg.shaclShapeId || cfg.shaclShapeSchemaId || ""
     };
   }
 
@@ -27192,12 +27723,25 @@ ex:publisher a ex:Property .`,
           const m = this.mappingRows.find((x) => x && x.id === id2);
           if (m && m.transformationStrategy) return m.transformationStrategy;
         }
-        return r.transformationStrategy || (r.transformedForm ? "Applied" : "\u2014");
+        const raw = String(r.transformationStrategy || "").trim();
+        const labels = {
+          rdf: "Deterministic RDF",
+          deterministic: "Deterministic RDF",
+          ai: "AI-driven",
+          hybrid: "Hybrid AI Mapping",
+          "json-field": "JSON Field Mapping"
+        };
+        return labels[raw.toLowerCase()] || raw || (r.transformedForm ? "Applied" : "\u2014");
       },
       assetDetailMappingStatus() {
         const r = this.assetDetailRow || {};
+        const raw = String(r.transformationStatus || "").trim().toLowerCase();
+        if (raw === "success" || raw === "completed") return "Success";
+        if (raw === "failed" || raw === "error") return "Error";
+        if (raw === "skipped") return "Skipped";
+        if (raw === "pending") return "Pending";
         if (r.transformedForm) return "Success";
-        if (r.transformError) return "Error";
+        if (r.transformationError || r.transformError) return "Error";
         return "Pending";
       },
       assetDetailDescription() {
@@ -27391,13 +27935,44 @@ ex:publisher a ex:Property .`,
   var RegisterCatalogModal_default = {
     name: "RegisterCatalogModal",
     template: "#tpl-register-catalog-modal",
+    computed: {
+      protocolOptions() {
+        return PROTOCOLS;
+      },
+      queryLanguageOptions() {
+        return QUERY_LANGUAGES;
+      },
+      resultModeOptions() {
+        return RESULT_MODES;
+      },
+      catalogProtocol() {
+        return normaliseProtocol(this.remoteCatalogForm.protocol);
+      },
+      catalogQueryExecutable() {
+        return this.catalogProtocol === "query-interface" && isExecutableQueryLanguage(this.remoteCatalogForm.queryLanguage);
+      },
+      protocolErrors() {
+        return validateProtocolConfig(this.remoteCatalogForm);
+      },
+      protocolReady() {
+        return Object.keys(this.protocolErrors).length === 0;
+      }
+    },
     props: {
+      protocolOptions: { type: Array, default: () => [] },
+      queryLanguageOptions: { type: Array, default: () => [] },
+      resultModeOptions: { type: Array, default: () => [] },
+      catalogProtocol: { type: String, default: "query-interface" },
+      catalogQueryExecutable: { type: Boolean, default: false },
+      protocolReady: { type: Boolean, default: false },
+      protocolIssues: { type: Array, default: () => [] },
       visible: { type: Boolean, default: false },
       remoteCatalogForm: { type: Object, required: true },
       isEditingRemoteCatalog: { type: Boolean, default: false },
       isSavingRemoteCatalog: { type: Boolean, default: false },
       registerRemoteCatalogError: { type: String, default: "" },
       updateRemoteCatalogError: { type: String, default: "" },
+      catalogFieldErrors: { type: Object, default: () => ({}) },
       isTestingConnection: { type: Boolean, default: false },
       testConnectionResult: { type: Object, default: () => ({ status: "", message: "", latency: 0 }) },
       assetTypes: { type: Array, default: () => [] }
@@ -27574,6 +28149,9 @@ ex:publisher a ex:Property .`,
     methods: {
       setPage(key, page) {
         this.$emit("page-change", { key, page });
+      },
+      expectedMimeType(config2) {
+        return expectedMimeType(config2);
       }
     }
   };
@@ -27692,10 +28270,29 @@ ex:publisher a ex:Property .`,
           const added = toInt(raw.assetsAdded);
           const succ = toInt(raw.successCount);
           const errs = toInt(raw.errorCount);
+          const isFailed = String(raw.result || "").trim().toLowerCase() === "failed";
           newAssetsCount += added > 0 ? added : succ;
-          errorsCount += errs;
+          errorsCount += errs > 0 ? errs : isFailed ? 1 : 0;
         }
         return { remoteCataloguesCount, newAssetsCount, errorsCount };
+      },
+      filteredRunLogs() {
+        const logs = this.harvestRunDetailData && Array.isArray(this.harvestRunDetailData.logs) ? this.harvestRunDetailData.logs : [];
+        const f = String(this.harvestLogLevelFilter || "all").toLowerCase();
+        if (f === "all") return logs;
+        return logs.filter((lg) => {
+          const lv = String(lg.level || "").trim().toLowerCase();
+          if (f === "warn") return lv === "warn" || lv === "warning";
+          if (f === "error") return lv === "error" || lv === "fatal";
+          return lv === f;
+        });
+      },
+      runLogErrorCount() {
+        const logs = this.harvestRunDetailData && Array.isArray(this.harvestRunDetailData.logs) ? this.harvestRunDetailData.logs : [];
+        return logs.filter((lg) => {
+          const lv = String(lg.level || "").trim().toLowerCase();
+          return lv === "error" || lv === "fatal";
+        }).length;
       },
       harvestWizardPagination() {
         return paginate(this.harvestWizardRows, this.pagination.harvestWizard.page, this.pagination.harvestWizard.perPage);
@@ -27788,10 +28385,33 @@ ex:publisher a ex:Property .`,
           (c) => (c.id || "").toLowerCase().includes(q) || (c.name || "").toLowerCase().includes(q) || (c.provider || "").toLowerCase().includes(q) || (c.model || "").toLowerCase().includes(q) || (c.status || "").toLowerCase().includes(q)
         );
       },
+      // FR-SR-04: Prompt Testing must run the exact immutable version selected.
+      promptTestVersionRecord() {
+        const vid = this.promptTestSelectedVersionId;
+        if (vid) {
+          const fromList = this.promptTestVersions.find((v) => v.versionId === vid || v.id === vid);
+          if (fromList) return fromList;
+        }
+        return this.prompts.find((x) => x.id === this.promptTestSelectedPrompt) || null;
+      },
+      promptTestTemplateIssues() {
+        const p = this.promptTestVersionRecord;
+        if (!p) return { unknown: [], missingRequired: [] };
+        const { unknown, missingRequired } = validatePromptTemplate(p.template, p.kind);
+        return { unknown, missingRequired };
+      },
+      promptTestValidationError() {
+        const { unknown, missingRequired } = this.promptTestTemplateIssues;
+        const p = this.promptTestVersionRecord;
+        if (unknown.length) return unknownVarMessage(unknown, p?.kind);
+        if (missingRequired.length) {
+          return `Template is missing required variable(s): ${missingRequired.map((v) => `{${v}}`).join(", ")}.`;
+        }
+        return "";
+      },
       resolvedPromptPreview() {
-        if (!this.promptTestSelectedPrompt || !this.promptTestSampleInput) return "";
-        const p = this.prompts.find((x) => x.id === this.promptTestSelectedPrompt);
-        if (!p) return "";
+        const p = this.promptTestVersionRecord;
+        if (!p || !this.promptTestSampleInput) return "";
         let tpl = p.template || "";
         tpl = tpl.replace(/\{SOURCE_ASSET\}/g, this.promptTestSampleInput);
         tpl = tpl.replace(/\{SOURCE_SCHEMA\}/g, p.sourceSchema || "");
@@ -27937,13 +28557,72 @@ ex:publisher a ex:Property .`,
         const s = this.harvestScope.selected;
         return s.includes("last_harvest") || s.includes("ever_imported");
       },
+      // ── NF-2: catalogue protocol configuration ──────────────
+      protocolOptions() {
+        return PROTOCOLS2;
+      },
+      queryLanguageOptions() {
+        return QUERY_LANGUAGES2;
+      },
+      resultModeOptions() {
+        return RESULT_MODES2;
+      },
+      catalogProtocol() {
+        return normaliseProtocol2(this.remoteCatalogForm.protocol);
+      },
+      catalogQueryExecutable() {
+        return this.catalogProtocol === "query-interface" && isExecutableQueryLanguage2(this.remoteCatalogForm.queryLanguage);
+      },
+      protocolIssues() {
+        return Object.values(validateProtocolConfig2(this.remoteCatalogForm));
+      },
+      // NF-6: deterministic RDF output is N-Quads, not JSON.
+      assetDataFormat() {
+        const row = this.assetDetailRow;
+        if (!row) return "JSON";
+        const format = row.transformedForm && row.transformedForm.format;
+        if (format === "application/n-quads") return "N-Quads (application/n-quads)";
+        if (format) return format;
+        return row.dataFormat || row.sourceContentType || "JSON";
+      },
+      protocolReady() {
+        return this.protocolIssues.length === 0;
+      },
       auditTrailTotalPages() {
         return Math.max(1, Math.ceil(this.auditTrail.pagination.total / this.auditTrail.pagination.perPage));
       },
+      // Pagination is server-side: the backend already returned exactly this page.
       auditTrailPage() {
-        const p = this.auditTrail.pagination;
-        const start = (p.page - 1) * p.perPage;
-        return this.auditTrail.rows.slice(start, start + p.perPage);
+        return this.auditTrail.rows;
+      },
+      // NF-8: fields shown in the audit record details drawer, full values.
+      auditDetailFields() {
+        return [
+          { key: "sequenceNumber", label: "Sequence" },
+          { key: "id", label: "Record ID" },
+          { key: "timestamp", label: "Timestamp" },
+          { key: "eventType", label: "Event Type" },
+          { key: "operationId", label: "Operation ID" },
+          { key: "harvestRunId", label: "Harvest Run ID" },
+          { key: "userId", label: "Actor / User ID" },
+          { key: "catalogueId", label: "Catalogue ID (raw)" },
+          { key: "catalogueNameSnapshot", label: "Catalogue Name (snapshot)" },
+          { key: "remoteAssetId", label: "Remote Asset ID" },
+          { key: "localAssetId", label: "Local Asset ID" },
+          { key: "promptVersionId", label: "Prompt Version ID" },
+          { key: "strategy", label: "Strategy" },
+          { key: "originalStatus", label: "Original Status" },
+          { key: "effectiveStatus", label: "Effective Status" },
+          { key: "complianceError", label: "Compliance Error" },
+          { key: "validationStatus", label: "Validation Status" },
+          { key: "durationMs", label: "Duration (ms)" },
+          { key: "errorCode", label: "Error Code" },
+          { key: "errorMessage", label: "Error Message" },
+          { key: "hashAlgorithm", label: "Hash Algorithm" },
+          { key: "chainVersion", label: "Chain Version" },
+          { key: "previousHash", label: "Previous Hash" },
+          { key: "recordHash", label: "Record Hash" }
+        ];
       }
     },
     watch: {
@@ -27957,7 +28636,7 @@ ex:publisher a ex:Property .`,
         document.body.style.overflow = v ? "hidden" : "";
       },
       currentSchemaTab(val) {
-        if (val === "auditTrail" && !this.auditTrail.loaded) {
+        if (val === "auditTrail" && !this.auditTrail.loaded && this.hasAccess("schema_registry")) {
           this.fetchAuditTrail();
         }
       },
@@ -27967,19 +28646,28 @@ ex:publisher a ex:Property .`,
         },
         deep: true
       },
+      remoteCatalogForm: {
+        handler() {
+          const unchanged = this._testedConnectionKey === this.connectionTestKey();
+          if (unchanged) return;
+          if (this.testConnectionResult.status || this.isTestingConnection) this.resetConnectionTest();
+        },
+        deep: true
+      },
       currentTab(newTab) {
-        if (newTab === "localCatalogue") {
+        if (newTab === "localCatalogue" && this.hasAccess("local_catalogue")) {
           this.loadLocalCatalogs();
         }
-        if (newTab === "provenance") {
+        if (newTab === "provenance" && this.hasAccess("local_catalogue")) {
           this.loadLocalProvenance();
         }
       },
       currentPage(newPage) {
-        if (newPage === "catalogueRegistry") {
+        if (newPage === "catalogueRegistry" && this.hasAccess("catalogue_registry")) {
           uibuilderService.send({
             type: "getCatalogRegistry",
-            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            _silent: true
           });
         }
         if (newPage === "adminTools") {
@@ -27995,14 +28683,17 @@ ex:publisher a ex:Property .`,
         } else {
           this.stopMonitoringPolling();
         }
-        if (newPage === "harvester") {
+        if (newPage === "harvester" && this.hasAccess("harvester")) {
           this.loadHarvestData();
-          uibuilderService.send({
-            type: "getCatalogRegistry",
-            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
-          });
+          if (this.hasAccess("catalogue_registry")) {
+            uibuilderService.send({
+              type: "getCatalogRegistry",
+              auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+              _silent: true
+            });
+          }
         }
-        if (newPage === "localCatalogue") {
+        if (newPage === "localCatalogue" && this.hasAccess("local_catalogue")) {
           this.loadLocalCatalogs();
           this.loadLocalProvenance();
         }
@@ -28022,6 +28713,7 @@ ex:publisher a ex:Property .`,
       roleClass,
       resultClass,
       logPillClass,
+      resultLabel,
       namespaceClass,
       strategyPillClass,
       strategyLabel,
@@ -28029,6 +28721,35 @@ ex:publisher a ex:Property .`,
       parseJsonLine,
       // ── Helpers ────────────────────────────────────────────────
       getCookie: getCookie2,
+      expectedMimeType,
+      harvestStatusLabel(status) {
+        const v = String(status || "").trim().toLowerCase();
+        if (v === "completed_with_warnings") return "Completed with warnings";
+        if (v === "completed_with_errors") return "Completed with errors";
+        return status || "-";
+      },
+      harvestStatusClass(status) {
+        const v = String(status || "").trim().toLowerCase();
+        if (v === "completed") return "green";
+        if (v === "running") return "blue";
+        if (v === "failed" || v === "error" || v === "cancelled") return "red";
+        return "yellow";
+      },
+      provenanceStatusClass(status) {
+        const v = String(status || "").trim().toLowerCase();
+        if (v === "completed" || v === "success") return "green";
+        if (v === "failed" || v === "error") return "red";
+        return "yellow";
+      },
+      responseMappingLabel(mapping) {
+        const m = mapping || {};
+        const parts = [];
+        if (m.rootPath) parts.push("root " + m.rootPath);
+        if (m.idField) parts.push("id " + m.idField);
+        if (m.nameField) parts.push("name " + m.nameField);
+        if (m.typeField) parts.push("type " + m.typeField);
+        return parts.length ? parts.join(", ") : "defaults";
+      },
       hasAccess(key) {
         const aa = this.currentUser.accessAreas || [];
         const keyMap = { local_catalogue: "localCatalogue", catalogue_registry: "catalogueRegistry", schema_registry: "schemaRegistry", admin_tools: "adminTools", harvester: "harvest" };
@@ -28111,9 +28832,11 @@ ex:publisher a ex:Property .`,
       },
       // ── Local Catalogue ────────────────────────────────────────
       loadLocalCatalogs() {
+        if (!this.hasAccess("local_catalogue")) return;
         uibuilderService.send({
           type: "getLocalCatalogue",
-          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          _silent: true
         });
       },
       runSearch() {
@@ -28169,9 +28892,11 @@ ex:publisher a ex:Property .`,
         this.pagination.provenance.page = 1;
       },
       loadLocalProvenance() {
+        if (!this.hasAccess("local_catalogue")) return;
         uibuilderService.send({
           type: "getLocalProvenance",
-          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          _silent: true
         });
       },
       // ── Asset Detail Panel / View Modal (FR-ACM-04) ──────────
@@ -28209,7 +28934,7 @@ ex:publisher a ex:Property .`,
         } else {
           this.localJsonLines = [{ text: "No transformed form yet (mapping pending or not configured).", changeType: null }];
         }
-        this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, {
+        this.assetDetailRow = Object.assign({}, this.assetDetailRow || {}, a, {
           linkedAssets: a.linkedAssets || { hasOriginal: !!original, hasTransformed: !!transformed }
         });
       },
@@ -28226,8 +28951,8 @@ ex:publisher a ex:Property .`,
       },
       _jsonToLines(obj, compareObj) {
         try {
-          const text = JSON.stringify(obj, null, 2);
-          const lines = text.split("\n");
+          const text2 = JSON.stringify(obj, null, 2);
+          const lines = text2.split("\n");
           if (!compareObj) return lines.map((l) => ({ text: l, changeType: null }));
           const origText = JSON.stringify(compareObj, null, 2);
           const origLines = new Set(origText.split("\n"));
@@ -28411,14 +29136,28 @@ ex:publisher a ex:Property .`,
           catalogId: "",
           catalogName: "",
           owner: "",
-          protocol: "Query interface",
+          protocol: "query-interface",
           baseEndpoint: "",
           mimeType: "application/sparql-results+json",
           queryEndpoint: "",
           queryLanguages: "",
+          queryLanguage: "rest-json",
+          queryMethod: "GET",
+          queryText: "",
+          queryParameterName: "query",
+          requestContentType: "application/sparql-query",
+          resultMimeType: "application/sparql-results+json",
+          resultMode: "sparql-select",
+          resultRootPath: "",
+          resultIdVariable: "",
+          resultNameVariable: "",
+          resultTypeVariable: "",
           metadataPrefix: "oai_dc",
           setSpec: "",
-          resumptionToken: false,
+          setSpecEnabled: false,
+          resumptionToken: true,
+          resumptionTokenEnabled: true,
+          maxPages: 50,
           dcatCatalogUri: "",
           linkedDataEndpoint: "",
           contentNegotiation: "application/ld+json",
@@ -28451,27 +29190,96 @@ ex:publisher a ex:Property .`,
         };
         this.uploadedJsonFile = null;
         this.jsonUploadError = "";
+        this.resetConnectionTest();
         this.showRegisterRemoteCatalogModal = true;
       },
       openEditRemoteCatalog(row) {
         this.isEditingRemoteCatalog = true;
         this.editingRemoteCatalogId = row.id;
-        this.remoteCatalogForm = JSON.parse(JSON.stringify(row));
-        this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(row));
+        const normalised = JSON.parse(JSON.stringify(row));
+        normalised.protocol = normaliseProtocol2(row.protocol);
+        normalised.queryLanguage = normaliseQueryLanguage(row.queryLanguage || row.queryLanguages);
+        normalised.queryMethod = row.queryMethod || "GET";
+        normalised.queryParameterName = row.queryParameterName || "query";
+        normalised.requestContentType = row.requestContentType || "application/sparql-query";
+        normalised.resultMimeType = row.resultMimeType || row.mimeType || "application/sparql-results+json";
+        normalised.resultMode = row.resultMode || "sparql-select";
+        normalised.setSpecEnabled = row.setSpecEnabled !== void 0 ? !!row.setSpecEnabled : !!row.setSpec;
+        normalised.resumptionTokenEnabled = row.resumptionTokenEnabled !== void 0 ? !!row.resumptionTokenEnabled : row.resumptionToken !== false;
+        normalised.maxPages = row.maxPages || 50;
+        this.remoteCatalogForm = normalised;
+        this.originalRemoteCatalogForm = JSON.parse(JSON.stringify(normalised));
         if (row.sourceData && row.sourceFileName) {
           this.uploadedJsonFile = { name: row.sourceFileName };
         } else {
           this.uploadedJsonFile = null;
         }
         this.jsonUploadError = "";
+        this.resetConnectionTest();
         this.showRegisterRemoteCatalogModal = true;
       },
       closeRegisterRemoteCatalogModal() {
         this.showRegisterRemoteCatalogModal = false;
+        this.resetConnectionTest();
+      },
+      // A connection result only ever describes the configuration it was run for,
+      // so it is discarded whenever that configuration changes.
+      resetConnectionTest() {
+        if (this._testConnTimeout) {
+          clearTimeout(this._testConnTimeout);
+          this._testConnTimeout = null;
+        }
+        this._testedConnectionKey = null;
+        this.isTestingConnection = false;
+        this.testConnectionResult = { status: "", message: "", latency: 0 };
+      },
+      connectionTestKey() {
+        const f = this.remoteCatalogForm || {};
+        return JSON.stringify([
+          this.editingRemoteCatalogId,
+          f.protocol,
+          f.baseEndpoint,
+          f.mimeType,
+          f.queryEndpoint,
+          f.queryLanguage,
+          f.queryMethod,
+          f.queryText,
+          f.queryParameterName,
+          f.requestContentType,
+          f.resultMimeType,
+          f.resultMode,
+          f.resultRootPath,
+          f.resultIdVariable,
+          f.resultNameVariable,
+          f.resultTypeVariable,
+          f.metadataPrefix,
+          f.setSpec,
+          f.setSpecEnabled,
+          f.resumptionTokenEnabled,
+          f.maxPages,
+          f.dcatCatalogUri,
+          f.linkedDataEndpoint,
+          f.contentNegotiation,
+          f.auth,
+          f.authLoginEndpoint,
+          f.authUsername,
+          f.authPassword,
+          f.authPayloadTemplate,
+          f.authTokenPath,
+          f.authTokenPrefix,
+          f.authStaticToken,
+          f.authApiKey,
+          f.authApiKeyHeader,
+          f.responseRootPath,
+          f.responseAssetIdField,
+          f.responseAssetNameField,
+          f.responseAssetTypeField
+        ]);
       },
       testRemoteCatalogConnection() {
         this.isTestingConnection = true;
         this.testConnectionResult = { status: "", message: "", latency: 0 };
+        this._testedConnectionKey = this.connectionTestKey();
         const auth = this.remoteCatalogForm.auth || "none";
         if (auth === "token-login") {
           if (!(this.remoteCatalogForm.authLoginEndpoint || "").trim()) {
@@ -28501,6 +29309,13 @@ ex:publisher a ex:Property .`,
       registerRemoteCatalog() {
         const payload = JSON.parse(JSON.stringify(this.remoteCatalogForm));
         this.registerRemoteCatalogError = "";
+        const protocolErrors = validateProtocolConfig2(payload);
+        if (Object.keys(protocolErrors).length > 0) {
+          this.catalogFieldErrors = protocolErrors;
+          this.registerRemoteCatalogError = "The protocol configuration is incomplete.";
+          return;
+        }
+        this.catalogFieldErrors = {};
         this.isRegisteringRemoteCatalog = true;
         this.pendingRemoteCatalog = payload;
         uibuilderService.send({
@@ -28511,6 +29326,14 @@ ex:publisher a ex:Property .`,
       },
       saveRemoteCatalog() {
         const current = JSON.parse(JSON.stringify(this.remoteCatalogForm));
+        const saveProtocolErrors = validateProtocolConfig2(current);
+        if (Object.keys(saveProtocolErrors).length) {
+          this.catalogFieldErrors = saveProtocolErrors;
+          this.updateRemoteCatalogError = "The protocol configuration is incomplete.";
+          this.registerRemoteCatalogError = "The protocol configuration is incomplete.";
+          return;
+        }
+        this.catalogFieldErrors = {};
         if (this.isEditingRemoteCatalog && this.editingRemoteCatalogId != null) {
           const old = this.originalRemoteCatalogForm || {};
           const patch = getChangedFields(old, current);
@@ -28657,6 +29480,7 @@ ex:publisher a ex:Property .`,
           username: user.username || "",
           email: user.email || "",
           status: user.status || "active",
+          roles: Array.isArray(user.roles) ? user.roles.slice() : [],
           accessAreas,
           expiresAt: expiresAtLocal,
           validationError: null
@@ -28688,6 +29512,7 @@ ex:publisher a ex:Property .`,
             username: raw.username,
             email: raw.email || null,
             status: raw.status,
+            roles: raw.roles || [],
             accessAreas: raw.accessAreas || [],
             expiresAt: raw.expiresAt ? new Date(raw.expiresAt).toISOString() : null
           }
@@ -28913,8 +29738,12 @@ ex:publisher a ex:Property .`,
       },
       loadApiMappings() {
         const auth = { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") };
-        uibuilderService.send({ type: "listApiMappings", auth, data: {} });
-        uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" } });
+        if (this.hasAccess("catalogue_registry")) {
+          uibuilderService.send({ type: "listApiMappings", auth, data: {}, _silent: true });
+        }
+        if (this.hasAccess("schema_registry")) {
+          uibuilderService.send({ type: "listPrompts", auth, data: { kind: "api-mapping" }, _silent: true });
+        }
       },
       openApiMappingForm(mapping) {
         this.apiMappingError = "";
@@ -29017,33 +29846,61 @@ ex:publisher a ex:Property .`,
       openPromptModal() {
         this.isEditingPrompt = false;
         this.promptFormError = "";
+        this.promptFieldErrors = {};
+        this.promptFormWarnings = [];
         this.isEnhancingPrompt = false;
+        this.finishPromptSave();
         this.promptForm = {
           id: null,
+          promptId: null,
           name: "",
-          version: "1.0",
+          version: "1.0.0",
           status: "draft",
           sourceSchema: "",
           targetSchema: "",
           template: "",
           examples: "",
           constraints: "",
-          author: "",
-          providerId: ""
+          author: this.currentUser?.username || "",
+          providerId: "",
+          kind: "schema-mapping",
+          generationStatus: "idle"
         };
         this.showPromptModal = true;
       },
       openEditPrompt(p) {
         this.isEditingPrompt = true;
         this.promptFormError = "";
+        this.promptFieldErrors = {};
+        this.promptFormWarnings = [];
         this.isEnhancingPrompt = false;
-        this.promptForm = { ...p, name: p.name || "", author: p.author || "", providerId: p.providerId || "" };
+        this.finishPromptSave();
+        this.promptForm = {
+          ...p,
+          id: p.id,
+          promptId: p.promptId || p.id,
+          name: p.name || "",
+          version: p.version || "1.0.0",
+          sourceSchema: p.sourceSchema || "",
+          targetSchema: p.targetSchema || "",
+          template: p.template || "",
+          examples: p.examples || "",
+          constraints: p.constraints || "",
+          providerId: p.providerId || "",
+          author: p.author || "",
+          status: normalizePromptStatus(p.status),
+          kind: p.kind || "schema-mapping",
+          generationStatus: p.generationStatus || p.codeGenerationStatus || "idle"
+        };
         this.showPromptModal = true;
       },
       closePromptModal() {
         this.showPromptModal = false;
         this.promptFormError = "";
+        this.promptFieldErrors = {};
+        this.promptFormWarnings = [];
         this.isEnhancingPrompt = false;
+        this.finishPromptSave();
       },
       enhancePromptWithAI() {
         if (!this.promptForm.template || !this.promptForm.sourceSchema || !this.promptForm.targetSchema) {
@@ -29067,53 +29924,116 @@ ex:publisher a ex:Property .`,
       // Code generation is now handled by the backend as part of createPrompt flow.
       // The backend sends a "codeGenerated" response asynchronously after the prompt is created.
       savePrompt() {
-        if (!this.promptForm.sourceSchema || !this.promptForm.targetSchema || !this.promptForm.template) return;
-        let promptName = (this.promptForm.name || "").trim();
-        if (!promptName) {
-          let num;
-          do {
-            num = Math.floor(100 + Math.random() * 900);
-          } while (this.prompts.some((p) => p.name === `prompt-${num}`));
-          promptName = `prompt-${num}`;
+        const f = this.promptForm;
+        this.promptFieldErrors = {};
+        this.promptFormError = "";
+        this.promptFormWarnings = [];
+        const errors = {};
+        if (!String(f.name || "").trim()) errors.name = "Prompt name is required.";
+        if (!/^\d+\.\d+(\.\d+)?$/.test(String(f.version || "").trim())) {
+          errors.version = "Version must be semantic (e.g. 1.0.0).";
         }
-        if (this.isEditingPrompt && this.promptForm.id) {
+        if (!String(f.sourceSchema || "").trim()) errors.sourceSchema = "Source schema is required.";
+        if (!String(f.targetSchema || "").trim()) errors.targetSchema = "Target schema is required.";
+        if (!String(f.template || "").trim()) errors.template = "Template is required.";
+        const kind = f.kind === "api-mapping" ? "api-mapping" : "schema-mapping";
+        const scan = validatePromptTemplate(f.template, kind);
+        if (scan.unknown.length) {
+          errors.template = unknownVarMessage(scan.unknown, kind);
+        } else if (scan.missingRequired.length) {
+          errors.template = missingVarMessage(scan.missingRequired, kind);
+        }
+        if (Object.keys(errors).length > 0) {
+          this.promptFieldErrors = errors;
+          this.promptFormError = "Please correct the highlighted fields.";
+          return;
+        }
+        const payload = {
+          name: String(f.name).trim(),
+          version: String(f.version).trim(),
+          sourceSchema: f.sourceSchema,
+          targetSchema: f.targetSchema,
+          template: f.template,
+          examples: f.examples || "",
+          constraints: f.constraints || "",
+          status: normalizePromptStatus(f.status),
+          author: String(f.author || "").trim(),
+          providerId: f.providerId || ""
+        };
+        this.isSavingPrompt = true;
+        this.promptSaveTimeout = setTimeout(() => {
+          if (this.isSavingPrompt) {
+            this.isSavingPrompt = false;
+            this.promptFormError = "The server did not respond. Please try again.";
+          }
+        }, 3e4);
+        if (this.isEditingPrompt && f.id) {
           uibuilderService.send({
             type: "updatePrompt",
             auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
             data: {
-              promptId: this.promptForm.id,
-              name: promptName,
-              version: this.promptForm.version || "1.0",
-              sourceSchema: this.promptForm.sourceSchema,
-              targetSchema: this.promptForm.targetSchema,
-              template: this.promptForm.template,
-              examples: this.promptForm.examples || "",
-              constraints: this.promptForm.constraints || "",
-              status: this.promptForm.status || "active",
-              code: this.promptForm.generatedCode || "",
-              author: this.promptForm.author || "",
-              providerId: this.promptForm.providerId || ""
+              ...payload,
+              // promptGroupId = stable prompt identity, versionId = the record being edited
+              promptGroupId: f.promptId || f.id,
+              versionId: f.id,
+              promptId: f.id,
+              code: f.generatedCode || ""
             }
           });
-          this.closePromptModal();
         } else {
           uibuilderService.send({
             type: "createPrompt",
             auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-            data: {
-              name: promptName,
-              version: this.promptForm.version || "1.0",
-              sourceSchema: this.promptForm.sourceSchema,
-              targetSchema: this.promptForm.targetSchema,
-              template: this.promptForm.template,
-              examples: this.promptForm.examples || "",
-              constraints: this.promptForm.constraints || "",
-              author: this.promptForm.author || "",
-              providerId: this.promptForm.providerId || ""
-            }
+            data: payload
           });
-          this.closePromptModal();
         }
+      },
+      finishPromptSave() {
+        this.isSavingPrompt = false;
+        if (this.promptSaveTimeout) {
+          clearTimeout(this.promptSaveTimeout);
+          this.promptSaveTimeout = null;
+        }
+      },
+      fetchPrompts() {
+        uibuilderService.send({
+          type: "listPrompts",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: {},
+          _silent: true
+        });
+      },
+      retryPromptCodeGeneration(p) {
+        const idx = this.prompts.findIndex((x) => x.id === p.id);
+        if (idx !== -1) {
+          this.prompts.splice(idx, 1, {
+            ...this.prompts[idx],
+            generationStatus: "generating",
+            generationError: "",
+            generationErrorCode: ""
+          });
+        }
+        uibuilderService.send({
+          type: "retryPromptCodeGeneration",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { versionId: p.id, promptId: p.id }
+        });
+        this.addToast("info", "Retrying code generation...");
+      },
+      testProviderConnection(provider) {
+        const id2 = provider?.id || provider;
+        if (!id2) return;
+        this.providerTestingId = id2;
+        this.providerTestResult = null;
+        uibuilderService.send({
+          type: "testProviderConnection",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { providerId: id2 }
+        });
+      },
+      promptGenerationError(p) {
+        if (!p || p.generationStatus !== "error") return "";
+        return providerErrorMessage(p.generationErrorCode, p.generationError);
       },
       deletePrompt(id2) {
         this.showConfirm("Delete Prompt", `Are you sure you want to delete prompt "${id2}"?`, "Delete", () => {
@@ -29124,12 +30044,65 @@ ex:publisher a ex:Property .`,
           });
         });
       },
-      changePromptStatus(prompt, newStatus) {
+      // ── Single lifecycle service used by BOTH the table dropdown and the
+      //    Versions-dialog Activate button. Optimistic with rollback.
+      setPromptLifecycleStatus(record, newStatus) {
+        const versionId = record.versionId || record.id;
+        const groupId = record.promptId || record.id;
+        if (!versionId) return;
+        if (this.lifecyclePending[versionId]) return;
+        const previous = normalizePromptStatus(record.status);
+        const target = normalizePromptStatus(newStatus);
+        if (previous === target) return;
+        this.lifecyclePending = { ...this.lifecyclePending, [versionId]: previous };
+        this.lifecycleError = "";
+        this.applyLifecycleStatusLocally(versionId, target);
+        if (this.lifecycleTimeouts[versionId]) clearTimeout(this.lifecycleTimeouts[versionId]);
+        this.lifecycleTimeouts[versionId] = setTimeout(() => {
+          this.rollbackLifecycle(versionId, "The server did not respond. The status was not changed.");
+        }, 2e4);
         uibuilderService.send({
           type: "updatePromptStatus",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-          data: { promptId: prompt.id, status: newStatus, sourceSchema: prompt.sourceSchema, targetSchema: prompt.targetSchema }
+          data: {
+            promptId: versionId,
+            versionId,
+            promptGroupId: groupId,
+            status: target,
+            sourceSchema: record.sourceSchema,
+            targetSchema: record.targetSchema
+          }
         });
+      },
+      // Kept as the dropdown entry point; delegates to the shared service.
+      changePromptStatus(prompt, newStatus) {
+        this.setPromptLifecycleStatus(prompt, newStatus);
+      },
+      applyLifecycleStatusLocally(versionId, status) {
+        const pi = this.prompts.findIndex((p) => (p.versionId || p.id) === versionId);
+        if (pi !== -1) this.prompts.splice(pi, 1, { ...this.prompts[pi], status });
+        const vi = this.promptVersions.findIndex((v) => (v.versionId || v.id) === versionId);
+        if (vi !== -1) this.promptVersions.splice(vi, 1, { ...this.promptVersions[vi], status });
+        const ti = this.promptTestVersions.findIndex((v) => (v.versionId || v.id) === versionId);
+        if (ti !== -1) this.promptTestVersions.splice(ti, 1, { ...this.promptTestVersions[ti], status });
+        if (this.promptForm && this.promptForm.id === versionId) this.promptForm.status = status;
+      },
+      clearLifecyclePending(versionId) {
+        if (this.lifecycleTimeouts[versionId]) {
+          clearTimeout(this.lifecycleTimeouts[versionId]);
+          delete this.lifecycleTimeouts[versionId];
+        }
+        const next = { ...this.lifecyclePending };
+        delete next[versionId];
+        this.lifecyclePending = next;
+      },
+      rollbackLifecycle(versionId, message) {
+        const previous = this.lifecyclePending[versionId];
+        if (previous === void 0) return;
+        this.applyLifecycleStatusLocally(versionId, previous);
+        this.clearLifecyclePending(versionId);
+        this.lifecycleError = message || "Status change failed.";
+        this.addToast("error", this.lifecycleError);
       },
       insertVariable(variable) {
         const ta = this.$refs.promptTemplateArea;
@@ -29206,7 +30179,7 @@ ex:publisher a ex:Property .`,
         this.closeEditCodeModal();
       },
       promptStatusClass(status) {
-        switch (status) {
+        switch (normalizePromptStatus(status)) {
           case "active":
             return "green";
           case "draft":
@@ -29215,11 +30188,16 @@ ex:publisher a ex:Property .`,
             return "yellow";
           case "archived":
             return "gray";
-          case "writing code":
-            return "orange";
           default:
             return "gray";
         }
+      },
+      promptStatusLabel(status) {
+        const v = normalizePromptStatus(status);
+        return v.charAt(0).toUpperCase() + v.slice(1);
+      },
+      promptVarList(kind) {
+        return promptVarsFor(kind || "schema-mapping");
       },
       // ── LLM Configuration (FR-SR-11) ─────────────────────────
       openLlmConfigModal() {
@@ -29283,16 +30261,77 @@ ex:publisher a ex:Property .`,
         }
       },
       // ── Prompt Testing (FR-SR-10) ─────────────────────────────
-      runPromptTest() {
-        if (!this.promptTestSelectedPrompt || !this.promptTestSelectedLlm || !this.promptTestSampleInput) return;
-        this.promptTestRunning = true;
+      onPromptTestPromptChange() {
+        this.promptTestVersions = [];
+        this.promptTestSelectedVersionId = "";
         this.promptTestResult = "";
         this.promptTestError = "";
+        this.promptTestErrorCode = "";
+        this.promptTestExecutionStatus = "idle";
+        this.promptTestRanVersionId = "";
+        this.promptTestResolvedFromBackend = "";
+        this.promptTestVersionsState = "idle";
+        this.refreshPromptTestVersions();
+      },
+      retryGenerationForTestedVersion() {
+        const rec = this.promptTestVersionRecord;
+        if (!rec) return;
+        this.retryPromptCodeGeneration({ id: rec.versionId || rec.id });
+      },
+      onPromptTestVersionChange() {
+        this.promptTestResult = "";
+        this.promptTestError = "";
+        this.promptTestErrorCode = "";
+        this.promptTestExecutionStatus = "idle";
+        this.promptTestRanVersionId = "";
+        this.promptTestResolvedFromBackend = "";
+      },
+      refreshPromptTestVersions() {
+        const p = this.prompts.find((x) => x.id === this.promptTestSelectedPrompt);
+        if (!p) return;
+        const requestId = this.newRequestId("pvtest");
+        this.promptTestVersionsRequestId = requestId;
+        this.promptTestVersionsState = "loading";
+        uibuilderService.send({
+          type: "listPromptVersions",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { promptGroupId: p.promptId || p.id, requestId, consumer: "testing" }
+        });
+      },
+      runPromptTest() {
+        if (!this.promptTestSelectedPrompt || !this.promptTestSelectedLlm || !this.promptTestSampleInput) return;
+        if (this.promptTestValidationError) {
+          this.promptTestError = this.promptTestValidationError;
+          return;
+        }
+        const rec = this.promptTestVersionRecord;
+        const versionId = rec?.versionId || rec?.id || "";
+        if (!versionId) {
+          this.promptTestError = "Select a specific prompt version before running a test.";
+          this.promptTestExecutionStatus = "error";
+          return;
+        }
+        this.promptTestRunning = true;
+        this.promptTestExecutionStatus = "running";
+        this.promptTestResult = "";
+        this.promptTestError = "";
+        this.promptTestErrorCode = "";
+        this.promptTestRanVersionId = versionId;
+        this.promptTestTimeout = setTimeout(() => {
+          if (this.promptTestRunning) {
+            this.promptTestRunning = false;
+            this.promptTestExecutionStatus = "error";
+            this.promptTestError = "The server did not respond. Please try again.";
+          }
+        }, 6e4);
         uibuilderService.send({
           type: "dryRunPrompt",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: {
-            promptId: this.promptTestSelectedPrompt,
+            // Stable prompt identity AND the exact immutable version to execute.
+            promptGroupId: rec?.promptId || this.promptTestSelectedPrompt,
+            promptId: versionId,
+            versionId,
             llmConfigId: this.promptTestSelectedLlm,
             sampleInput: this.promptTestSampleInput
           }
@@ -29345,6 +30384,7 @@ ex:publisher a ex:Property .`,
       },
       // ── Batch Re-transformation (FR-SR-13) ─────────────────
       openBatchRetransformModal() {
+        return;
         this.batchRetransform = {
           trigger: "prompt_change",
           scope: "all",
@@ -29369,6 +30409,7 @@ ex:publisher a ex:Property .`,
         this.showBatchRetransformModal = false;
       },
       startBatchRetransform() {
+        return;
         const b = this.batchRetransform;
         b.status = "running";
         b.progress = 0;
@@ -29391,6 +30432,7 @@ ex:publisher a ex:Property .`,
         });
       },
       cancelBatchRetransform() {
+        return;
         uibuilderService.send({
           type: "cancelBatchRetransform",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
@@ -29402,11 +30444,14 @@ ex:publisher a ex:Property .`,
       },
       // ── Transformation Audit Trail (Section B) ────────────────
       fetchAuditTrail() {
+        if (!this.hasAccess("schema_registry")) return;
+        const requestId = this.newRequestId("audit");
+        this.auditTrail.requestId = requestId;
         this.auditTrail.loading = true;
         this.auditTrail.error = "";
         if (this._auditTimeout) clearTimeout(this._auditTimeout);
         this._auditTimeout = setTimeout(() => {
-          if (this.auditTrail.loading) {
+          if (this.auditTrail.loading && this.auditTrail.requestId === requestId) {
             this.auditTrail.loading = false;
             this.auditTrail.error = "No response from backend \u2014 request timed out.";
           }
@@ -29415,12 +30460,28 @@ ex:publisher a ex:Property .`,
         uibuilderService.send({
           type: "listTransformationAudit",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-          data: { filters, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
+          data: { filters, requestId, page: this.auditTrail.pagination.page, perPage: this.auditTrail.pagination.perPage }
         });
       },
       applyAuditFilters() {
         this.auditTrail.pagination.page = 1;
         this.fetchAuditTrail();
+      },
+      goToAuditPage(page) {
+        const target = Math.min(Math.max(1, page), this.auditTrailTotalPages);
+        if (target === this.auditTrail.pagination.page) return;
+        this.auditTrail.pagination.page = target;
+        this.fetchAuditTrail();
+      },
+      // A completed harvest writes new audit evidence, so the cached list is stale.
+      invalidateAuditTrail() {
+        this.auditTrail.loaded = false;
+        this.auditIntegrity.result = null;
+        this.auditIntegrity.error = "";
+        if (this.currentPage === "schemaRegistry" && this.currentSchemaTab === "auditTrail") {
+          this.auditTrail.pagination.page = 1;
+          this.fetchAuditTrail();
+        }
       },
       exportAudit(format) {
         uibuilderService.send({
@@ -29428,6 +30489,105 @@ ex:publisher a ex:Property .`,
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { format, filters: { ...this.auditTrail.filters } }
         });
+      },
+      // ── NF-8: audit hash-chain integrity ──────────────────────
+      verifyAuditIntegrity() {
+        if (this.auditIntegrity.running) return;
+        const requestId = this.newRequestId("auditverify");
+        this.auditIntegrity.requestId = requestId;
+        this.auditIntegrity.running = true;
+        this.auditIntegrity.error = "";
+        this.auditIntegrity.result = null;
+        if (this._auditVerifyTimeout) clearTimeout(this._auditVerifyTimeout);
+        this._auditVerifyTimeout = setTimeout(() => {
+          if (this.auditIntegrity.running && this.auditIntegrity.requestId === requestId) {
+            this.auditIntegrity.running = false;
+            this.auditIntegrity.error = "Integrity verification timed out. No result was returned.";
+          }
+        }, 3e4);
+        uibuilderService.send({
+          type: "verifyTransformationAuditChain",
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          data: { requestId }
+        });
+      },
+      // Per-row integrity, derived only from a real backend verification result.
+      auditRowIntegrity(row) {
+        if (!row || !row.recordHash || row.sequenceNumber == null) return "legacy";
+        const v = this.auditIntegrity.result;
+        if (!v) return "chained";
+        if (v.valid) return "verified";
+        if (v.firstBrokenSequence == null) return "chained";
+        return row.sequenceNumber < v.firstBrokenSequence ? "verified" : "broken";
+      },
+      auditIntegrityLabel(state) {
+        switch (state) {
+          case "verified":
+            return "Verified";
+          case "broken":
+            return "Broken";
+          case "chained":
+            return "Not yet verified";
+          default:
+            return "Legacy / Unverified";
+        }
+      },
+      auditIntegrityClass(state) {
+        switch (state) {
+          case "verified":
+            return "green";
+          case "broken":
+            return "red";
+          case "chained":
+            return "blue";
+          default:
+            return "gray";
+        }
+      },
+      // Required identifiers must never render as a bare dash on a success record.
+      auditIdDisplay(row, value) {
+        if (value !== null && value !== void 0 && String(value).trim() !== "") return String(value);
+        const chained = !!(row && row.recordHash);
+        return chained ? "Missing" : "Missing \u2014 legacy record";
+      },
+      auditIdMissing(value) {
+        return value === null || value === void 0 || String(value).trim() === "";
+      },
+      // The backend derives compliance on read; historical evidence stays intact.
+      auditRowStatus(row) {
+        return row && (row.effectiveStatus || row.status) || "unknown";
+      },
+      auditRowStatusClass(row) {
+        const s = this.auditRowStatus(row);
+        return s === "success" ? "pill-green" : s === "failed" ? "pill-red" : "pill-yellow";
+      },
+      auditRowDowngraded(row) {
+        return !!(row && row.originalStatus && row.effectiveStatus && row.originalStatus !== row.effectiveStatus);
+      },
+      shortHash(h) {
+        if (!h) return "";
+        const s = String(h);
+        return s.length <= 16 ? s : `${s.slice(0, 10)}\u2026${s.slice(-6)}`;
+      },
+      openAuditRecord(row) {
+        this.auditRecordDetail = row;
+        this.showAuditRecordModal = true;
+      },
+      closeAuditRecord() {
+        this.showAuditRecordModal = false;
+        this.auditRecordDetail = null;
+      },
+      copyAuditValue(value, label) {
+        const text2 = String(value == null ? "" : value);
+        if (!text2) return;
+        const done = () => this.addToast("success", `${label || "Value"} copied.`);
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text2).then(done).catch(() => {
+            this.addToast("error", "Could not copy to clipboard.");
+          });
+        } else {
+          this.addToast("error", "Clipboard is not available in this browser.");
+        }
       },
       // ── Multi-Model Provider (FR-SR-12) ──────────────────────
       openProviderModal() {
@@ -29680,30 +30840,69 @@ ex:publisher a ex:Property .`,
         });
       },
       // ── Prompt Versions (D3) ──────────────────────────────
+      newRequestId(prefix) {
+        return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      },
       openPromptVersionPanel(p) {
-        this.promptVersionPanelName = p.sourceSchema + " \u2192 " + p.targetSchema;
-        this.promptVersionPanelLoading = true;
+        const groupId = p.promptId || p.id;
+        this.promptVersionPanelName = p.name || `${p.sourceSchema} \u2192 ${p.targetSchema}`;
+        this.promptVersionPanelGroupId = groupId;
         this.showPromptVersionPanel = true;
         this.promptVersions = [];
+        this.promptVersionActiveId = null;
+        this.promptVersionPanelError = "";
+        this.requestPromptVersions(groupId);
+      },
+      requestPromptVersions(groupId) {
+        const requestId = this.newRequestId("pvpanel");
+        this.promptVersionPanelRequestId = requestId;
+        this.promptVersionPanelState = "loading";
+        this.promptVersionPanelLoading = true;
+        this.promptVersionPanelError = "";
+        if (this.promptVersionPanelTimeout) clearTimeout(this.promptVersionPanelTimeout);
+        this.promptVersionPanelTimeout = setTimeout(() => {
+          if (this.promptVersionPanelRequestId === requestId && this.promptVersionPanelState === "loading") {
+            this.promptVersionPanelState = "error";
+            this.promptVersionPanelLoading = false;
+            this.promptVersionPanelError = "Timed out loading version history.";
+          }
+        }, 2e4);
         uibuilderService.send({
           type: "listPromptVersions",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-          data: { sourceSchemaId: p.sourceSchema, targetSchemaId: p.targetSchema }
+          data: { promptGroupId: groupId, requestId, consumer: "panel" }
         });
       },
+      reloadPromptVersions() {
+        if (!this.promptVersionPanelGroupId) return;
+        this.requestPromptVersions(this.promptVersionPanelGroupId);
+      },
+      retryPromptVersions() {
+        this.reloadPromptVersions();
+      },
+      // Called after any mutation that can change version history.
+      invalidatePromptVersions() {
+        if (this.showPromptVersionPanel && this.promptVersionPanelGroupId) {
+          this.reloadPromptVersions();
+        }
+        if (this.promptTestSelectedPrompt) {
+          this.refreshPromptTestVersions();
+        }
+      },
       activatePromptVersion(v) {
-        uibuilderService.send({
-          type: "updatePromptStatus",
-          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-          data: { promptId: v.id, status: "active", sourceSchema: v.sourceSchema, targetSchema: v.targetSchema }
-        });
+        this.setPromptLifecycleStatus(
+          { ...v, promptId: v.promptId || this.promptVersionPanelGroupId },
+          "active"
+        );
       },
       // ── System Settings (E4) ────────────────────────────────
       fetchSystemSettings() {
+        if (!this.hasAccess("schema_registry")) return;
         uibuilderService.send({
           type: "getSystemSettings",
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
-          data: {}
+          data: {},
+          _silent: true
         });
       },
       setDefaultProvider(providerId) {
@@ -29928,6 +31127,13 @@ ex:publisher a ex:Property .`,
       openMappingShacl(row) {
         this.openMappingViewEdit(row);
       },
+      // NF-6: a saved shaclShapeSchemaId means one shape is attached, even when
+      // the legacy shaclCount column was never written.
+      mappingShaclCount(row) {
+        if (!row) return 0;
+        const attached = String(row.shaclShapeSchemaId || "").trim() ? 1 : 0;
+        return Math.max(Number(row.shaclCount) || 0, attached);
+      },
       // ── RDF Mapping Config (FR-SR-06 / FR-SR-07) ────────────
       openRdfMappingConfig(row) {
         this.rdfConfigMapping = row;
@@ -30016,6 +31222,7 @@ ex:publisher a ex:Property .`,
       },
       // ── Harvest Wizard ─────────────────────────────────────────
       openHarvestWizard() {
+        if (!this.hasAccess("harvester")) return;
         this.showHarvestWizard = true;
         this.harvestWizardStep = 1;
         this.harvestWizardSearch = "";
@@ -30040,13 +31247,17 @@ ex:publisher a ex:Property .`,
         this.isLoadingHarvestCatalogues = true;
         this.harvestWizardRows = [];
         this.harvestWizardRowsBase = [];
-        uibuilderService.send({
-          type: "getCatalogRegistry",
-          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
-        });
+        if (this.hasAccess("catalogue_registry")) {
+          uibuilderService.send({
+            type: "getCatalogRegistry",
+            auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+            _silent: true
+          });
+        }
         uibuilderService.send({
           type: "getHarvestCatalogues",
-          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") }
+          auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
+          _silent: true
         });
       },
       closeHarvestWizard() {
@@ -30100,6 +31311,7 @@ ex:publisher a ex:Property .`,
         const selectedCatalogues = this.harvestWizardRowsBase.filter((r) => this.harvestWizardSelectedRows.includes(r.id)).map((r) => {
           const fullCat = this.catalogsTable.find((c) => c.id === r.id || c.uniqueId === r.id);
           return {
+            ...protocolHarvestConfig(fullCat, r.config),
             uniqueId: r.id,
             catalogName: r.catalog,
             strategy: r.strategy || "none",
@@ -30129,6 +31341,7 @@ ex:publisher a ex:Property .`,
             const regId = reg.uniqueId || reg.id || reg.catalogId;
             if (!regId || selectedIds.has(regId)) continue;
             selectedCatalogues.push({
+              ...protocolHarvestConfig(reg, null),
               uniqueId: regId,
               catalogName: reg.catalogName || reg.catalog || reg.name || regId,
               strategy: reg.strategy || "none",
@@ -30143,6 +31356,19 @@ ex:publisher a ex:Property .`,
             });
           }
         }
+        Object.assign(this.activeHarvest, {
+          running: true,
+          status: "running",
+          result: "",
+          progress: 0,
+          totalAssets: 0,
+          processedAssets: 0,
+          successCount: 0,
+          errorCount: 0,
+          warningCount: 0,
+          errors: [],
+          catalogueStatus: {}
+        });
         this.isSubmittingHarvest = true;
         this.harvestSubmitError = "";
         if (this._harvestTimeout) clearTimeout(this._harvestTimeout);
@@ -30188,10 +31414,13 @@ ex:publisher a ex:Property .`,
         h.processedAssets = data.processedAssets ?? h.processedAssets;
         h.successCount = data.successCount ?? h.successCount;
         h.errorCount = data.errorCount ?? h.errorCount;
+        h.warningCount = data.warningCount ?? h.warningCount;
+        h.result = data.result || h.result;
         h.startedAt = data.startedAt || h.startedAt;
         h.running = h.status === "running";
         h._runId = data.runId || h._runId;
         if (data.errors) h.errors = data.errors;
+        if (data.catalogueStatus) h.catalogueStatus = data.catalogueStatus;
       },
       pauseHarvest() {
         uibuilderService.send({
@@ -30221,9 +31450,11 @@ ex:publisher a ex:Property .`,
         this.activeHarvest.running = false;
       },
       loadHarvestData() {
-        uibuilderService.send({ type: "listHarvestRuns", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
-        uibuilderService.send({ type: "listHarvestLogs", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
-        uibuilderService.send({ type: "listHarvestProvenance", auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") } });
+        if (!this.hasAccess("harvester")) return;
+        const auth = { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") };
+        uibuilderService.send({ type: "listHarvestRuns", auth, _silent: true });
+        uibuilderService.send({ type: "listHarvestLogs", auth, _silent: true });
+        uibuilderService.send({ type: "listHarvestProvenance", auth, _silent: true });
       },
       openClearHarvestHistoryModal() {
         this.showClearHarvestHistoryModal = true;
@@ -30302,8 +31533,7 @@ ex:publisher a ex:Property .`,
           auth: { userToken: getCookie2("userToken"), clientId: getCookie2("uibuilder-client-id") },
           data: { uniqueId: id2 }
         });
-        this.catalogsTable = this.catalogsTable.filter((c) => String(c.id) !== String(id2) && String(c.uniqueId) !== String(id2));
-        this.addToast("success", "Remote catalogue deleted successfully.");
+        this.pendingDeleteRemoteCatalogId = id2;
       },
       // ── Monitoring ─────────────────────────────────────────────
       fetchMonitoring() {
@@ -30355,22 +31585,14 @@ ex:publisher a ex:Property .`,
         this.addToast("success", `Event log exported as ${format.toUpperCase()}.`);
       },
       // ── Password Change (Milestone 4) ─────────────────────────
-      changePassword() {
+      async changePassword() {
         this.passwordFormError = "";
         this.passwordFormSuccess = "";
-        if (this.passwordForm.newPassword.length < 8) {
-          this.passwordFormError = "New password must be at least 8 characters.";
-          return;
+        try {
+          await oidcService.beginLogin(this.oidcConfig, { action: "UPDATE_PASSWORD" });
+        } catch (error) {
+          this.passwordFormError = error?.message || "Keycloak password settings are unavailable.";
         }
-        if (this.passwordForm.newPassword !== this.passwordForm.confirmPassword) {
-          this.passwordFormError = "Passwords do not match.";
-          return;
-        }
-        setTimeout(() => {
-          this.passwordFormSuccess = "Password updated successfully.";
-          this.passwordForm = { currentPassword: "", newPassword: "", confirmPassword: "" };
-          this.addToast("success", "Password changed successfully.");
-        }, 600);
       },
       // ── Access Info ─────────────────────────────────────────────
       openAccessInformation() {
@@ -30402,9 +31624,14 @@ ex:publisher a ex:Property .`,
           return;
         }
         this.isLoggingIn = true;
+        const credentials = {
+          username: this.loginForm.username,
+          password: this.loginForm.password
+        };
         uibuilderService.send({
           type: "login",
-          data: { username: this.loginForm.username, password: this.loginForm.password }
+          data: credentials,
+          payload: { data: { ...credentials } }
         });
       },
       handleSignOut() {
@@ -30420,7 +31647,6 @@ ex:publisher a ex:Property .`,
         this.isLoggedIn = false;
         this.authToken = "";
         this.currentUser = { id: "", email: "", username: "", roles: [], permissions: [], isAuthenticated: false, status: "" };
-        this.loginForm = { username: "", password: "" };
         this.loginError = "";
         this.loginErrorCode = "";
       },
@@ -30429,34 +31655,48 @@ ex:publisher a ex:Property .`,
       },
       initDashboardData() {
         const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
-        uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth });
-        uibuilderService.send({ type: "listPrompts", data: {} });
-        uibuilderService.send({ type: "listTestCases", data: {} });
-        uibuilderService.send({ type: "listLlmConfigs", data: {} });
-        uibuilderService.send({ type: "listProviders", data: {} });
-        uibuilderService.send({ type: "listLocalSchemas", data: {} });
-        uibuilderService.send({ type: "listMappings", data: {} });
-        uibuilderService.send({ type: "listRemoteSchemas", data: {} });
-        uibuilderService.send({ type: "getCatalogRegistry", auth });
-        uibuilderService.send({ type: "listAssetTypes", auth, data: {} });
-        const aa = this.currentUser.accessAreas || [];
-        if (aa.includes("adminTools") || this.userAccess.includes("admin_tools")) {
-          uibuilderService.send({ type: "listUsers", auth });
-          uibuilderService.send({ type: "listRoles", auth });
+        uibuilderService.send({ type: "hydrateSession", data: { token: auth.userToken }, auth, _silent: true });
+        if (this.hasAccess("local_catalogue")) {
+          this.loadLocalCatalogs();
+          this.loadLocalProvenance();
         }
-        this.loadHarvestData();
+        if (this.hasAccess("schema_registry")) {
+          [
+            "listPrompts",
+            "listTestCases",
+            "listLlmConfigs",
+            "listProviders",
+            "listLocalSchemas",
+            "listMappings",
+            "listRemoteSchemas"
+          ].forEach((type) => uibuilderService.send({ type, auth, data: {}, _silent: true }));
+        }
+        if (this.hasAccess("catalogue_registry")) {
+          uibuilderService.send({ type: "getCatalogRegistry", auth, _silent: true });
+          uibuilderService.send({ type: "listAssetTypes", auth, data: {}, _silent: true });
+        }
+        if (this.hasAccess("admin_tools")) {
+          uibuilderService.send({ type: "listUsers", auth, _silent: true });
+          uibuilderService.send({ type: "listRoles", auth, _silent: true });
+        }
+        if (this.hasAccess("harvester")) {
+          this.loadHarvestData();
+        }
       }
     },
     mounted() {
       uibuilderService.start();
-      const storedToken = localStorage.getItem("authToken");
-      if (storedToken) {
-        this.isCheckingAuth = true;
-        uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
-      } else {
-        this.isCheckingAuth = false;
-        this.isLoggedIn = false;
-      }
+      setTimeout(() => {
+        uibuilderService.send({ type: "getOidcConfig" });
+        const storedToken = localStorage.getItem("authToken");
+        if (storedToken) {
+          this.isCheckingAuth = true;
+          uibuilderService.send({ type: "checkAuth", data: { token: storedToken } });
+        } else {
+          this.isCheckingAuth = false;
+          this.isLoggedIn = false;
+        }
+      }, 0);
       uibuilderService.onMessage((msg) => {
         console.log(msg);
         const payload = msg?.payload ?? msg;
@@ -30548,6 +31788,11 @@ ex:publisher a ex:Property .`,
             clearTimeout(this._testConnTimeout);
             this._testConnTimeout = null;
           }
+          const stale = !(this._testedConnectionKey === this.connectionTestKey());
+          if (stale) {
+            this.resetConnectionTest();
+            return;
+          }
           this.testConnectionResult = {
             status: resp.status || "error",
             message: resp.message || "",
@@ -30572,6 +31817,7 @@ ex:publisher a ex:Property .`,
             this.addToast("success", "Remote catalogue registered successfully.");
           } else {
             this.registerRemoteCatalogError = resp?.message || "Register remote catalog failed";
+            this.catalogFieldErrors = resp?.fieldErrors || {};
             this.addToast("error", this.registerRemoteCatalogError);
           }
         }
@@ -30604,12 +31850,20 @@ ex:publisher a ex:Property .`,
             this.addToast("success", "Remote catalogue updated successfully.");
           } else {
             this.updateRemoteCatalogError = resp?.message || "Update failed";
+            this.catalogFieldErrors = resp?.fieldErrors || {};
+            this.addToast("error", this.updateRemoteCatalogError);
           }
         }
-        if (resp?.action === "deleteRemoteCatalog" && resp?.status === "success") {
-          const id2 = resp?.uniqueId || msg?.data?.uniqueId;
-          if (id2) {
-            this.catalogsTable = this.catalogsTable.filter((c) => String(c.id) !== String(id2) && String(c.uniqueId) !== String(id2));
+        if (resp?.action === "deleteRemoteCatalog") {
+          const id2 = resp?.uniqueId || msg?.data?.uniqueId || this.pendingDeleteRemoteCatalogId;
+          this.pendingDeleteRemoteCatalogId = null;
+          if (resp?.status === "success") {
+            if (id2) {
+              this.catalogsTable = this.catalogsTable.filter((c) => String(c.id) !== String(id2) && String(c.uniqueId) !== String(id2));
+            }
+            this.addToast("success", "Remote catalogue deleted successfully.");
+          } else {
+            this.addToast("error", resp?.message || "The catalogue could not be deleted.");
           }
         }
         if (resp?.action === "uploadCatalogJson") {
@@ -30643,7 +31897,9 @@ ex:publisher a ex:Property .`,
               name: item.owner || "-",
               domain: item.baseEndpoint || "-",
               updated: item.updatedAt || "-",
-              integrationStatus: item.enabled !== false ? "Active" : "Inactive"
+              integrationStatus: item.enabled !== false ? "Active" : "Inactive",
+              protocol: item.protocol || "",
+              config: item
             }));
             this.harvestWizardRows = [...this.harvestWizardRowsBase];
           }
@@ -30654,11 +31910,18 @@ ex:publisher a ex:Property .`,
             this._harvestTimeout = null;
           }
           this.isSubmittingHarvest = false;
-          if (resp?.status === "success") {
+          const _run0 = resp.run || {};
+          const _errCount = _run0.errorCount || resp.errorCount || 0;
+          const _firstErr = Array.isArray(resp.errors) && resp.errors[0] ? resp.errors[0] : Array.isArray(_run0.errors) && _run0.errors[0] ? _run0.errors[0] : null;
+          if (resp?.status === "success" || resp?.status === "warning") {
             const run = resp.run || {};
             const runStatus = run.status || "completed";
             const assetCount = run.assetsAdded || run.totalAssets || 0;
-            if (assetCount > 0) {
+            const _warnCount = run.warningCount || resp.warningCount || 0;
+            const _partial = resp.partial === true || run.result === "Partial" || _warnCount > 0;
+            if (resp?.status === "warning" || _errCount > 0 || _partial) {
+              this.addToast("warning", (resp?.message || `Harvest ${runStatus} with ${_errCount} error(s) and ${_warnCount} warning(s).`) + (_firstErr ? " - " + _firstErr.message : ""));
+            } else if (assetCount > 0) {
               this.addToast("success", `Harvest ${runStatus}: ${assetCount} assets imported from ${run.catalogueName || "catalogue"}.`);
             } else {
               this.addToast("warning", `Harvest ${runStatus} but 0 assets were found. If harvesting an API source, the endpoint may be unreachable from this environment (CORS). Try uploading the API response as a JSON file when registering the catalogue.`);
@@ -30667,13 +31930,16 @@ ex:publisher a ex:Property .`,
               this.applyHarvestProgress({
                 runId: run.uniqueId,
                 status: runStatus,
+                result: run.result || (_errCount > 0 ? "Partial" : _partial ? "Partial" : "Success"),
                 catalogueName: run.catalogueName || "Harvest",
-                progress: runStatus === "completed" ? 100 : 0,
+                progress: String(runStatus).indexOf("completed") === 0 ? 100 : 0,
                 totalAssets: run.totalAssets || 0,
                 processedAssets: run.totalAssets || 0,
                 successCount: run.successCount || 0,
                 errorCount: run.errorCount || 0,
-                startedAt: run.startedAt || ""
+                warningCount: run.warningCount || 0,
+                startedAt: run.startedAt || "",
+                errors: Array.isArray(resp.errors) ? resp.errors : Array.isArray(run.errors) ? run.errors : []
               });
             }
             if (Array.isArray(resp.allAssets) && resp.allAssets.length > 0) {
@@ -30703,9 +31969,27 @@ ex:publisher a ex:Property .`,
             this.loadHarvestData();
             this.loadLocalCatalogs();
             this.loadLocalProvenance();
+            this.invalidateAuditTrail();
           } else {
-            this.harvestSubmitError = resp?.message || "Harvest failed to start";
-            this.addToast("error", this.harvestSubmitError);
+            this.harvestSubmitError = resp?.message || "Harvest failed.";
+            this.addToast("error", (resp?.message || "Harvest failed.") + (_firstErr ? " - " + _firstErr.message : ""));
+            if (_run0.uniqueId) {
+              this.applyHarvestProgress({
+                runId: _run0.uniqueId,
+                status: _run0.status || "failed",
+                result: _run0.result || "Failed",
+                catalogueName: _run0.catalogueName || "Harvest",
+                progress: 100,
+                totalAssets: _run0.totalAssets || 0,
+                processedAssets: _run0.totalAssets || 0,
+                successCount: _run0.successCount || 0,
+                errorCount: _errCount,
+                startedAt: _run0.startedAt || "",
+                errors: Array.isArray(resp.errors) ? resp.errors : Array.isArray(_run0.errors) ? _run0.errors : []
+              });
+            }
+            this.loadHarvestData();
+            this.invalidateAuditTrail();
           }
         }
         if (resp?.action === "harvestProgress") {
@@ -30738,6 +32022,10 @@ ex:publisher a ex:Property .`,
             assetsAdded: r.assetsAdded != null ? `+${r.assetsAdded}` : "-",
             duration: r.duration || "-",
             result: r.result || r.status || "-",
+            errorCount: r.errorCount || 0,
+            warningCount: r.warningCount || 0,
+            errors: Array.isArray(r.errors) ? r.errors : [],
+            catalogueStatus: r.catalogueStatus || {},
             _run: r
           }));
           this.pagination.harvest.page = 1;
@@ -30755,8 +32043,11 @@ ex:publisher a ex:Property .`,
               status: resp.run.status || "-",
               successCount: resp.run.successCount || 0,
               errorCount: resp.run.errorCount || 0,
+              warningCount: resp.run.warningCount || 0,
+              errors: Array.isArray(resp.run.errors) ? resp.run.errors : [],
+              catalogueStatus: resp.run.catalogueStatus || {},
               assets: Array.isArray(resp.run.assets) ? resp.run.assets : [],
-              logs: Array.isArray(resp.logs) ? resp.logs : [],
+              logs: Array.isArray(resp.logs) ? resp.logs : Array.isArray(resp.run.logs) ? resp.run.logs : [],
               provenance: Array.isArray(resp.provenance) ? resp.provenance : []
             };
           }
@@ -30870,15 +32161,8 @@ ex:publisher a ex:Property .`,
           this.isEditUserModal = false;
           this.isSavingUser = false;
           this.addToast("success", "User updated.");
-          if (resp.user) {
-            const uid = resp.user._id || resp.user.uniqueId;
-            const idx = this.users.findIndex((u) => (u._id || u.uniqueId) === uid);
-            if (idx >= 0) {
-              this.users.splice(idx, 1, { ...this.users[idx], ...resp.user });
-            } else {
-              this.users.push(resp.user);
-            }
-          }
+          const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
+          uibuilderService.send({ type: "listUsers", auth });
         }
         if (resp?.action === "updateUser" && resp?.error) {
           this.isSavingUser = false;
@@ -30936,6 +32220,13 @@ ex:publisher a ex:Property .`,
           const auth = { userToken: localStorage.getItem("authToken") || "", clientId: getCookie2("uibuilder-client-id") };
           uibuilderService.send({ type: "listUsers", auth });
         }
+        if (resp?.action === "getOidcConfig") {
+          this.oidcConfig = {
+            ...this.oidcConfig,
+            ...resp,
+            enabled: resp.status === "success" && resp.enabled === true
+          };
+        }
         if (resp?.action === "login") {
           this.isLoggingIn = false;
           if (resp.status === "success" && resp.token) {
@@ -30962,9 +32253,9 @@ ex:publisher a ex:Property .`,
             }
             this.isLoggedIn = true;
             this.isCheckingAuth = false;
-            this.loginForm = { username: "", password: "" };
             this.loginError = "";
             this.loginErrorCode = "";
+            this.loginForm.password = "";
             this.currentPage = "localCatalogue";
             this.initDashboardData();
             this.fetchSystemSettings();
@@ -31039,7 +32330,8 @@ ex:publisher a ex:Property .`,
             }
           }
         }
-        if (resp?.error === "permission_denied" && !msg?._silent) {
+        const isSilentPermissionCheck = msg?._silent === true || resp?._silent === true;
+        if (resp?.error === "permission_denied" && !isSilentPermissionCheck) {
           this.addToast("error", resp.message || "Permission denied for " + (resp.action || "this operation"));
         }
         if (resp?.error === "not_authenticated" || resp?.error === "account_disabled") {
@@ -31068,15 +32360,26 @@ ex:publisher a ex:Property .`,
             this.promptFormError = "Enhancement failed: " + (resp.message || "Unknown error");
           }
         }
+        if (resp?.action === "createPrompt" && resp?.status === "error") {
+          this.finishPromptSave();
+          this.promptFieldErrors = resp.fieldErrors || {};
+          this.promptFormError = resp.message || "Prompt creation failed.";
+          this.addToast("error", resp.message || "Prompt creation failed.");
+        }
         if (resp?.action === "createPrompt" && resp?.status === "success") {
+          this.finishPromptSave();
           const prompt = resp.prompt;
           if (prompt) {
             const existing = this.prompts.findIndex((p) => p.id === prompt.id);
             if (existing === -1) {
               this.prompts.push(prompt);
             }
-            this.addToast("success", "Prompt created \u2014 generating code...");
           }
+          (resp.warnings || []).forEach((w) => this.addToast("warning", w));
+          this.addToast("success", "Prompt created.");
+          this.closePromptModal();
+          this.fetchPrompts();
+          this.invalidatePromptVersions();
         }
         if (resp?.action === "codeGenerated" && resp?.status === "success") {
           const idx = this.prompts.findIndex((p) => p.id === resp.promptId);
@@ -31084,13 +32387,56 @@ ex:publisher a ex:Property .`,
             this.prompts.splice(idx, 1, {
               ...this.prompts[idx],
               generatedCode: resp.generatedCode,
+              generationStatus: "completed",
               codeGenerationStatus: "completed",
-              status: "active",
+              generationError: "",
+              generationErrorCode: "",
               lastGeneratedAt: resp.lastGeneratedAt,
               updatedAt: resp.updatedAt
             });
           }
-          this.addToast("success", "Code generated \u2014 prompt is now active.");
+          this.addToast("success", "Code generated.");
+          this.fetchPrompts();
+          this.invalidatePromptVersions();
+        }
+        if (resp?.action === "codeGenerated" && resp?.status === "error") {
+          const idx = this.prompts.findIndex((p) => p.id === resp.promptId);
+          const message = providerErrorMessage(resp.errorCode, resp.message);
+          if (idx !== -1) {
+            this.prompts.splice(idx, 1, {
+              ...this.prompts[idx],
+              generationStatus: "error",
+              codeGenerationStatus: "error",
+              generationError: message,
+              generationErrorCode: resp.errorCode || "provider_error",
+              updatedAt: resp.updatedAt
+            });
+          }
+          this.addToast("error", message);
+          this.fetchPrompts();
+          this.invalidatePromptVersions();
+        }
+        if (resp?.action === "retryPromptCodeGeneration" && resp?.status === "error") {
+          this.addToast("error", resp.message || "Could not restart code generation.");
+          const idx = this.prompts.findIndex((p) => p.id === resp.versionId);
+          if (idx !== -1) {
+            this.prompts.splice(idx, 1, { ...this.prompts[idx], generationStatus: "error" });
+          }
+        }
+        if (resp?.action === "testProviderConnection") {
+          this.providerTestingId = "";
+          this.providerTestResult = {
+            ok: !!resp.ok,
+            code: resp.code || "",
+            message: resp.ok ? resp.message : providerErrorMessage(resp.code, resp.message),
+            providerId: resp.providerId || "",
+            providerName: resp.providerName || "",
+            endpoint: resp.endpoint || "",
+            model: resp.model || "",
+            httpStatus: resp.httpStatus || 0,
+            latencyMs: resp.latencyMs ?? null
+          };
+          this.addToast(resp.ok ? "success" : "error", this.providerTestResult.message);
         }
         if (resp?.action === "listPrompts" && resp?.status === "success") {
           if (Array.isArray(resp.prompts)) {
@@ -31109,46 +32455,81 @@ ex:publisher a ex:Property .`,
           this.addToast("success", "Code saved.");
         }
         if (resp?.action === "updatePrompt" && resp?.status === "error") {
+          this.finishPromptSave();
+          this.promptFieldErrors = resp.fieldErrors || {};
           this.promptFormError = resp.message || "Update failed.";
           this.addToast("error", resp.message || "Prompt update failed.");
         }
         if (resp?.action === "updatePrompt" && resp?.status === "success") {
-          const uIdx = this.prompts.findIndex((p) => p.id === resp.promptId);
-          if (uIdx !== -1) {
-            const updates = { updatedAt: resp.updatedAt };
-            if (resp.version !== void 0) updates.version = resp.version;
-            if (resp.sourceSchema !== void 0) updates.sourceSchema = resp.sourceSchema;
-            if (resp.targetSchema !== void 0) updates.targetSchema = resp.targetSchema;
-            if (resp.template !== void 0) updates.template = resp.template;
-            if (resp.examples !== void 0) updates.examples = resp.examples;
-            if (resp.constraints !== void 0) updates.constraints = resp.constraints;
-            if (resp.promptStatus !== void 0) updates.status = resp.promptStatus;
-            if (resp.code !== void 0) updates.generatedCode = resp.code;
-            this.prompts.splice(uIdx, 1, { ...this.prompts[uIdx], ...updates });
-          }
-          this.addToast("success", "Prompt updated.");
+          this.finishPromptSave();
+          (resp.warnings || []).forEach((w) => this.addToast("warning", w));
+          this.addToast(
+            "success",
+            resp.versionCreated ? `Version ${resp.prompt?.version} created \u2014 previous versions kept.` : "Prompt updated."
+          );
+          this.closePromptModal();
+          this.fetchPrompts();
+          this.invalidatePromptVersions();
         }
         if (resp?.action === "updatePromptStatus" && resp?.status === "error") {
-          this.addToast("error", resp.message || "Status update failed.");
+          const vid = resp.versionId || resp.promptId;
+          if (vid && this.lifecyclePending[vid] !== void 0) {
+            this.rollbackLifecycle(vid, resp.message || "Status update failed.");
+          } else {
+            this.lifecycleError = resp.message || "Status update failed.";
+            this.addToast("error", this.lifecycleError);
+          }
         }
         if (resp?.action === "updatePromptStatus" && resp?.status === "success") {
-          const sIdx = this.prompts.findIndex((p) => p.id === resp.promptId);
-          if (sIdx !== -1) {
-            this.prompts.splice(sIdx, 1, { ...this.prompts[sIdx], status: resp.newStatus, updatedAt: resp.updatedAt });
+          const vid = resp.versionId;
+          this.clearLifecyclePending(vid);
+          this.lifecycleError = "";
+          const canonical = resp.version || null;
+          if (canonical) {
+            const pi = this.prompts.findIndex((p) => (p.versionId || p.id) === vid);
+            if (pi !== -1) this.prompts.splice(pi, 1, { ...this.prompts[pi], ...canonical });
+            if (this.promptForm && this.promptForm.id === vid) {
+              this.promptForm.status = canonical.status;
+            }
           }
+          if (Array.isArray(resp.versions)) {
+            if (this.promptVersionPanelGroupId === resp.promptId) {
+              this.promptVersions = resp.versions;
+              this.promptVersionActiveId = resp.activeVersionId || null;
+              this.promptVersionPanelState = resp.versions.length ? "success" : "empty";
+            }
+            const selected = this.prompts.find((p) => p.id === this.promptTestSelectedPrompt);
+            if (selected && (selected.promptId || selected.id) === resp.promptId) {
+              this.promptTestVersions = resp.versions;
+            }
+          }
+          this.addToast("success", `Version v${resp.version?.version ?? ""} is now ${resp.newStatus}.`);
+          this.fetchPrompts();
+          this.invalidatePromptVersions();
         }
         if (resp?.action === "deletePrompt" && resp?.status === "success") {
           this.prompts = this.prompts.filter((p) => p.id !== resp.promptId);
           this.addToast("success", "Prompt deleted.");
         }
         if (resp?.action === "dryRunPrompt") {
-          if (resp.status === "success") {
-            this.promptTestResult = resp.result || "";
+          const valid = resp.status === "success" && resp.executionStatus !== "error" && typeof resp.result === "string" && resp.result.trim().length > 0;
+          if (valid) {
+            this.promptTestResult = resp.result;
+            this.promptTestError = "";
+            this.promptTestExecutionStatus = "success";
           } else {
+            this.promptTestResult = "";
             this.promptTestError = resp.message || "Dry run failed.";
+            this.promptTestErrorCode = resp.code || "execution_error";
+            this.promptTestExecutionStatus = "error";
           }
+          this.promptTestRanVersionId = resp.versionId || this.promptTestSelectedVersionId;
           this.promptTestResolvedFromBackend = resp.resolvedPrompt || "";
           this.promptTestRunning = false;
+          if (this.promptTestTimeout) {
+            clearTimeout(this.promptTestTimeout);
+            this.promptTestTimeout = null;
+          }
         }
         if (resp?.action === "saveTestCase" && resp?.status === "success") {
           if (resp.testCase) {
@@ -31311,9 +32692,35 @@ ex:publisher a ex:Property .`,
           this.validateSampleForm.loading = false;
           this.validateSampleForm.result = resp;
         }
-        if (resp?.action === "listPromptVersions" && resp?.ok) {
-          this.promptVersions = Array.isArray(resp.versions) ? resp.versions : [];
-          this.promptVersionPanelLoading = false;
+        if (resp?.action === "listPromptVersions") {
+          const versions = Array.isArray(resp.versions) ? resp.versions : [];
+          if (resp.consumer === "testing") {
+            if (resp.requestId === this.promptTestVersionsRequestId) {
+              if (resp.ok) {
+                this.promptTestVersions = versions;
+                this.promptTestVersionsState = versions.length ? "success" : "empty";
+                const active = versions.find((v) => v.versionId === resp.activeVersionId);
+                this.promptTestSelectedVersionId = (active || versions[0])?.versionId || "";
+              } else {
+                this.promptTestVersionsState = "error";
+              }
+            }
+          } else if (resp.requestId === this.promptVersionPanelRequestId) {
+            if (this.promptVersionPanelTimeout) {
+              clearTimeout(this.promptVersionPanelTimeout);
+              this.promptVersionPanelTimeout = null;
+            }
+            this.promptVersionPanelLoading = false;
+            if (resp.ok) {
+              this.promptVersions = versions;
+              this.promptVersionActiveId = resp.activeVersionId || null;
+              this.promptVersionPanelState = versions.length ? "success" : "empty";
+              this.promptVersionPanelError = "";
+            } else {
+              this.promptVersionPanelState = "error";
+              this.promptVersionPanelError = resp.message || "Failed to load version history.";
+            }
+          }
         }
         if (resp?.action === "getSystemSettings" && resp?.ok) {
           this.systemSettings = resp.settings || {};
@@ -31427,6 +32834,7 @@ ex:publisher a ex:Property .`,
           }
         }
         if (resp?.action === "listTransformationAudit") {
+          if (resp.requestId && this.auditTrail.requestId && resp.requestId !== this.auditTrail.requestId) return;
           if (this._auditTimeout) {
             clearTimeout(this._auditTimeout);
             this._auditTimeout = null;
@@ -31435,10 +32843,30 @@ ex:publisher a ex:Property .`,
           this.auditTrail.loaded = true;
           if (resp.ok !== false) {
             this.auditTrail.rows = Array.isArray(resp.rows) ? resp.rows : [];
+            this.auditTrail.error = "";
             this.auditTrail.pagination.total = resp.total ?? this.auditTrail.rows.length;
             this.auditTrail.pagination.page = resp.page ?? 1;
+            if (resp.perPage) this.auditTrail.pagination.perPage = resp.perPage;
           } else {
-            this.auditTrail.error = resp.error || resp.code || "Failed to load audit trail.";
+            this.auditTrail.rows = [];
+            this.auditTrail.error = resp.message || resp.error || resp.code || "Failed to load audit trail.";
+          }
+        }
+        if (resp?.action === "verifyTransformationAuditChain") {
+          if (resp.requestId && this.auditIntegrity.requestId && resp.requestId !== this.auditIntegrity.requestId) return;
+          if (this._auditVerifyTimeout) {
+            clearTimeout(this._auditVerifyTimeout);
+            this._auditVerifyTimeout = null;
+          }
+          this.auditIntegrity.running = false;
+          if (resp.ok !== false) {
+            this.auditIntegrity.result = resp;
+            this.auditIntegrity.error = "";
+            this.addToast(resp.valid ? "success" : "error", resp.message || (resp.valid ? "Audit chain verified." : "Audit chain is broken."));
+          } else {
+            this.auditIntegrity.result = null;
+            this.auditIntegrity.error = resp.message || resp.error || resp.code || "Integrity verification failed.";
+            this.addToast("error", this.auditIntegrity.error);
           }
         }
         if (resp?.action === "exportTransformationAudit") {
@@ -31495,8 +32923,6 @@ ex:publisher a ex:Property .`,
       });
       this.setPerPageByViewport();
       window.addEventListener("resize", this.onResize);
-      this.loadLocalCatalogs();
-      this.loadLocalProvenance();
       window.addEventListener("scroll", this.updateMenuPosition, true);
       window.addEventListener("resize", this.updateMenuPosition);
     },

@@ -25,17 +25,28 @@ export function roleClass(role) {
 }
 
 export function resultClass(result) {
-  if (result === "Success") return "green";
-  if (result === "Warning") return "yellow";
-  if (result === "Error") return "red";
+  const v = String(result || "").trim().toLowerCase();
+  if (v === "success") return "green";
+  if (v === "partial" || v === "warning" || v === "completed_with_errors") return "yellow";
+  if (v === "failed" || v === "error") return "red";
   return "gray";
 }
 
 export function logPillClass(level) {
-  if (level === "Info") return "blue";
-  if (level === "Warning") return "yellow";
-  if (level === "Error") return "red";
+  const v = String(level || "").trim().toLowerCase();
+  if (v === "info") return "blue";
+  if (v === "warn" || v === "warning") return "yellow";
+  if (v === "error" || v === "fatal") return "red";
   return "gray";
+}
+
+export function resultLabel(result) {
+  const v = String(result || "").trim().toLowerCase();
+  if (v === "completed_with_errors") return "Completed with errors";
+  if (v === "failed") return "Failed";
+  if (v === "partial") return "Partial";
+  if (v === "success") return "Success";
+  return result || "-";
 }
 
 export function namespaceClass(ns) {

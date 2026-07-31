@@ -141,6 +141,8 @@ const ROUTE_MAP = {
   // Dashboard / Auth
   getDashboard:           'dashboard',
   login:                  'auth',
+  getOidcConfig:          'auth',
+  oidcExchange:           'auth',
   checkAuth:              'auth',
   logOut:                 'auth',
 
@@ -237,6 +239,11 @@ const ROUTE_MAP = {
   validateSampleAsset:       'schema-registry',
   listTransformationAudit:  'schema-registry',
   exportTransformationAudit: 'schema-registry',
+  updateTransformationAudit: 'schema-registry',
+  deleteTransformationAudit: 'schema-registry',
+  verifyTransformationAuditChain: 'schema-registry',
+  testProviderConnection:    'schema-registry',
+  retryPromptCodeGeneration: 'schema-registry',
   listPromptVersions:        'schema-registry',
   getLlmUsage:               'schema-registry',
   getSystemSettings:         'schema-registry',
@@ -264,6 +271,32 @@ function dispatchMsg(msg) {
 
 function createMockResponder(msg) {
   if (!msg) return;
+
+  if (msg.type === "login") {
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "login",
+          status: "error",
+          error: "backend_required",
+          message: "Keycloak login requires the Node-RED/uibuilder backend."
+        }
+      }
+    });
+  }
+
+  if (msg.type === "getOidcConfig") {
+    dispatchMsg({
+      payload: {
+        response: {
+          action: "getOidcConfig",
+          status: "error",
+          enabled: false,
+          message: "Keycloak login requires the Node-RED/uibuilder backend."
+        }
+      }
+    });
+  }
 
   if (msg.type === "getDashboard") {
     dispatchMsg({
@@ -630,56 +663,12 @@ function createMockResponder(msg) {
     });
   }
 
-  if (msg.type === "login") {
-    const d = msg.data || {};
-    if (d.username === "admin" && d.password === "1234") {
-      const token = "mock-token-" + Date.now().toString(36);
-      dispatchMsg({ payload: { response: {
-        action: "login",
-        status: "success",
-        token: token,
-        user: {
-          username: "admin",
-          role: "Administrator",
-          email: "admin@facis.eu",
-          access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
-          accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
-          roles: ["admin"],
-          permissions: ["*"]
-        }
-      } } });
-    } else {
-      dispatchMsg({ payload: { response: {
-        action: "login",
-        status: "error",
-        message: "Invalid username or password."
-      } } });
-    }
-  }
-
   if (msg.type === "checkAuth") {
-    const token = msg.data?.token || "";
-    if (token && token.startsWith("mock-token-")) {
-      dispatchMsg({ payload: { response: {
-        action: "checkAuth",
-        status: "success",
-        user: {
-          username: "admin",
-          role: "Administrator",
-          email: "admin@facis.eu",
-          access: ["local_catalogue", "catalogue_registry", "schema_registry", "admin_tools", "harvester"],
-          accessAreas: ["localCatalogue", "catalogueRegistry", "schemaRegistry", "adminTools", "harvest"],
-          roles: ["admin"],
-          permissions: ["*"]
-        }
-      } } });
-    } else {
-      dispatchMsg({ payload: { response: {
-        action: "checkAuth",
-        status: "error",
-        message: "Session expired or invalid."
-      } } });
-    }
+    dispatchMsg({ payload: { response: {
+      action: "checkAuth",
+      status: "error",
+      message: "Keycloak login requires the Node-RED/uibuilder backend."
+    } } });
   }
 
   if (msg.type === "logOut") {
@@ -1226,6 +1215,9 @@ const uibuilderService = {
     if (msg && msg.type && !msg.route) {
       const route = resolveRoute(msg.type);
       if (route) msg.route = route;
+      // Without a route the backend router drops the message and the caller
+      // only ever sees a timeout, so make the cause visible.
+      else console.error('[facis-service] no route mapped for msg.type "' + msg.type + '"; the backend will never receive it.');
     }
 
     // CRITICAL: uibuilder v7.5.0 strips msg.auth and may not reliably
@@ -1234,7 +1226,7 @@ const uibuilderService = {
     const token = (typeof localStorage !== 'undefined' && localStorage.getItem('authToken'))
                || (typeof document !== 'undefined' && getCookie('userToken'))
                || '';
-    if (token && msg.type !== 'login') {
+    if (token) {
       // 1. Top-level _token property (simple string, should survive transport)
       msg._token = token;
 

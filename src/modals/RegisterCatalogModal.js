@@ -1,13 +1,33 @@
 export default {
   name: "RegisterCatalogModal",
   template: "#tpl-register-catalog-modal",
+  computed: {
+    protocolOptions() { return PROTOCOLS; },
+    queryLanguageOptions() { return QUERY_LANGUAGES; },
+    resultModeOptions() { return RESULT_MODES; },
+    catalogProtocol() { return normaliseProtocol(this.remoteCatalogForm.protocol); },
+    catalogQueryExecutable() {
+      return this.catalogProtocol === "query-interface"
+        && isExecutableQueryLanguage(this.remoteCatalogForm.queryLanguage);
+    },
+    protocolErrors() { return validateProtocolConfig(this.remoteCatalogForm); },
+    protocolReady() { return Object.keys(this.protocolErrors).length === 0; },
+  },
   props: {
+    protocolOptions: { type: Array, default: () => [] },
+    queryLanguageOptions: { type: Array, default: () => [] },
+    resultModeOptions: { type: Array, default: () => [] },
+    catalogProtocol: { type: String, default: "query-interface" },
+    catalogQueryExecutable: { type: Boolean, default: false },
+    protocolReady: { type: Boolean, default: false },
+    protocolIssues: { type: Array, default: () => [] },
     visible: { type: Boolean, default: false },
     remoteCatalogForm: { type: Object, required: true },
     isEditingRemoteCatalog: { type: Boolean, default: false },
     isSavingRemoteCatalog: { type: Boolean, default: false },
     registerRemoteCatalogError: { type: String, default: "" },
     updateRemoteCatalogError: { type: String, default: "" },
+    catalogFieldErrors: { type: Object, default: () => ({}) },
     isTestingConnection: { type: Boolean, default: false },
     testConnectionResult: { type: Object, default: () => ({ status: "", message: "", latency: 0 }) },
     assetTypes: { type: Array, default: () => [] },

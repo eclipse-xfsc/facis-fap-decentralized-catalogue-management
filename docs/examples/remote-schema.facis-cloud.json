@@ -1,0 +1,1291 @@
+{
+    "A.1": {
+        "Provider": {
+            "A.1.1": {
+                "LegalContractProviderAndOwnershipStructure": {
+                    "type": "object",
+                    "description": "Information on the identity of the provider and its ownership structure.",
+                    "properties": {
+                        "A.1.1.0": {
+                            "type": "string",
+                            "description": "Application type (e.g. Cloud Service, Cloud Service Provider).",
+                            "required": true
+                        },
+                        "A.1.1.1": {
+                            "type": "string",
+                            "description": "Company name.",
+                            "required": true
+                        },
+                        "A.1.1.2": {
+                            "type": "string",
+                            "description": "Legal form.",
+                            "required": true
+                        },
+                        "A.1.1.3": {
+                            "type": "string",
+                            "description": "VAT ID. Either this or A.1.1.4 is required.",
+                            "required": false
+                        },
+                        "A.1.1.4": {
+                            "type": "string",
+                            "description": "Register number. Either this or A.1.1.3 is required.",
+                            "required": false
+                        },
+                        "A.1.1.5": {
+                            "type": "string",
+                            "description": "Date of registration.",
+                            "required": true
+                        },
+                        "A.1.1.6": {
+                            "type": "boolean",
+                            "description": "Does the company belong to the category 'small and medium-sized enterprises' according to EU recommendation 2003/361/EC?",
+                            "required": true
+                        },
+                        "A.1.1.7": {
+                            "type": "string",
+                            "description": "Address of the registered office or principal place of business.",
+                            "required": true
+                        },
+                        "A.1.1.8": {
+                            "type": "string",
+                            "description": "Names of the members of the representative body or the legal representatives.",
+                            "required": true
+                        },
+                        "A.1.1.9": {
+                            "type": "string",
+                            "description": "Main contact (name, phone number, e-mail address).",
+                            "required": true
+                        },
+                        "A.1.1.10": {
+                            "type": "string",
+                            "description": "Contact of the data protection officer (according to Art. 37 para. 5 GDPR) or alternatively the data protection contact person (name, phone number, e-mail address).",
+                            "required": true
+                        },
+                        "A.1.1.11": {
+                            "type": "string",
+                            "description": "Contact of the technical department (name, phone number, e-mail address).",
+                            "required": false
+                        },
+                        "A.1.1.12": {
+                            "type": "string",
+                            "description": "Contact of the legal department (name, phone number, e-mail address).",
+                            "required": false
+                        },
+                        "A.1.1.13": {
+                            "type": "string",
+                            "description": "URL of the company website.",
+                            "required": true
+                        },
+                        "A.1.1.14": {
+                            "type": "string",
+                            "description": "Company description.",
+                            "required": false
+                        },
+                        "A.1.1.15": {
+                            "type": "string",
+                            "description": "Company logo (PNG, GIF or JPG file).",
+                            "required": false
+                        }
+                    }
+                }
+            },
+            "A.1.2": {
+                "CompanyProfile": {
+                    "type": "object",
+                    "description": "Information on company size and experience in providing cloud services.",
+                    "properties": {
+                        "A.1.2.1": {
+                            "type": "string",
+                            "description": "Number of employees.",
+                            "required": true
+                        },
+                        "A.1.2.2": {
+                            "type": "string",
+                            "description": "Number of employees in the cloud services area.",
+                            "required": true
+                        },
+                        "A.1.2.3": {
+                            "type": "string",
+                            "description": "Revenue.",
+                            "required": true
+                        },
+                        "A.1.2.4": {
+                            "type": "string",
+                            "description": "Company category (Reseller, ISV, CSP, Other).",
+                            "required": true
+                        },
+                        "A.1.2.5": {
+                            "type": "string",
+                            "description": "Number of publicly offered cloud services.",
+                            "required": true
+                        },
+                        "A.1.2.6": {
+                            "type": "string",
+                            "description": "Experience level of providing cloud services (< 1 year, 1-5 years, > 5 years).",
+                            "required": true
+                        }
+                    }
+                }
+            },
+            "A.1.3": {
+                "Auditability": {
+                    "type": "object",
+                    "description": "Description of the possibilities for conducting audits by the user.",
+                    "properties": {
+                        "A.1.3.1": {
+                            "type": "boolean",
+                            "description": "Is it possible to conduct audits upon request by the user?",
+                            "required": true
+                        },
+                        "A.1.3.2": {
+                            "type": "string",
+                            "description": "If so, which ones have already been carried out?",
+                            "required": true
+                        },
+                        "A.1.3.3": {
+                            "type": "string",
+                            "description": "Is it possible for the user to conduct audits on work processes and organizational procedures relating to data protection and security?",
+                            "required": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.2": {
+        "Service": {
+            "A.2.1": {
+                "GeneralInformationAboutTheService": {
+                    "type": "object",
+                    "description": "Specification of basic information for the description of the service.",
+                    "properties": {
+                        "A.2.1.1": {
+                            "type": "string",
+                            "description": "Name of the service.",
+                            "required": true
+                        },
+                        "A.2.1.2": {
+                            "type": "string",
+                            "description": "Service Logo (PDF or JPG file).",
+                            "required": false
+                        },
+                        "A.2.1.3": {
+                            "type": "string",
+                            "description": "Deployment model (Public/Private/Hybrid).",
+                            "required": true
+                        },
+                        "A.2.1.4": {
+                            "type": "string",
+                            "description": "Service model (IaaS, PaaS, SaaS).",
+                            "required": true
+                        },
+                        "A.2.1.5": {
+                            "type": "string",
+                            "description": "URL of the service website.",
+                            "required": true
+                        }
+                    }
+                }
+            },
+            "A.2.2": {
+                "FunctionalDescriptionOfTheService": {
+                    "type": "object",
+                    "description": "Functional description of the service and professional categorization.",
+                    "properties": {
+                        "A.2.2.1": {
+                            "type": "string",
+                            "description": "Service description.",
+                            "required": true
+                        },
+                        "A.2.2.2": {
+                            "type": "string",
+                            "description": "Service short description.",
+                            "required": true
+                        }
+                    }
+                }
+            },
+            "A.2.3": {
+                "MaturityLevelOfTheService": {
+                    "type": "object",
+                    "description": "Information on the extent of service use.",
+                    "properties": {
+                        "A.2.3.1": {
+                            "type": "string",
+                            "description": "Number of customers using the service, incl. date of survey.",
+                            "required": false
+                        },
+                        "A.2.3.2": {
+                            "type": "string",
+                            "description": "Total number of users using the service, incl. date of survey.",
+                            "required": false
+                        }
+                    }
+                }
+            },
+            "A.2.4": {
+                "References": {
+                    "type": "object",
+                    "description": "Information on reference customers and usage scenarios.",
+                    "properties": {
+                        "A.2.4.1": {
+                            "type": "string",
+                            "description": "Name of the customer."
+                        },
+                        "A.2.4.2": {
+                            "type": "string",
+                            "description": "Description of use."
+                        },
+                        "A.2.4.3": {
+                            "type": "string",
+                            "description": "Contact person (name, phone number, e-mail address)."
+                        },
+                        "A.2.4.4": {
+                            "type": "string",
+                            "description": "URL of the customer website."
+                        }
+                    }
+                }
+            },
+            "A.2.5": {
+                "MainContactToTheService": {
+                    "type": "object",
+                    "description": "Information on the main contact person for the service.",
+                    "properties": {
+                        "A.2.5.1": {
+                            "type": "string",
+                            "description": "Name."
+                        },
+                        "A.2.5.2": {
+                            "type": "string",
+                            "description": "Position."
+                        },
+                        "A.2.5.3": {
+                            "type": "string",
+                            "description": "Phone number."
+                        },
+                        "A.2.5.4": {
+                            "type": "string",
+                            "description": "E-mail address."
+                        },
+                        "A.2.5.5": {
+                            "type": "string",
+                            "description": "Photo (PNG, GIF or JPG file)."
+                        },
+                        "A.2.5.6": {
+                            "type": "string",
+                            "description": "Address (Country, Address 1, Address 2, Postal Code, City)."
+                        }
+                    }
+                }
+            },
+            "A.2.6": {
+                "OtherContactsToTheService": {
+                    "type": "object",
+                    "description": "Information on other contact persons for the service.",
+                    "properties": {
+                        "A.2.6.1": {
+                            "type": "string",
+                            "description": "Name."
+                        },
+                        "A.2.6.2": {
+                            "type": "string",
+                            "description": "Position."
+                        },
+                        "A.2.6.3": {
+                            "type": "string",
+                            "description": "Phone number."
+                        },
+                        "A.2.6.4": {
+                            "type": "string",
+                            "description": "E-mail address."
+                        },
+                        "A.2.6.5": {
+                            "type": "string",
+                            "description": "Photo (PNG, GIF or JPG file)."
+                        }
+                    }
+                }
+            },
+            "A.2.7": {
+                "DataProcessing": {
+                    "type": "object",
+                    "description": "Specification of the type of data to be processed.",
+                    "properties": {
+                        "A.2.7.1": {
+                            "type": "string",
+                            "description": "What type of data is processed? (no specification, personal data according to GDPR).",
+                            "required": false
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.3": {
+        "SubcontractorsAndDataCenters": {
+            "type": "object",
+            "description": "Information on subcontractors and data centers involved in the provision of the service.",
+            "properties": {
+                "A.3.1": {
+                    "SubcontractorsAndLocationsOfDataCenters": {
+                        "type": "object",
+                        "description": "Clarification of data locations and subcontractors involved.",
+                        "properties": {
+                            "A.3.1.1": {
+                                "type": "string",
+                                "description": "Company name.",
+                                "required": true
+                            },
+                            "A.3.1.2": {
+                                "type": "string",
+                                "description": "Legal form.",
+                                "required": true
+                            },
+                            "A.3.1.3": {
+                                "type": "string",
+                                "description": "Register number.",
+                                "required": false
+                            },
+                            "A.3.1.4": {
+                                "type": "string",
+                                "description": "Address of the registered office or principal place of business.",
+                                "required": true
+                            },
+                            "A.3.1.5": {
+                                "type": "string",
+                                "description": "Geographical location of the data center (country, state).",
+                                "required": true
+                            },
+                            "A.3.1.6": {
+                                "type": "string",
+                                "description": "In-house/legally independent company.",
+                                "required": true
+                            },
+                            "A.3.1.7": {
+                                "type": "string",
+                                "description": "Logo of the subcontractor/data center (PNG, GIF or JPEG file).",
+                                "required": false
+                            },
+                            "A.3.1.8": {
+                                "type": "string",
+                                "description": "Website.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.3.2": {
+                    "CompanyProfile": {
+                        "type": "object",
+                        "description": "Information on company size, number of employees, main business areas.",
+                        "properties": {
+                            "A.3.2.1": {
+                                "type": "string",
+                                "description": "Number of employees.",
+                                "required": false
+                            },
+                            "A.3.2.2": {
+                                "type": "string",
+                                "description": "Revenue.",
+                                "required": false
+                            },
+                            "A.3.2.3": {
+                                "type": "string",
+                                "description": "Company category (Reseller, ISV, CSP, Other).",
+                                "required": true
+                            },
+                            "A.3.2.4": {
+                                "type": "string",
+                                "description": "Number of publicly offered cloud services.",
+                                "required": false
+                            },
+                            "A.3.2.5": {
+                                "type": "string",
+                                "description": "Experience level of providing cloud services (< 1 year, 1-5 years, > 5 years).",
+                                "required": false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.4": {
+        "Certificates": {
+            "type": "object",
+            "description": "Specification of quality seals and certificates of the cloud service and the involved subcontractors or data centers.",
+            "properties": {
+                "A.4.1": {
+                    "SealsOfApprovalCertificatesOfTheService": {
+                        "type": "object",
+                        "description": "Specification of seals of approval and certifications of the service.",
+                        "properties": {
+                            "A.4.1.1": {
+                                "type": "string",
+                                "description": "Name of the certificate.",
+                                "required": true
+                            },
+                            "A.4.1.2": {
+                                "type": "string",
+                                "description": "Certificate type (e.g. BSI IT-Grundschutz, C5, ISO 27001).",
+                                "required": true
+                            },
+                            "A.4.1.3": {
+                                "type": "string",
+                                "description": "Description of the audit scope.",
+                                "required": true
+                            },
+                            "A.4.1.4": {
+                                "type": "string",
+                                "description": "Certification body.",
+                                "required": true
+                            },
+                            "A.4.1.5": {
+                                "type": "string",
+                                "description": "Certificate document (PDF or JPG file).",
+                                "required": true
+                            },
+                            "A.4.1.6": {
+                                "type": "string",
+                                "description": "Validity date (Valid until).",
+                                "required": true
+                            },
+                            "A.4.1.7": {
+                                "type": "boolean",
+                                "description": "Is the certificate regularly audited?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.4.2": {
+                    "SealsOfApprovalCertificatesOfTheSubcontractorsDataCenters": {
+                        "type": "object",
+                        "description": "Specification of the certifications of the data centers and the technical infrastructure.",
+                        "properties": {
+                            "A.4.2.1": {
+                                "type": "string",
+                                "description": "Name of the certificate.",
+                                "required": true
+                            },
+                            "A.4.2.2": {
+                                "type": "string",
+                                "description": "Certificate type (e.g. BSI IT-Grundschutz, C5, ISO 27001).",
+                                "required": true
+                            },
+                            "A.4.2.3": {
+                                "type": "string",
+                                "description": "Description of the audit scope.",
+                                "required": true
+                            },
+                            "A.4.2.4": {
+                                "type": "string",
+                                "description": "Certification body.",
+                                "required": true
+                            },
+                            "A.4.2.5": {
+                                "type": "string",
+                                "description": "Certificate document (PDF or JPG file).",
+                                "required": true
+                            },
+                            "A.4.2.6": {
+                                "type": "string",
+                                "description": "Validity date (Valid until).",
+                                "required": true
+                            },
+                            "A.4.2.7": {
+                                "type": "boolean",
+                                "description": "Is the certificate regularly audited?",
+                                "required": true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.5": {
+        "Contract": {
+            "type": "object",
+            "description": "Presentation of the contractual components relevant for secure cloud use.",
+            "properties": {
+                "A.5.1": {
+                    "GeneralContractTransparency": {
+                        "type": "object",
+                        "description": "Information on general contract transparency.",
+                        "properties": {
+                            "A.5.1.1": {
+                                "type": "string",
+                                "description": "Are contracts made available to the customer in advance?",
+                                "required": false
+                            },
+                            "A.5.1.2": {
+                                "type": "string",
+                                "description": "Web reference to the service contract.",
+                                "required": true
+                            },
+                            "A.5.1.3": {
+                                "type": "string",
+                                "description": "Specification of the licenses used.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.5.2": {
+                    "ApplicableLawAndJurisdiction": {
+                        "type": "object",
+                        "description": "Information on the applicable law and the place of jurisdiction.",
+                        "properties": {
+                            "A.5.2.1": {
+                                "type": "string",
+                                "description": "Applicable law (German contract law, EU contract law).",
+                                "required": false
+                            },
+                            "A.5.2.2": {
+                                "type": "string",
+                                "description": "Place of jurisdiction.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.5.3": {
+                    "TransparencyWithSubcontractors": {
+                        "type": "object",
+                        "description": "Naming of all subcontractors involved in the provision of the service.",
+                        "properties": {
+                            "A.5.3.1": {
+                                "type": "string",
+                                "description": "Are all subcontractors involved in the provision of the service listed?",
+                                "required": false
+                            },
+                            "A.5.3.2": {
+                                "type": "string",
+                                "description": "Are all contractual conditions transferable to the subcontractors and are they complied with by them?",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.5.4": {
+                    "RegulationsForServiceInterruptionOrInsolvency": {
+                        "type": "object",
+                        "description": "Clear regulations on the repatriation of data in the event of service interruption or insolvency.",
+                        "properties": {
+                            "A.5.4.1": {
+                                "type": "string",
+                                "description": "Is access to and protection of customer data guaranteed and contractually regulated in the event of insolvency or extraordinary termination of the contract?",
+                                "required": false
+                            },
+                            "A.5.4.2": {
+                                "type": "string",
+                                "description": "Specification of the contractually guaranteed regulations for the repatriation of customer data.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.5.5": {
+                    "ServiceLevelAgreements": {
+                        "type": "object",
+                        "description": "Information on Service Level Agreements (SLA) and regulations in case of SLA violations.",
+                        "properties": {
+                            "A.5.5.1": {
+                                "type": "boolean",
+                                "description": "Are Service Level Agreements part of the contract?",
+                                "required": true
+                            },
+                            "A.5.5.2": {
+                                "type": "boolean",
+                                "description": "Can the customer check compliance with the SLAs?",
+                                "required": true
+                            },
+                            "A.5.5.3": {
+                                "type": "string",
+                                "description": "Description of the SLAs and verification procedures.",
+                                "required": false
+                            },
+                            "A.5.5.4": {
+                                "type": "boolean",
+                                "description": "Are the legal consequences of a breach of the SLAs described in the contract?",
+                                "required": true
+                            },
+                            "A.5.5.5": {
+                                "type": "boolean",
+                                "description": "Is a permanent guarantee of the confidentiality, integrity, availability and resilience of the systems and services in connection with the processing contractually assured?",
+                                "required": true
+                            },
+                            "A.5.5.6": {
+                                "type": "boolean",
+                                "description": "Is the availability and access of the data as well as the rapid restoration in case of a physical or technical incident contractually guaranteed?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.5.6": {
+                    "TransparentPriceModel": {
+                        "type": "object",
+                        "description": "Information on the price model used, contract terms and notice periods.",
+                        "properties": {
+                            "A.5.6.1": {
+                                "type": "string",
+                                "description": "Information on the price model used.",
+                                "required": false
+                            },
+                            "A.5.6.2": {
+                                "type": "string",
+                                "description": "Is the price model publicly available to all customers?",
+                                "required": false
+                            },
+                            "A.5.6.3": {
+                                "type": "string",
+                                "description": "Link to the price model.",
+                                "required": true
+                            },
+                            "A.5.6.4": {
+                                "type": "string",
+                                "description": "Specification of contract terms.",
+                                "required": true
+                            },
+                            "A.5.6.5": {
+                                "type": "string",
+                                "description": "Specification of termination modalities and periods.",
+                                "required": true
+                            },
+                            "A.5.6.6": {
+                                "type": "boolean",
+                                "description": "Is a free trial period offered?",
+                                "required": true
+                            },
+                            "A.5.6.7": {
+                                "type": "boolean",
+                                "description": "Are the same data protection requirements applied in the free trial phase as in the commercial service?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.5.7": {
+                    "ChangeManagement": {
+                        "type": "object",
+                        "description": "Information on contractual regulations for dealing with changes.",
+                        "properties": {
+                            "A.5.7.1": {
+                                "type": "string",
+                                "description": "Are changes in the current contract communicated to the customer in advance?",
+                                "required": false
+                            },
+                            "A.5.7.2": {
+                                "type": "string",
+                                "description": "Are regulations on change management contractually defined?",
+                                "required": false
+                            },
+                            "A.5.7.3": {
+                                "type": "string",
+                                "description": "Description of the regulations on change management.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.5.8": {
+                    "CustomerCooperationObligationsAndProvisions": {
+                        "type": "object",
+                        "description": "Information on the customer's obligations to cooperate and provide services.",
+                        "properties": {
+                            "A.5.8.1": {
+                                "type": "string",
+                                "description": "Are all obligations to cooperate (technical, organizational) and provisions of the customer defined in the contract?",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.5.9": {
+                    "CopyrightAndRightsOfUse": {
+                        "type": "object",
+                        "description": "Granting of copyright and patent rights of use and exemption from any third-party claims.",
+                        "properties": {
+                            "A.5.9.1": {
+                                "type": "boolean",
+                                "description": "Is the customer contractually exempt from all third-party claims within the scope of the contractual use of the service?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.5.10": {
+                    "TerminationSupport": {
+                        "type": "object",
+                        "description": "Information on regulations for termination support (exit management), in particular the orderly return of customer data.",
+                        "properties": {
+                            "A.5.10.1": {
+                                "type": "boolean",
+                                "description": "Are regulations and measures for termination support contractually defined?",
+                                "required": true
+                            },
+                            "A.5.10.2": {
+                                "type": "string",
+                                "description": "Description of the regulations and measures for termination support.",
+                                "required": true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.6": {
+        "Security": {
+            "type": "object",
+            "description": "Presentation of the technical and organizational measures to ensure data and IT security.",
+            "properties": {
+                "A.6.1": {
+                    "SecurityManagement": {
+                        "type": "object",
+                        "description": "Proof of efficient management of information security.",
+                        "properties": {
+                            "A.6.1.1": {
+                                "type": "string",
+                                "description": "Is efficient management of information security guaranteed, e.g. through certification according to ISO 27001/IT-Grundschutz?",
+                                "required": false
+                            },
+                            "A.6.1.2": {
+                                "type": "string",
+                                "description": "Further details on the procedure in IT security management.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.6.2": {
+                    "ManagementOfSecurityIncidents": {
+                        "type": "object",
+                        "description": "Information on the process for security incidents and emergency management.",
+                        "properties": {
+                            "A.6.2.1": {
+                                "type": "string",
+                                "description": "Description of the process for reporting data breaches to the client.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.6.3": {
+                    "SecurityCertificates": {
+                        "type": "object",
+                        "description": "Specification of certificates in the area of IT security.",
+                        "properties": {
+                            "A.6.3.1": {
+                                "type": "string",
+                                "description": "Name of the certificate (from A.4.1).",
+                                "required": false
+                            },
+                            "A.6.3.2": {
+                                "type": "string",
+                                "description": "Further details on the certificate regarding audit scope, characteristics, extensions, etc.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.6.4": {
+                    "CertificationOfTheDataCenterAndTheTechnicalInfrastructure": {
+                        "type": "object",
+                        "description": "Specification of the certifications of the data centers and the technical infrastructure.",
+                        "properties": {
+                            "A.6.4.1": {
+                                "type": "string",
+                                "description": "Name of the certificate (from A.4.1 or A.4.2).",
+                                "required": false
+                            },
+                            "A.6.4.2": {
+                                "type": "string",
+                                "description": "Further details on the certificate regarding audit scope, characteristics, extensions, etc.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.6.5": {
+                    "Encryption": {
+                        "type": "object",
+                        "description": "Information on encryption methods used for data transmission and storage.",
+                        "properties": {
+                            "A.6.5.1": {
+                                "type": "string",
+                                "description": "Which encryption techniques can be used to encrypt data transmission and storage?",
+                                "required": true
+                            },
+                            "A.6.5.2": {
+                                "type": "string",
+                                "description": "Options for key management.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.6.6": {
+                    "IdentityAndAccessManagement": {
+                        "type": "object",
+                        "description": "Information on the user and rights management system used.",
+                        "properties": {
+                            "A.6.6.1": {
+                                "type": "string",
+                                "description": "Which rights and roles concept is applied?",
+                                "required": false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.7": {
+        "DataPrivacy": {
+            "type": "object",
+            "description": "Presentation of the technical and organizational measures to ensure data protection.",
+            "properties": {
+                "A.7.1": {
+                    "TechnicalAndOrganizationalMeasures": {
+                        "type": "object",
+                        "description": "Details of the technical and organizational measures for data protection.",
+                        "properties": {
+                            "A.7.1.1": {
+                                "type": "string",
+                                "description": "How is the appropriate implementation of the technical and organizational measures according to GDPR carried out?",
+                                "required": false
+                            },
+                            "A.7.1.2": {
+                                "type": "string",
+                                "description": "Further details on the implemented technical and organizational measures.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.2": {
+                    "FormalDataPrivacyRequirements": {
+                        "type": "object",
+                        "description": "Information on compliance with European data protection requirements.",
+                        "properties": {
+                            "A.7.2.1": {
+                                "type": "string",
+                                "description": "Are the formal requirements prescribed by the GDPR met?",
+                                "required": false
+                            },
+                            "A.7.2.2": {
+                                "type": "string",
+                                "description": "Is a data processing agreement (DPA) or legal act based on the EU GDPR requirements agreed with the customer?",
+                                "required": false
+                            },
+                            "A.7.2.3": {
+                                "type": "boolean",
+                                "description": "Is support for a data protection impact assessment (DPIA) contractually guaranteed?",
+                                "required": true
+                            },
+                            "A.7.2.4": {
+                                "type": "boolean",
+                                "description": "Is contractual pseudonymization and/or encryption of personal data guaranteed?",
+                                "required": true
+                            },
+                            "A.7.2.5": {
+                                "type": "boolean",
+                                "description": "Is the implementation of the rights of the data subject contractually guaranteed?",
+                                "required": true
+                            },
+                            "A.7.2.6": {
+                                "type": "boolean",
+                                "description": "Is the deletion of data, including links to the relevant data and data copies in the cloud, contractually guaranteed?",
+                                "required": true
+                            },
+                            "A.7.2.7": {
+                                "type": "boolean",
+                                "description": "Does the DPA request information from the client on the type of personal data and the categories of data subjects?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.3": {
+                    "ObligationsToProvideEvidence": {
+                        "type": "object",
+                        "description": "Information on guaranteeing the required obligations to provide evidence in accordance with GDPR.",
+                        "properties": {
+                            "A.7.3.1": {
+                                "type": "string",
+                                "description": "Which of the following proofs can be made available to the client for review by suitable means in accordance with the DPA?",
+                                "required": true
+                            },
+                            "A.7.3.2": {
+                                "type": "boolean",
+                                "description": "Is a record of the processing activities commissioned by the customer created based on Art. 30 EU GDPR?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.4": {
+                    "LocationOfDataStorage": {
+                        "type": "object",
+                        "description": "Information on restricting the hosting of customer data to specific regions.",
+                        "properties": {
+                            "A.7.4.1": {
+                                "type": "string",
+                                "description": "Can the hosting of customer data be restricted to a specific location?",
+                                "required": false
+                            },
+                            "A.7.4.2": {
+                                "type": "string",
+                                "description": "Can the provider restrict the administration of customer data to a specific location?",
+                                "required": false
+                            },
+                            "A.7.4.3": {
+                                "type": "string",
+                                "description": "Options of GEO regions.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.5": {
+                    "ImplementationOfTheRightsOfDataSubjects": {
+                        "type": "object",
+                        "description": "Information on the implementation of the rights of data subjects in accordance with Art. 12-23 GDPR.",
+                        "properties": {
+                            "A.7.5.1": {
+                                "type": "string",
+                                "description": "How is it ensured that the requirements of the GDPR for the implementation of the rights of the data subject, such as the deletion of personal data, can be guaranteed?",
+                                "required": true
+                            },
+                            "A.7.5.2": {
+                                "type": "string",
+                                "description": "How is it ensured that at the end of the contract not only the data is deleted, but also links to the relevant data and data copies in the cloud?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.6": {
+                    "Employees": {
+                        "type": "object",
+                        "description": "Information on the obligation of employees to data secrecy.",
+                        "properties": {
+                            "A.7.6.1": {
+                                "type": "boolean",
+                                "description": "Is the obligation of all persons authorized to process personal data to data secrecy contractually defined?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.7.7": {
+                    "DataPrivacyCertification": {
+                        "type": "object",
+                        "description": "Information on existing data protection certifications.",
+                        "properties": {
+                            "A.7.7.1": {
+                                "type": "string",
+                                "description": "Name of the certificate (from A.4.1).",
+                                "required": false
+                            },
+                            "A.7.7.2": {
+                                "type": "string",
+                                "description": "Further details on the certificate regarding audit scope, characteristics, extensions, etc.",
+                                "required": false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.8": {
+        "OperativeProcesses": {
+            "type": "object",
+            "description": "Presentation of the technical and professional requirements for the use, migration and change of the service.",
+            "properties": {
+                "A.8.1": {
+                    "ServiceManagement": {
+                        "type": "object",
+                        "description": "Information on the procedure in service management.",
+                        "properties": {
+                            "A.8.1.1": {
+                                "type": "string",
+                                "description": "Is an efficient service management guaranteed, e.g. according to ITIL?",
+                                "required": false
+                            },
+                            "A.8.1.2": {
+                                "type": "string",
+                                "description": "Further details on the procedure in service management.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.8.2": {
+                    "ServiceManagementCertificates": {
+                        "type": "object",
+                        "description": "Specification of certificates in the area of service management.",
+                        "properties": {
+                            "A.8.2.1": {
+                                "type": "string",
+                                "description": "Name of the certificate (from A.4.1).",
+                                "required": false
+                            },
+                            "A.8.2.2": {
+                                "type": "string",
+                                "description": "Further details on the certificate regarding audit scope, characteristics, extensions, etc.",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.8.3": {
+                    "ServiceAvailability": {
+                        "type": "object",
+                        "description": "Specification of the service availability guaranteed in the SLAs.",
+                        "properties": {
+                            "A.8.3.1": {
+                                "type": "string",
+                                "description": "Guaranteed service availability in percent/year.",
+                                "required": true
+                            },
+                            "A.8.3.2": {
+                                "type": "string",
+                                "description": "Maximum downtime in hours.",
+                                "required": true
+                            },
+                            "A.8.3.3": {
+                                "type": "string",
+                                "description": "How is the rapid restoration of the availability of customer data and access to it guaranteed in the event of a physical or technical incident?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.8.4": {
+                    "Backups": {
+                        "type": "object",
+                        "description": "Information on options and implementation of data backup concepts.",
+                        "properties": {
+                            "A.8.4.1": {
+                                "type": "string",
+                                "description": "Description of the backup options.",
+                                "required": true
+                            },
+                            "A.8.4.2": {
+                                "type": "string",
+                                "description": "How is it ensured that the confidentiality requirements also apply to the backups?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.8.5": {
+                    "Provisioning": {
+                        "type": "object",
+                        "description": "Description of the provisioning types of the service.",
+                        "properties": {
+                            "A.8.5.1": {
+                                "type": "string",
+                                "description": "Can the customer provision the service independently?",
+                                "required": false
+                            }
+                        }
+                    }
+                },
+                "A.8.6": {
+                    "Support": {
+                        "type": "object",
+                        "description": "Information about support services and documentation.",
+                        "properties": {
+                            "A.8.6.1": {
+                                "type": "string",
+                                "description": "Scope/description of support services.",
+                                "required": true
+                            },
+                            "A.8.6.2": {
+                                "type": "string",
+                                "description": "What is the guaranteed response time of customer support for normal inquiries?",
+                                "required": false
+                            },
+                            "A.8.6.3": {
+                                "type": "string",
+                                "description": "What is the guaranteed response time of customer support for critical inquiries?",
+                                "required": false
+                            },
+                            "A.8.6.4": {
+                                "type": "string",
+                                "description": "What is the average time to problem resolution for minor business impacts?",
+                                "required": false
+                            },
+                            "A.8.6.5": {
+                                "type": "string",
+                                "description": "What is the average time to problem resolution for significant business impacts?",
+                                "required": false
+                            },
+                            "A.8.6.6": {
+                                "type": "string",
+                                "description": "What is the availability of customer support?",
+                                "required": false
+                            },
+                            "A.8.6.7": {
+                                "type": "string",
+                                "description": "Is there complete user documentation?",
+                                "required": false
+                            },
+                            "A.8.6.8": {
+                                "type": "string",
+                                "description": "Is there complete system documentation?",
+                                "required": false
+                            },
+                            "A.8.6.9": {
+                                "type": "boolean",
+                                "description": "Are trainings offered?",
+                                "required": false
+                            },
+                            "A.8.6.10": {
+                                "type": "string",
+                                "description": "Specification of training partners.",
+                                "required": false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.9": {
+        "InteroperabilityAndPortability": {
+            "type": "object",
+            "description": "Presentation of the technical and professional requirements for the use, migration and change of the service.",
+            "properties": {
+                "A.9.1": {
+                    "TechnicalStandards": {
+                        "type": "object",
+                        "description": "Details of the technical standards of the service stack used.",
+                        "properties": {
+                            "A.9.1.1": {
+                                "type": "string",
+                                "description": "Is the administration of the service possible via standardized APIs or a web interface?",
+                                "required": false
+                            },
+                            "A.9.1.2": {
+                                "type": "string",
+                                "description": "Does the service use standardized formats for virtual machines and containers?",
+                                "required": false
+                            },
+                            "A.9.1.3": {
+                                "type": "string",
+                                "description": "Description of the standards on which the service stack is based.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.9.2": {
+                    "DataExport": {
+                        "type": "object",
+                        "description": "Presentation of the procedures for data access to customer data and for data repatriation.",
+                        "properties": {
+                            "A.9.2.1": {
+                                "type": "string",
+                                "description": "Can the user access customer data without restriction and at any time?",
+                                "required": false
+                            },
+                            "A.9.2.2": {
+                                "type": "string",
+                                "description": "Description of the procedure for data repatriation, including the supported file formats.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.9.3": {
+                    "Integration": {
+                        "type": "object",
+                        "description": "Description of the procedures for the technical integration of the service into the user's existing IT landscape.",
+                        "properties": {
+                            "A.9.3.1": {
+                                "type": "string",
+                                "description": "Are standardized APIs offered for integrating the service into the customer's existing IT landscape?",
+                                "required": false
+                            },
+                            "A.9.3.2": {
+                                "type": "string",
+                                "description": "Description of the offered APIs for integrating the service.",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.9.4": {
+                    "TechnicalAndOrganizationalPrerequisitesForServiceUse": {
+                        "type": "object",
+                        "description": "Description of the technical and organizational prerequisites for using the service.",
+                        "properties": {
+                            "A.9.4.1": {
+                                "type": "string",
+                                "description": "Description of the technical prerequisites for using the service.",
+                                "required": true
+                            },
+                            "A.9.4.2": {
+                                "type": "string",
+                                "description": "Description of the organizational prerequisites for using the service.",
+                                "required": true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A.10": {
+        "Architecture": {
+            "type": "object",
+            "description": "Description of the technical architecture underlying the service.",
+            "properties": {
+                "A.10.1": {
+                    "Isolation": {
+                        "type": "object",
+                        "description": "Description of the measures for separating client areas.",
+                        "properties": {
+                            "A.10.1.1": {
+                                "type": "string",
+                                "description": "Is a continuous client separation guaranteed?",
+                                "required": false
+                            },
+                            "A.10.1.2": {
+                                "type": "string",
+                                "description": "How is the client separation carried out?",
+                                "required": true
+                            }
+                        }
+                    }
+                },
+                "A.10.2": {
+                    "Scaling": {
+                        "type": "object",
+                        "description": "Information on the scaling options of the technical infrastructure.",
+                        "properties": {
+                            "A.10.2.1": {
+                                "type": "string",
+                                "description": "Are the scaling types and factors of the technical infrastructure defined?",
+                                "required": false
+                            },
+                            "A.10.2.2": {
+                                "type": "string",
+                                "description": "Further information on the defined scaling options.",
+                                "required": true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

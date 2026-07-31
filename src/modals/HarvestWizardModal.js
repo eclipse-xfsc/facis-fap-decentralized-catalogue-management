@@ -1,3 +1,5 @@
+import { expectedMimeType } from "../utils/protocols.js";
+
 export default {
   name: "HarvestWizardModal",
   template: "#tpl-harvest-wizard-modal",
@@ -31,6 +33,9 @@ export default {
   methods: {
     setPage(key, page) {
       this.$emit("page-change", { key, page });
+    },
+    expectedMimeType(config) {
+      return expectedMimeType(config);
     }
   }
 };

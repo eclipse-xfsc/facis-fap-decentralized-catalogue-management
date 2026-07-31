@@ -222,12 +222,11 @@
                             <span>Admin Tools</span>
                         </span>
                         <span class="nav-item" v-if="hasAccess('harvester')" :class="{ active: currentPage == 'harvester' }" @click="currentPage = 'harvester' ">
-                            <svg class="nav-icon" width="30" height="20" viewBox="0 0 20 20" fill="none">
+                            <svg class="nav-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
                                 <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2"/>
                                 <path d="M10 7v3M10 13h.01" stroke="currentColor" stroke-width="2"/>
                             </svg>
                             <span class="harvest-catalogue-sidebar">Harvest Catalogues</span>
-                            <span class="badge-new">4</span>
                         </span>
                     </nav>
                     
@@ -736,6 +735,7 @@
                           <tr>
                             <th>Asset ID</th>
                             <th>Source Catalogue</th>
+                            <th>Harvest Run</th>
                             <th>Harvest Date</th>
                             <th>Strategy</th>
                             <th>Schema Mapped</th>
@@ -746,15 +746,16 @@
                         <tbody>
                           <tr v-for="row in provenancePagination.rows" :key="row.id || row.uniqueId">
                             <td class="monospace">{{ row.assetId || row.remoteAssetId || '-' }}</td>
-                            <td>{{ row.catalogueName || '-' }}</td>
-                            <td>{{ row.harvestDate || '-' }}</td>
+                            <td>{{ row.sourceCatalogueName || row.catalogueName || row.catalogue || '-' }}</td>
+                            <td class="monospace">{{ row.harvestRunId || row.runId || '-' }}</td>
+                            <td>{{ row.harvestedAt || row.harvestDate || '-' }}</td>
                             <td><span class="pill" :class="row.strategy === 'ai-driven' ? 'blue' : row.strategy === 'hybrid' ? 'yellow' : row.strategy === 'deterministic-rdf' ? 'green' : 'gray'">{{ row.strategy || 'none' }}</span></td>
                             <td><span class="pill" :class="row.schemaMapped ? 'green' : 'gray'">{{ row.schemaMapped ? 'Yes' : 'No' }}</span></td>
                             <td>{{ row.updateHandling || 'version' }}</td>
                             <td>{{ row.deletionHandling || 'remove' }}</td>
                           </tr>
                           <tr v-if="provenancePagination.rows.length === 0">
-                            <td colspan="7" class="empty-row">No provenance records found. Run a harvest to generate provenance data.</td>
+                            <td colspan="8" class="empty-row">No provenance records found. Run a harvest to generate provenance data.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1167,7 +1168,7 @@
                           <button class="main-tab-button" :class="{ active: currentSchemaTab == 'llmConfig' }" @click="currentSchemaTab = 'llmConfig' ">LLM Config</button>
                           <button class="main-tab-button" :class="{ active: currentSchemaTab == 'promptTesting' }" @click="currentSchemaTab = 'promptTesting' ">Prompt Testing</button>
                           <button class="main-tab-button" :class="{ active: currentSchemaTab == 'providers' }" @click="currentSchemaTab = 'providers' ">Providers</button>
-                          <button class="main-tab-button" :class="{ active: currentSchemaTab == 'batchRetransform' }" @click="currentSchemaTab = 'batchRetransform' ">Batch Re-transform</button>
+                          <button v-if="false" class="main-tab-button" :class="{ active: currentSchemaTab == 'batchRetransform' }" @click="currentSchemaTab = 'batchRetransform' ">Batch Re-transform</button>
                           <button class="main-tab-button" :class="{ active: currentSchemaTab == 'auditTrail' }" @click="currentSchemaTab = 'auditTrail' ">Audit Trail</button>
                         </div>
                       </div>
@@ -1194,7 +1195,7 @@
                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                             <span class="invite-user-button">Add Provider</span>
                           </div>
-                          <div v-if="currentSchemaTab === 'batchRetransform'" class="invite-user" :class="{ 'acl-disabled': !canCreate('schema_registry') }" @click="canCreate('schema_registry') && openBatchRetransformModal()">
+                          <div v-if="false" class="invite-user" :class="{ 'acl-disabled': !canCreate('schema_registry') }" @click="canCreate('schema_registry') && openBatchRetransformModal()">
                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                             <span class="invite-user-button">New Re-transformation</span>
                           </div>
@@ -1618,7 +1619,7 @@
                     
                             <td>
                               <button class="btn-pill" @click="openMappingShacl(row)">
-                                SHACL ({{ row.shaclCount }})
+                                SHACL ({{ mappingShaclCount(row) }})
                               </button>
                             </td>
                     
@@ -1702,7 +1703,7 @@
                           <div class="detail-field"><span class="detail-label">Local Schema</span><span class="detail-value">{{ mappingDetailRow.localSchema || '—' }}</span></div>
                           <div class="detail-field"><span class="detail-label">Strategy</span><span class="detail-value"><span class="pill" :class="strategyPillClass(mappingDetailRow.transformationStrategy)">{{ mappingDetailRow.transformationStrategy }}</span></span></div>
                           <div class="detail-field"><span class="detail-label">Prompts</span><span class="detail-value">{{ mappingDetailRow.promptsCount }}</span></div>
-                          <div class="detail-field"><span class="detail-label">SHACL Shapes</span><span class="detail-value">{{ mappingDetailRow.shaclCount }}</span></div>
+                          <div class="detail-field"><span class="detail-label">SHACL Shapes</span><span class="detail-value">{{ mappingShaclCount(mappingDetailRow) }}<span v-if="mappingDetailRow.shaclShapeSchemaId" class="muted"> ({{ mappingDetailRow.shaclShapeSchemaId }})</span></span></div>
                         </template>
                         <template v-else>
                           <div class="detail-field"><label class="detail-label">Remote Catalogue</label><input class="form-input" type="text" v-model="mappingDetailEditForm.remoteCatalogue" /></div>
@@ -1977,6 +1978,7 @@
                             <th>Prompt Name</th>
                             <th>Version</th>
                             <th>Status</th>
+                            <th>Author</th>
                             <th>Source Schema</th>
                             <th>Target Schema</th>
                             <th>Updated</th>
@@ -1986,11 +1988,22 @@
                         </thead>
                         <tbody>
                           <tr v-for="p in filteredPrompts" :key="p.id">
-                            <td class="link">{{ p.name || (p.sourceSchema + ' → ' + p.targetSchema) }}</td>
-                            <td>v{{ p.version }}</td>
-                            <td>
-                              <span class="pill" :class="promptStatusClass(p.status)"><span v-if="p.status === 'writing code'" class="spinner-status"></span>{{ p.status }}</span>
+                            <td class="link">
+                              {{ p.name }}
+                              <span v-if="p.isLegacy" class="pill gray" style="font-size:9px; margin-left:4px;" title="Migrated from a pre-NF7 record">legacy</span>
                             </td>
+                            <td>
+                              v{{ p.version }}
+                              <span v-if="p.versionCount > 1" class="pill gray" style="font-size:10px; margin-left:4px;">{{ p.versionCount }} versions</span>
+                            </td>
+                            <td>
+                              <span class="pill" :class="promptStatusClass(p.status)">{{ promptStatusLabel(p.status) }}</span>
+                              <span v-if="p.generationStatus === 'generating'" class="pill blue" style="font-size:10px; margin-left:4px;" title="Background code generation">
+                                <span class="spinner-status"></span>generating
+                              </span>
+                              <span v-else-if="p.generationStatus === 'error'" class="pill red" style="font-size:10px; margin-left:4px;" :title="promptGenerationError(p)">gen failed</span>
+                            </td>
+                            <td>{{ p.author }}</td>
                             <td>{{ p.sourceSchema }}</td>
                             <td>{{ p.targetSchema }}</td>
                             <td>{{ p.updatedAt }}</td>
@@ -2007,17 +2020,30 @@
                                   </svg>
                                   Edit
                                 </button>
-                                <button class="btn-edit btn-edit-code" @click="openEditCode(p)" :disabled="!p.generatedCode || p.status === 'writing code'">
+                                <button class="btn-edit btn-edit-code" @click="openEditCode(p)" :disabled="!p.generatedCode">
                                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                   Edit Code
                                 </button>
-                                <select class="version-select prompt-lifecycle-select" :value="p.status" @change="changePromptStatus(p, $event.target.value)" :disabled="!canUpdate('schema_registry') || p.status === 'writing code'">
+                                <select
+                                  class="version-select prompt-lifecycle-select"
+                                  :value="p.status"
+                                  @change="changePromptStatus(p, $event.target.value)"
+                                  :disabled="!canUpdate('schema_registry') || !!lifecyclePending[p.versionId || p.id]"
+                                  :title="lifecyclePending[p.versionId || p.id] ? 'Saving…' : 'Lifecycle status'"
+                                >
                                   <option value="draft">Draft</option>
                                   <option value="active">Active</option>
                                   <option value="deprecated">Deprecated</option>
                                   <option value="archived">Archived</option>
-                                  <option v-if="p.status === 'writing code'" value="writing code">Writing Code</option>
                                 </select>
+                                <span v-if="lifecyclePending[p.versionId || p.id]" class="spinner-sm spinner-dark" title="Saving status…"></span>
+                                <button
+                                  v-if="p.generationStatus === 'error'"
+                                  class="btn-edit"
+                                  @click="retryPromptCodeGeneration(p)"
+                                  :disabled="!canUpdate('schema_registry')"
+                                  :title="promptGenerationError(p)"
+                                >Retry generation</button>
                                 <button class="btn-edit" @click="openPromptVersionPanel(p)" title="Versions">
                                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                                   Versions
@@ -2029,7 +2055,7 @@
                             </td>
                           </tr>
                           <tr v-if="filteredPrompts.length === 0">
-                            <td colspan="8" class="empty-row">No prompts found.</td>
+                            <td colspan="9" class="empty-row">No prompts found.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -2039,7 +2065,36 @@
                     <div class="note-section" style="margin-top: 16px;">
                       <strong>Prompt Lifecycle:</strong> Draft &rarr; Active &rarr; Deprecated &rarr; Archived.
                       Only one prompt can be <em>active</em> per source-target schema pair.
-                      Template variables: <code>{SOURCE_ASSET}</code>, <code>{SOURCE_SCHEMA}</code>, <code>{TARGET_SCHEMA}</code>, <code>{EXAMPLES}</code>, <code>{CONSTRAINTS}</code>.
+                      Saving a new version number creates a new immutable version; previous versions are always kept.
+                    </div>
+
+                    <!-- Supported template variables (FR-SR-03 contract) -->
+                    <div class="note-section" style="margin-top: 12px;">
+                      <strong>Supported template variables</strong>
+                      <span class="text-muted" style="font-size:11px;">
+                        &mdash; these are the only variables the backend substitutes.
+                      </span>
+                      <table class="data-table" style="margin-top:8px;">
+                        <thead>
+                          <tr>
+                            <th>Variable</th>
+                            <th>Required</th>
+                            <th>Description</th>
+                            <th>Example value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="pv in promptVarList('schema-mapping')" :key="pv.name">
+                            <td><code>{{ '{' + pv.name + '}' }}</code></td>
+                            <td>
+                              <span v-if="pv.required" class="pill red" style="font-size:10px;">required</span>
+                              <span v-else class="pill gray" style="font-size:10px;">optional</span>
+                            </td>
+                            <td style="font-size:12px;">{{ pv.description }}</td>
+                            <td class="mono" style="font-size:11px; color:#6b7280;">{{ pv.example }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
 
                     <!-- Prompt Version Side Panel (D3) -->
@@ -2049,20 +2104,44 @@
                         <button class="modal-close" @click="showPromptVersionPanel = false">&times;</button>
                       </div>
                       <div class="detail-panel-body" style="padding:12px;">
-                        <div v-if="promptVersionPanelLoading" class="loading-skeleton" style="height:80px;"></div>
-                        <div v-else-if="!promptVersions.length" class="empty-row">No version history found.</div>
-                        <div v-else class="version-list">
-                          <div v-for="v in promptVersions" :key="v.id" class="version-item" style="margin-bottom:12px; padding:8px; border:1px solid #e5e7eb; border-radius:6px;">
+                        <!-- Explicit states: loading / error / empty / success -->
+                        <div v-if="promptVersionPanelState === 'loading'">
+                          <div class="loading-skeleton" style="height:80px;"></div>
+                          <div class="text-muted" style="font-size:12px; margin-top:6px;">Loading version history…</div>
+                        </div>
+                        <div v-else-if="promptVersionPanelState === 'error'" class="prompt-error-banner">
+                          {{ promptVersionPanelError || 'Failed to load version history.' }}
+                          <button class="btn-secondary" style="margin-left:8px; font-size:11px; padding:2px 8px;" @click="retryPromptVersions">Retry</button>
+                        </div>
+                        <div v-else-if="promptVersionPanelState === 'empty'" class="empty-row">No versions found.</div>
+                        <div v-if="lifecycleError" class="prompt-error-banner" style="margin-bottom:8px;">{{ lifecycleError }}</div>
+                        <div v-else-if="promptVersionPanelState === 'success'" class="version-list">
+                          <div v-for="v in promptVersions" :key="v.versionId || v.id" class="version-item" style="margin-bottom:12px; padding:8px; border:1px solid #e5e7eb; border-radius:6px;">
                             <div class="version-item-header">
-                              <strong>{{ v.version || 'v1.0' }}</strong>
-                              <span class="pill" :class="promptStatusClass(v.status)">{{ v.status }}</span>
+                              <strong>v{{ v.version }}</strong>
+                              <span class="pill" :class="promptStatusClass(v.status)">{{ promptStatusLabel(v.status) }}</span>
+                              <span v-if="v.versionId === promptVersionActiveId" class="pill green" style="font-size:10px;">current</span>
                               <span style="margin-left:auto; color:#9ca3af; font-size:12px;">{{ v.createdAt }}</span>
                             </div>
                             <div style="font-size:12px; color:#6b7280; margin-top:4px;">
+                              {{ v.name }} &middot; by {{ v.author }}
+                            </div>
+                            <div style="font-size:12px; color:#6b7280; margin-top:2px;">
                               {{ v.sourceSchema }} &rarr; {{ v.targetSchema }}
                             </div>
-                            <div v-if="v.status !== 'active'" style="margin-top:6px;">
-                              <button class="btn-primary" style="font-size:11px; padding:2px 8px;" @click="activatePromptVersion(v)">Activate</button>
+                            <div class="mono" style="font-size:10px; color:#9ca3af; margin-top:2px;">{{ v.versionId }}</div>
+                            <div style="margin-top:6px; display:flex; gap:6px; align-items:center;">
+                              <button
+                                v-if="v.status !== 'active'"
+                                class="btn-primary"
+                                style="font-size:11px; padding:2px 8px;"
+                                @click="activatePromptVersion(v)"
+                                :disabled="!!lifecyclePending[v.versionId || v.id]"
+                              >
+                                <span v-if="lifecyclePending[v.versionId || v.id]" class="spinner-sm"></span>
+                                {{ lifecyclePending[v.versionId || v.id] ? 'Activating…' : 'Activate' }}
+                              </button>
+                              <button class="btn-edit" style="font-size:11px; padding:2px 8px;" @click="openEditPrompt(v)">Open</button>
                             </div>
                           </div>
                         </div>
@@ -2148,9 +2227,18 @@
                       <div class="form-grid-3">
                         <div class="form-group">
                           <label>Select Prompt</label>
-                          <select v-model="promptTestSelectedPrompt" class="form-input">
+                          <select v-model="promptTestSelectedPrompt" class="form-input" @change="onPromptTestPromptChange">
                             <option value="">Choose a prompt...</option>
-                            <option v-for="p in prompts" :key="p.id" :value="p.id">{{ p.name || (p.sourceSchema + ' → ' + p.targetSchema) }} (v{{ p.version }})</option>
+                            <option v-for="p in prompts" :key="p.id" :value="p.id">{{ p.name }}</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label>Version</label>
+                          <select v-model="promptTestSelectedVersionId" class="form-input" :disabled="!promptTestVersions.length" @change="onPromptTestVersionChange">
+                            <option value="">{{ promptTestSelectedPrompt ? 'Loading versions...' : 'Select a prompt first' }}</option>
+                            <option v-for="v in promptTestVersions" :key="v.versionId" :value="v.versionId">
+                              v{{ v.version }} — {{ promptStatusLabel(v.status) }}
+                            </option>
                           </select>
                         </div>
                         <div class="form-group">
@@ -2163,7 +2251,7 @@
                         <div class="form-group">
                           <label>&nbsp;</label>
                           <div class="prompt-test-actions">
-                            <button class="btn-primary" @click="runPromptTest" :disabled="!promptTestSelectedPrompt || !promptTestSelectedLlm || !promptTestSampleInput || promptTestRunning">
+                            <button class="btn-primary" @click="runPromptTest" :disabled="!promptTestSelectedPrompt || !promptTestSelectedLlm || !promptTestSampleInput || promptTestRunning || !!promptTestValidationError">
                               <svg v-if="!promptTestRunning" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg>
                               <span v-if="promptTestRunning" class="spinner-sm"></span>
                               {{ promptTestRunning ? 'Running...' : 'Dry Run' }}
@@ -2171,6 +2259,17 @@
                             <button class="btn-secondary" @click="openSaveTestCaseModal" :disabled="!promptTestSelectedPrompt">Save Test Case</button>
                           </div>
                         </div>
+                      </div>
+
+                      <!-- Selected immutable version + variable validation -->
+                      <div v-if="promptTestVersionRecord" class="note-section" style="margin-top:10px;">
+                        Testing <strong>{{ promptTestVersionRecord.name }}</strong>
+                        <span class="pill" :class="promptStatusClass(promptTestVersionRecord.status)">{{ promptStatusLabel(promptTestVersionRecord.status) }}</span>
+                        version <strong>v{{ promptTestVersionRecord.version }}</strong>
+                        <span class="mono" style="font-size:10px; color:#9ca3af;">{{ promptTestVersionRecord.versionId }}</span>
+                      </div>
+                      <div v-if="promptTestValidationError" class="form-error" style="margin-top:8px;">
+                        {{ promptTestValidationError }}
                       </div>
                     </div>
 
@@ -2200,10 +2299,19 @@
                         <div class="test-panel-header">
                           <strong>Transformation Result</strong>
                           <span v-if="promptTestRunning" class="pill blue">Running...</span>
-                          <span v-else-if="promptTestResult" class="pill green">Complete</span>
-                          <span v-else-if="promptTestError" class="pill" style="background:#FEF2F2;color:#991B1B;">Error</span>
+                          <span v-else-if="promptTestExecutionStatus === 'success'" class="pill green">Complete</span>
+                          <span v-else-if="promptTestExecutionStatus === 'error'" class="pill" style="background:#FEF2F2;color:#991B1B;">Error</span>
+                          <span v-if="promptTestRanVersionId" class="mono" style="margin-left:auto; font-size:10px; color:#9ca3af;" title="Executed version">
+                            {{ promptTestRanVersionId }}
+                          </span>
                         </div>
-                        <div v-if="promptTestError" class="prompt-error-banner" style="margin-bottom:8px;">{{ promptTestError }}</div>
+                        <div v-if="promptTestError" class="prompt-error-banner" style="margin-bottom:8px;">
+                          {{ promptTestError }}
+                          <span v-if="promptTestErrorCode" class="pill gray" style="font-size:9px; margin-left:6px;">{{ promptTestErrorCode }}</span>
+                          <div v-if="promptTestErrorCode === 'no_generated_code' || promptTestErrorCode === 'invalid_generated_code'" style="margin-top:6px;">
+                            <button class="btn-secondary" style="font-size:11px; padding:2px 8px;" @click="retryGenerationForTestedVersion">Retry generation for this version</button>
+                          </div>
+                        </div>
                         <pre class="test-result-output" :class="{ 'test-result-empty': !promptTestResult }">{{ promptTestResult || 'Result will appear here after dry run...' }}</pre>
                         <!-- FR-SR-04: Show resolved prompt from backend -->
                         <div v-if="promptTestResolvedFromBackend" style="margin-top:12px;">
@@ -2310,10 +2418,25 @@
                                 <button class="btn-edit btn-sm" @click="moveProviderUp(p.id)" :disabled="idx === 0 || !canUpdate('schema_registry')" title="Move up">&uarr;</button>
                                 <button class="btn-edit btn-sm" @click="moveProviderDown(p.id)" :disabled="idx === llmProviders.length - 1 || !canUpdate('schema_registry')" title="Move down">&darr;</button>
                                 <button class="btn-edit" @click="openEditProvider(p)" :disabled="!canUpdate('schema_registry')">Edit</button>
+                                <button class="btn-edit" @click="testProviderConnection(p)" :disabled="providerTestingId === p.id" title="Runs server-side; the API key is never sent to the browser">
+                                  <span v-if="providerTestingId === p.id" class="spinner-sm spinner-dark"></span>
+                                  {{ providerTestingId === p.id ? 'Testing...' : 'Test Connection' }}
+                                </button>
                                 <button class="btn-edit" @click="setDefaultProvider(p.id)" :disabled="!canUpdate('schema_registry')" :class="{ 'btn-primary': systemSettings.defaultLlmProviderId === p.id }" :title="systemSettings.defaultLlmProviderId === p.id ? 'System default' : 'Set as system default'">
                                   {{ systemSettings.defaultLlmProviderId === p.id ? 'Default' : 'Set Default' }}
                                 </button>
                                 <button class="btn-edit danger" @click="deleteProvider(p.id)" :disabled="!canDelete('schema_registry')">Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                          <tr v-if="providerTestResult && providerTestResult.providerId === p.id">
+                            <td colspan="9" style="padding:8px 12px;">
+                              <div :class="providerTestResult.ok ? 'note-section' : 'prompt-error-banner'" style="margin:0;">
+                                <strong>{{ providerTestResult.ok ? 'Connection OK' : 'Connection failed' }}</strong>
+                                &mdash; {{ providerTestResult.message }}
+                                <span class="text-muted" style="font-size:11px;">
+                                  ({{ providerTestResult.endpoint }}<span v-if="providerTestResult.model">, model {{ providerTestResult.model }}</span><span v-if="providerTestResult.latencyMs != null">, {{ providerTestResult.latencyMs }} ms</span>)
+                                </span>
                               </div>
                             </td>
                           </tr>
@@ -2428,8 +2551,39 @@
                         </div>
                       </div>
                       <div class="audit-export-row">
+                        <button class="btn-primary" @click="verifyAuditIntegrity()" :disabled="auditIntegrity.running">
+                          <span v-if="auditIntegrity.running" class="spinner-sm"></span>
+                          {{ auditIntegrity.running ? 'Verifying…' : 'Verify Integrity' }}
+                        </button>
                         <button class="btn-light" @click="exportAudit('csv')">Export CSV</button>
                         <button class="btn-light" @click="exportAudit('json')">Export JSON</button>
+                      </div>
+                    </div>
+
+                    <!-- NF-8: hash-chain verification result (backend-provided only) -->
+                    <div v-if="auditIntegrity.error" class="audit-error-banner" style="margin-bottom:12px;">
+                      <span>{{ auditIntegrity.error }}</span>
+                    </div>
+                    <div v-else-if="auditIntegrity.result" class="note-section" style="margin-bottom:12px;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span class="pill" :class="auditIntegrity.result.valid ? 'green' : 'red'">
+                          {{ auditIntegrity.result.valid ? 'Chain verified' : 'Chain broken' }}
+                        </span>
+                        <span class="pill blue">{{ auditIntegrity.result.verifiedRecordCount }} verified</span>
+                        <span class="pill gray">{{ auditIntegrity.result.legacyRecordCount }} legacy / unverified</span>
+                        <span v-if="auditIntegrity.result.brokenRecordCount" class="pill red">{{ auditIntegrity.result.brokenRecordCount }} broken</span>
+                        <span class="text-muted" style="font-size:11px;">
+                          {{ auditIntegrity.result.hashAlgorithm }} · chain v{{ auditIntegrity.result.chainVersion }} · checked {{ auditIntegrity.result.checkedAt }}
+                        </span>
+                      </div>
+                      <div style="margin-top:6px; font-size:12px;">{{ auditIntegrity.result.message }}</div>
+                      <div v-if="!auditIntegrity.result.valid" class="mono" style="margin-top:6px; font-size:11px; color:#991B1B;">
+                        <div v-if="auditIntegrity.result.firstBrokenSequence != null">
+                          First broken sequence: {{ auditIntegrity.result.firstBrokenSequence }}
+                          <span v-if="auditIntegrity.result.brokenRecordId">(record {{ auditIntegrity.result.brokenRecordId }})</span>
+                        </div>
+                        <div v-if="auditIntegrity.result.expectedHash">expected: {{ auditIntegrity.result.expectedHash }}</div>
+                        <div v-if="auditIntegrity.result.actualHash">actual:&nbsp;&nbsp; {{ auditIntegrity.result.actualHash }}</div>
                       </div>
                     </div>
 
@@ -2438,51 +2592,72 @@
                       <table class="data-table">
                         <thead>
                           <tr>
+                            <th>Seq</th>
                             <th>Started</th>
                             <th>Asset (remote → local)</th>
-                            <th>Catalogue</th>
+                            <th>Catalogue ID</th>
                             <th>Strategy</th>
                             <th>Prompt / Namespaces</th>
                             <th>Status</th>
                             <th>Duration (ms)</th>
                             <th>Validation</th>
+                            <th>Integrity</th>
+                            <th>Record Hash</th>
+                            <th></th>
                           </tr>
                         </thead>
                         <tbody>
                           <!-- Loading skeleton -->
                           <template v-if="auditTrail.loading">
                             <tr v-for="n in 5" :key="'at-skel-'+n" class="skeleton-row">
-                              <td v-for="c in 8" :key="c"><div class="skeleton-cell"></div></td>
+                              <td v-for="c in 12" :key="c"><div class="skeleton-cell"></div></td>
                             </tr>
                           </template>
                           <!-- Data rows -->
                           <template v-else-if="auditTrail.rows.length">
                             <tr v-for="row in auditTrailPage" :key="row.id || row._id">
-                              <td>{{ row.startedAt || '—' }}</td>
+                              <td class="mono">{{ row.sequenceNumber != null ? row.sequenceNumber : '—' }}</td>
+                              <td>{{ row.timestamp || row.startedAt || '—' }}</td>
                               <td>
-                                <span class="text-muted">{{ row.remoteAssetId || '—' }}</span>
-                                <span v-if="row.localAssetId"> → {{ row.localAssetId }}</span>
+                                <span :class="auditIdMissing(row.remoteAssetId) ? 'audit-missing' : 'mono'">{{ auditIdDisplay(row, row.remoteAssetId) }}</span>
+                                <span> → </span>
+                                <span :class="auditIdMissing(row.localAssetId) ? 'audit-missing' : 'mono'">{{ auditIdDisplay(row, row.localAssetId) }}</span>
                               </td>
-                              <td>{{ row.catalogueName || row.catalogueId || '—' }}</td>
+                              <td>
+                                <div :class="auditIdMissing(row.catalogueId) ? 'audit-missing' : 'mono'">{{ auditIdDisplay(row, row.catalogueId) }}</div>
+                                <div v-if="row.catalogueNameSnapshot" class="text-muted" style="font-size:11px;">{{ row.catalogueNameSnapshot }}</div>
+                              </td>
                               <td>{{ row.strategy || '—' }}</td>
                               <td>
-                                <span v-if="row.promptVersion" class="pill gray">{{ row.promptVersion }}</span>
+                                <span v-if="row.promptVersionId" class="pill gray mono" style="font-size:10px;">{{ row.promptVersionId }}</span>
+                                <span v-else-if="row.promptVersion" class="pill gray">{{ row.promptVersion }}</span>
                                 <span v-else-if="row.namespaces">{{ row.namespaces }}</span>
                                 <span v-else>—</span>
                               </td>
                               <td>
-                                <span class="pill" :class="row.status === 'success' ? 'pill-green' : row.status === 'failed' ? 'pill-red' : 'pill-yellow'">{{ row.status }}</span>
+                                <span class="pill" :class="auditRowStatusClass(row)">{{ auditRowStatus(row) }}</span>
+                                <div v-if="auditRowDowngraded(row)" class="text-muted" style="font-size:10px; margin-top:2px;">
+                                  Original: {{ row.originalStatus }}
+                                </div>
+                                <div v-if="row.complianceError" class="mono" style="font-size:10px; color:#991B1B;">{{ row.complianceError }}</div>
                               </td>
                               <td>{{ row.durationMs != null ? row.durationMs : '—' }}</td>
                               <td>
-                                <span v-if="row.validationResult" class="pill" :class="row.validationResult === 'pass' ? 'pill-green' : 'pill-red'">{{ row.validationResult }}</span>
+                                <span v-if="row.validationStatus || row.validationResult" class="pill" :class="(row.validationStatus || row.validationResult) === 'pass' ? 'pill-green' : ((row.validationStatus || row.validationResult) === 'fail' ? 'pill-red' : 'gray')">{{ row.validationStatus || row.validationResult }}</span>
                                 <span v-else>—</span>
+                              </td>
+                              <td>
+                                <span class="pill" :class="auditIntegrityClass(auditRowIntegrity(row))">{{ auditIntegrityLabel(auditRowIntegrity(row)) }}</span>
+                              </td>
+                              <td class="mono" style="font-size:10px;" :title="row.recordHash || ''">{{ row.recordHash ? shortHash(row.recordHash) : '—' }}</td>
+                              <td>
+                                <button class="btn-edit" style="font-size:11px; padding:2px 8px;" @click="openAuditRecord(row)">Details</button>
                               </td>
                             </tr>
                           </template>
                           <!-- Empty state -->
                           <tr v-else>
-                            <td colspan="8" class="empty-row">No audit records match the filter.</td>
+                            <td colspan="12" class="empty-row">No audit records match the filter.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -2491,12 +2666,59 @@
                     <!-- Pagination -->
                     <div v-if="auditTrail.pagination.total > auditTrail.pagination.perPage" class="table-footer">
                       <div class="pager">
-                        <button class="page-btn" :disabled="auditTrail.pagination.page <= 1" @click="auditTrail.pagination.page--">‹</button>
+                        <button class="page-btn" :disabled="auditTrail.loading || auditTrail.pagination.page <= 1" @click="goToAuditPage(auditTrail.pagination.page - 1)">‹</button>
                         <span class="page-num">Page {{ auditTrail.pagination.page }} of {{ auditTrailTotalPages }}</span>
-                        <button class="page-btn" :disabled="auditTrail.pagination.page >= auditTrailTotalPages" @click="auditTrail.pagination.page++">›</button>
+                        <button class="page-btn" :disabled="auditTrail.loading || auditTrail.pagination.page >= auditTrailTotalPages" @click="goToAuditPage(auditTrail.pagination.page + 1)">›</button>
                       </div>
                       <div class="showing">
-                        Showing {{ ((auditTrail.pagination.page - 1) * auditTrail.pagination.perPage) + 1 }}–{{ Math.min(auditTrail.pagination.page * auditTrail.pagination.perPage, auditTrail.pagination.total) }} of {{ auditTrail.pagination.total }}
+                        <span v-if="auditTrailPage.length">
+                          Showing {{ ((auditTrail.pagination.page - 1) * auditTrail.pagination.perPage) + 1 }}–{{ ((auditTrail.pagination.page - 1) * auditTrail.pagination.perPage) + auditTrailPage.length }} of {{ auditTrail.pagination.total }}
+                        </span>
+                        <span v-else>No records on this page of {{ auditTrail.pagination.total }}</span>
+                      </div>
+                    </div>
+
+                    <!-- NF-8: audit record details with full hashes -->
+                    <div v-if="showAuditRecordModal && auditRecordDetail" class="schema-diff-panel">
+                      <div class="detail-panel-header">
+                        <h3>Audit Record</h3>
+                        <button class="modal-close" @click="closeAuditRecord">&times;</button>
+                      </div>
+                      <div class="detail-panel-body" style="padding:12px;">
+                        <div style="margin-bottom:10px;">
+                          <span class="pill" :class="auditIntegrityClass(auditRowIntegrity(auditRecordDetail))">
+                            {{ auditIntegrityLabel(auditRowIntegrity(auditRecordDetail)) }}
+                          </span>
+                          <span class="pill" :class="auditRowStatusClass(auditRecordDetail)">
+                            {{ auditRowStatus(auditRecordDetail) }}
+                          </span>
+                          <span v-if="auditRowDowngraded(auditRecordDetail)" class="text-muted" style="font-size:11px;">
+                            Recorded as “{{ auditRecordDetail.originalStatus }}”; stored evidence is unchanged.
+                          </span>
+                          <span class="text-muted" style="font-size:11px; margin-left:6px;">
+                            Operation status and audit integrity are independent.
+                          </span>
+                        </div>
+                        <table class="data-table">
+                          <tbody>
+                            <tr v-for="f in auditDetailFields" :key="f.key">
+                              <td style="width:190px; font-weight:600;">{{ f.label }}</td>
+                              <td>
+                                <span :class="auditIdMissing(auditRecordDetail[f.key]) ? 'audit-missing' : 'mono'" style="word-break:break-all; font-size:11px;">
+                                  {{ auditIdMissing(auditRecordDetail[f.key]) ? auditIdDisplay(auditRecordDetail, auditRecordDetail[f.key]) : auditRecordDetail[f.key] }}
+                                </span>
+                              </td>
+                              <td style="width:70px;">
+                                <button
+                                  v-if="!auditIdMissing(auditRecordDetail[f.key])"
+                                  class="btn-edit"
+                                  style="font-size:10px; padding:2px 6px;"
+                                  @click="copyAuditValue(auditRecordDetail[f.key], f.label)"
+                                >Copy</button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </div>
 
@@ -2906,21 +3128,9 @@
                       <div class="profile-section-divider"></div>
                       <h4 class="profile-section-title">Change Password</h4>
                       <div class="profile-password-form">
-                        <div class="profile-form-row">
-                          <label class="profile-form-label">Current Password</label>
-                          <input type="password" class="profile-form-input" v-model="passwordForm.currentPassword" placeholder="Enter current password" />
-                        </div>
-                        <div class="profile-form-row">
-                          <label class="profile-form-label">New Password</label>
-                          <input type="password" class="profile-form-input" v-model="passwordForm.newPassword" placeholder="Enter new password" />
-                        </div>
-                        <div class="profile-form-row">
-                          <label class="profile-form-label">Confirm Password</label>
-                          <input type="password" class="profile-form-input" v-model="passwordForm.confirmPassword" placeholder="Confirm new password" />
-                        </div>
+                        <p class="profile-form-help">Your password is managed securely by Keycloak.</p>
                         <div v-if="passwordFormError" class="profile-form-error">{{ passwordFormError }}</div>
-                        <div v-if="passwordFormSuccess" class="profile-form-success">{{ passwordFormSuccess }}</div>
-                        <button class="btn-primary profile-change-pwd-btn" @click="changePassword" :disabled="!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword">Update Password</button>
+                        <button class="btn-primary profile-change-pwd-btn" @click="changePassword" :disabled="!oidcConfig.enabled">Open Keycloak Password Settings</button>
                       </div>
 
                       <div class="user-profile-actions">
@@ -2967,17 +3177,21 @@
                           <button v-if="activeHarvest.status === 'running'" class="btn-secondary btn-sm" @click="pauseHarvest()">Pause</button>
                           <button v-if="activeHarvest.status === 'paused'" class="btn-primary btn-sm" @click="resumeHarvest()">Resume</button>
                           <button v-if="activeHarvest.status === 'running' || activeHarvest.status === 'paused'" class="btn-edit danger btn-sm" @click="cancelHarvest()">Cancel</button>
-                          <span class="pill" :class="activeHarvest.status === 'running' ? 'blue' : activeHarvest.status === 'completed' ? 'green' : activeHarvest.status === 'paused' ? 'yellow' : 'red'">{{ activeHarvest.status }}</span>
+                          <span class="pill" :class="harvestStatusClass(activeHarvest.status)">{{ harvestStatusLabel(activeHarvest.status) }}</span>
                         </div>
                       </div>
                       <div class="harvest-progress-bar-wrap">
                         <div class="harvest-progress-bar"><div class="harvest-progress-fill" :style="{ width: activeHarvest.progress + '%' }"></div></div>
                         <span class="harvest-progress-pct">{{ activeHarvest.progress }}%</span>
                       </div>
+                      <div v-if="activeHarvest.result === 'Failed'" class="harvest-failed-banner" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-weight:600;">Harvest failed — see errors below.</div>
+                      <div v-else-if="activeHarvest.result === 'Partial'" class="harvest-partial-banner" style="background:#fffbeb;border:1px solid #fde68a;color:#b45309;padding:8px 12px;border-radius:6px;margin-bottom:8px;font-weight:600;">Harvest partially completed — the source was not read to the end. See warnings below.</div>
                       <div class="harvest-progress-stats">
                         <span>Processed: {{ activeHarvest.processedAssets }} / {{ activeHarvest.totalAssets }}</span>
                         <span>Success: {{ activeHarvest.successCount }}</span>
-                        <span>Errors: {{ activeHarvest.errorCount }}</span>
+                        <span :style="(activeHarvest.errorCount || 0) > 0 ? 'color:#dc2626;font-weight:600;' : ''">Errors: {{ activeHarvest.errorCount }}</span>
+                        <span :style="(activeHarvest.warningCount || 0) > 0 ? 'color:#b45309;font-weight:600;' : ''">Warnings: {{ activeHarvest.warningCount || 0 }}</span>
+                        <span class="pill" :class="resultClass(activeHarvest.result)">{{ resultLabel(activeHarvest.result) }}</span>
                       </div>
                       <div v-if="activeHarvest.errors.length > 0" class="harvest-progress-errors">
                         <div v-for="err in activeHarvest.errors" :key="err.assetId" class="harvest-err-line">
@@ -3079,6 +3293,7 @@
                             <th>Duration</th>
                             <th>Status</th>
                             <th>Imported</th>
+                            <th>Errors</th>
                             <th>Actions</th>
                           </tr>
                         </thead>
@@ -3089,15 +3304,20 @@
                                         <td class="link">{{ run.sourceCatalogue }}</td>
                                         <td>{{ run.harvestDate }}</td>
                                         <td>{{ run.duration }}</td>
-                                        <td><span class="pill" :class="resultClass(run.result)">{{ run.result }}</span></td>
+                                        <td><span class="pill" :class="resultClass(run.result)">{{ resultLabel(run.result) }}</span></td>
                                         <td>{{ run.assetsAdded }}</td>
+                                        <td>
+                                          <span v-if="(run.errorCount || 0) > 0" style="color:#dc2626;font-weight:600;">{{ run.errorCount }}</span>
+                                          <span v-else>0</span>
+                                          <span v-if="(run.warningCount || 0) > 0" class="pill yellow" style="margin-left:6px;font-size:11px;">{{ run.warningCount }} warning(s)</span>
+                                        </td>
                                         <td class="col-actions">
                                             <button class="btn-action" @click="openHarvestRunDetail(run)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z" stroke="currentColor" stroke-width="1.5"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"></circle></svg> View Details
                                             </button>
                                         </td>
                                     </tr>
                                     <tr v-if="harvestRecords.length === 0">
-                                        <td colspan="7" class="empty-row">No harvest runs found. Click "New Harvest" to start one.</td>
+                                        <td colspan="8" class="empty-row">No harvest runs found. Click "New Harvest" to start one.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -3137,7 +3357,7 @@
                                 <div class="modal-header-right-top">
                                   <span>Harvest Run Detail — {{ harvestRunDetailData.catalogue }}</span>
                                   <div class="modal-header-right-top-buttons">
-                                    <span class="pill" :class="harvestRunDetailData.status === 'completed' ? 'green' : harvestRunDetailData.status === 'failed' ? 'red' : 'yellow'" style="font-size:12px;">{{ harvestRunDetailData.status }}</span>
+                                    <span class="pill" :class="harvestStatusClass(harvestRunDetailData.status)" style="font-size:12px;">{{ harvestStatusLabel(harvestRunDetailData.status) }}</span>
                                     <button class="modal-close" @click="closeHarvestRunDetail()">&times;</button>
                                   </div>
                                 </div>
@@ -3148,6 +3368,7 @@
                                     <span>Imported: <span class="modal-span-color">{{ harvestRunDetailData.imported }}</span></span>
                                     <span>Success: <span class="modal-span-color">{{ harvestRunDetailData.successCount || 0 }}</span></span>
                                     <span>Errors: <span class="modal-span-color">{{ harvestRunDetailData.errorCount || 0 }}</span></span>
+                                    <span>Warnings: <span class="modal-span-color">{{ harvestRunDetailData.warningCount || 0 }}</span></span>
                                     <span v-if="harvestRunDetailData && harvestRunDetailData.crawlStats">
                                       Crawling:
                                       <span v-if="!harvestRunDetailData.crawlStats.enabled" class="modal-span-color" style="color:#6b7280;">Disabled</span>
@@ -3169,6 +3390,68 @@
                             </div>
                             <div class="modal-main" style="padding:20px 28px;">
 
+                              <!-- Protocol runtime evidence (NF-2) -->
+                              <div v-if="harvestRunDetailData.protocolEvidence && harvestRunDetailData.protocolEvidence.length" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;margin-bottom:16px;">
+                                <div style="font-weight:600;margin-bottom:8px;">Protocol execution evidence</div>
+                                <div v-for="(ev, i) in harvestRunDetailData.protocolEvidence" :key="i" style="padding:8px 0;border-top:1px solid #e2e8f0;">
+                                  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                                    <span class="pill" style="font-size:12px;">{{ ev.protocol || 'unknown' }}</span>
+                                    <strong>{{ ev.catalogueName || ev.catalogueId }}</strong>
+                                    <span v-if="ev.partial" class="pill yellow" style="font-size:11px;" :title="ev.partialReason">Partial</span>
+                                  </div>
+                                  <div class="hint" style="display:flex;flex-wrap:wrap;gap:14px;">
+                                    <span v-if="ev.endpoint">Endpoint: <span class="modal-span-color">{{ ev.endpoint }}</span></span>
+                                    <template v-if="ev.protocol === 'oai-pmh'">
+                                      <span>Metadata prefix: <span class="modal-span-color">{{ ev.metadataPrefix || '-' }}</span></span>
+                                      <span>Set: <span class="modal-span-color">{{ ev.setSpec || '-' }}</span></span>
+                                      <span>Pages: <span class="modal-span-color">{{ ev.pages || 0 }}</span></span>
+                                      <span>Records: <span class="modal-span-color">{{ ev.remoteRecords || 0 }}</span></span>
+                                      <span>Deleted: <span class="modal-span-color">{{ ev.deletedRecords || 0 }}</span></span>
+                                      <span>Resumption tokens: <span class="modal-span-color">{{ ev.resumptionTokensFollowed ? 'followed' : 'not used' }}</span></span>
+                                      <span v-if="ev.cursor !== undefined && ev.cursor !== null">Cursor: <span class="modal-span-color">{{ ev.cursor }}</span></span>
+                                      <span v-if="ev.completeListSize">Complete list size: <span class="modal-span-color">{{ ev.completeListSize }}</span></span>
+                                    </template>
+                                    <template v-else-if="ev.protocol === 'query-interface'">
+                                      <span>Language: <span class="modal-span-color">{{ ev.queryLanguage || '-' }}</span></span>
+                                      <span>Method: <span class="modal-span-color">{{ ev.queryMethod || '-' }}</span></span>
+                                      <span>Result MIME: <span class="modal-span-color">{{ ev.resultMimeType || '-' }}</span></span>
+                                      <span v-if="ev.responseContentType">Received Content-Type: <span class="modal-span-color">{{ ev.responseContentType }}</span></span>
+                                      <span v-if="ev.bindingCount !== undefined">Bindings: <span class="modal-span-color">{{ ev.bindingCount }}</span></span>
+                                      <span v-if="ev.resultCount !== undefined">Results: <span class="modal-span-color">{{ ev.resultCount }}</span></span>
+                                      <span v-if="ev.responseMapping">Response mapping: <span class="modal-span-color">{{ responseMappingLabel(ev.responseMapping) }}</span></span>
+                                      <span v-if="ev.askResult !== undefined">ASK result: <span class="modal-span-color">{{ ev.askResult }}</span></span>
+                                    </template>
+                                    <template v-else>
+                                      <span>Requests: <span class="modal-span-color">{{ ev.pages || 0 }}</span></span>
+                                      <span>Records: <span class="modal-span-color">{{ ev.remoteRecords || 0 }}</span></span>
+                                    </template>
+                                  </div>
+                                  <div v-if="ev.query" style="margin-top:6px;">
+                                    <pre style="background:#0f172a;color:#e2e8f0;padding:8px;border-radius:4px;font-size:12px;white-space:pre-wrap;overflow:auto;max-height:160px;">{{ ev.query }}</pre>
+                                  </div>
+                                  <div v-if="ev.errors && ev.errors.length" style="margin-top:6px;color:#b91c1c;font-size:12px;">
+                                    <span v-for="(pe, j) in ev.errors" :key="j" style="margin-right:10px;">{{ pe.code }}: {{ pe.message }}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Errors Section (NF-4) -->
+                              <div v-if="harvestRunDetailData.errors && harvestRunDetailData.errors.length > 0" class="harvest-errors-section" style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:12px 16px;margin-bottom:16px;">
+                                <div style="font-weight:600;color:#b91c1c;margin-bottom:8px;">{{ harvestRunDetailData.errorCount || 0 }} Error(s), {{ harvestRunDetailData.warningCount || 0 }} Warning(s)</div>
+                                <table class="data-table">
+                                  <thead><tr><th>Stage</th><th>Code</th><th>Message</th><th>Endpoint</th><th>HTTP</th></tr></thead>
+                                  <tbody>
+                                    <tr v-for="(e, i) in harvestRunDetailData.errors" :key="i">
+                                      <td><span class="pill" :class="logPillClass(e.level)">{{ e.stage }}</span></td>
+                                      <td class="monospace">{{ e.code }}</td>
+                                      <td>{{ e.message }}</td>
+                                      <td class="monospace">{{ (e.detail && e.detail.url) || e.endpoint || '—' }}</td>
+                                      <td>{{ (e.detail && e.detail.httpCode) || '—' }}</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+
                               <!-- Assets Tab -->
                               <div v-if="harvestDetailTab === 'assets'">
                                 <div v-if="!harvestRunDetailData.assets || harvestRunDetailData.assets.length === 0" class="hint">No assets recorded for this harvest run.</div>
@@ -3178,9 +3461,9 @@
                                     <tr v-for="a in harvestRunDetailData.assets" :key="a.id">
                                       <td class="monospace">{{ a.id }}</td>
                                       <td>{{ a.title }}</td>
-                                      <td><span class="pill" :class="a.status === 'Success' ? 'green' : a.status === 'Warning' ? 'yellow' : 'red'">{{ a.status }}</span></td>
+                                      <td><span class="pill" :class="resultClass(a.status)">{{ (String(a.status).toLowerCase() === 'error') ? 'Rejected' : a.status }}</span></td>
                                       <td>{{ a.duration }}</td>
-                                      <td>{{ a.error || '—' }}</td>
+                                      <td>{{ a.error || (a.reasons && a.reasons.join(', ')) || '—' }}</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -3188,13 +3471,20 @@
 
                               <!-- Logs Tab -->
                               <div v-if="harvestDetailTab === 'logs'">
-                                <div v-if="!harvestRunDetailData.logs || harvestRunDetailData.logs.length === 0" class="hint">No logs for this harvest run.</div>
+                                <div class="harvest-log-filter" style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+                                  <button class="btn-light small" :class="{ active: harvestLogLevelFilter === 'all' }" @click="harvestLogLevelFilter = 'all'">All</button>
+                                  <button class="btn-light small" :class="{ active: harvestLogLevelFilter === 'info' }" @click="harvestLogLevelFilter = 'info'">Info</button>
+                                  <button class="btn-light small" :class="{ active: harvestLogLevelFilter === 'warn' }" @click="harvestLogLevelFilter = 'warn'">Warn</button>
+                                  <button class="btn-light small" :class="{ active: harvestLogLevelFilter === 'error' }" @click="harvestLogLevelFilter = 'error'">Error</button>
+                                  <span v-if="runLogErrorCount > 0" class="pill red" style="margin-left:6px;">{{ runLogErrorCount }} error(s)</span>
+                                </div>
+                                <div v-if="filteredRunLogs.length === 0" class="hint">No logs for this harvest run.</div>
                                 <table v-else class="data-table">
                                   <thead><tr><th>Level</th><th>Step</th><th>Message</th><th>Timestamp</th></tr></thead>
                                   <tbody>
-                                    <tr v-for="lg in harvestRunDetailData.logs" :key="lg.uniqueId || lg.id">
-                                      <td><span class="pill" :class="lg.level === 'error' ? 'red' : lg.level === 'warn' ? 'yellow' : 'blue'">{{ lg.level }}</span></td>
-                                      <td>{{ lg.step || '—' }}</td>
+                                    <tr v-for="lg in filteredRunLogs" :key="lg.uniqueId || lg.id">
+                                      <td><span class="pill" :class="logPillClass(lg.level)">{{ lg.level }}</span></td>
+                                      <td>{{ lg.step || lg.code || '—' }}</td>
                                       <td>{{ lg.message }}</td>
                                       <td class="monospace">{{ lg.timestamp }}</td>
                                     </tr>
@@ -3206,13 +3496,17 @@
                               <div v-if="harvestDetailTab === 'provenance'">
                                 <div v-if="!harvestRunDetailData.provenance || harvestRunDetailData.provenance.length === 0" class="hint">No provenance records for this harvest run.</div>
                                 <table v-else class="data-table">
-                                  <thead><tr><th>Remote Catalogue</th><th>Harvest Date</th><th>Status</th><th>Assets Imported</th></tr></thead>
+                                  <thead><tr><th>Remote Catalogue</th><th>Protocol</th><th>Harvest Run</th><th>Harvested At</th><th>Status</th><th>Assets Imported</th><th>Errors</th><th>Warnings</th></tr></thead>
                                   <tbody>
                                     <tr v-for="pv in harvestRunDetailData.provenance" :key="pv.uniqueId || pv.id">
-                                      <td>{{ pv.remoteCatalogueName || pv.remoteCatalogueId }}</td>
-                                      <td class="monospace">{{ pv.harvestDate }}</td>
-                                      <td><span class="pill" :class="pv.status === 'completed' ? 'green' : 'yellow'">{{ pv.status }}</span></td>
+                                      <td>{{ pv.sourceCatalogueName || pv.remoteCatalogueName || pv.remoteCatalogueId }}</td>
+                                      <td>{{ pv.protocol || '—' }}</td>
+                                      <td class="monospace">{{ pv.harvestRunId || '—' }}</td>
+                                      <td class="monospace">{{ pv.harvestedAt || pv.harvestDate }}</td>
+                                      <td><span class="pill" :class="provenanceStatusClass(pv.status)">{{ pv.status }}</span></td>
                                       <td>{{ pv.assetsImported || 0 }}</td>
+                                      <td>{{ pv.errors || 0 }}</td>
+                                      <td>{{ pv.warnings || 0 }}</td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -3276,10 +3570,10 @@
                           <tbody>
                             <tr v-for="p in harvestProvenance" :key="p.assetId">
                               <td class="link">{{ p.assetId }}</td>
-                              <td>{{ p.catalogue }}</td>
-                              <td><span class="pill gray">{{ p.harvestRunId }}</span></td>
-                              <td>{{ p.harvestedAt }}</td>
-                              <td><span class="pill" :class="p.strategy === 'AI-driven' ? 'blue' : p.strategy === 'Hybrid' ? 'yellow' : 'green'">{{ p.strategy }}</span></td>
+                              <td>{{ p.sourceCatalogueName || p.catalogue || '—' }}</td>
+                              <td><span class="pill gray">{{ p.harvestRunId || p.runId || '—' }}</span></td>
+                              <td>{{ p.harvestedAt || p.timestamp || '—' }}</td>
+                              <td><span class="pill" :class="p.strategy === 'AI-driven' ? 'blue' : p.strategy === 'Hybrid' ? 'yellow' : 'green'">{{ p.transformationStrategy || p.strategy || 'none' }}</span></td>
                               <td>{{ p.promptVersion || '—' }}</td>
                               <td>{{ p.schemaSource }}</td>
                               <td class="monospace">{{ p.originalChecksum }}</td>
@@ -3322,11 +3616,19 @@
         <!-- Register Remote Catalogue Modal (component) -->
         <register-catalog-modal
           :visible="showRegisterRemoteCatalogModal"
+          :protocol-options="protocolOptions"
+          :query-language-options="queryLanguageOptions"
+          :result-mode-options="resultModeOptions"
+          :catalog-protocol="catalogProtocol"
+          :catalog-query-executable="catalogQueryExecutable"
+          :protocol-ready="protocolReady"
+          :protocol-issues="protocolIssues"
           :remote-catalog-form="remoteCatalogForm"
           :is-editing-remote-catalog="isEditingRemoteCatalog"
           :is-saving-remote-catalog="isSavingRemoteCatalog"
           :register-remote-catalog-error="registerRemoteCatalogError"
           :update-remote-catalog-error="updateRemoteCatalogError"
+          :catalog-field-errors="catalogFieldErrors"
           :is-testing-connection="isTestingConnection"
           :test-connection-result="testConnectionResult"
           :asset-types="assetTypes"
@@ -3595,16 +3897,24 @@
               <div v-if="promptFormError" class="prompt-error-banner">
                 {{ promptFormError }}
               </div>
+              <div v-for="w in promptFormWarnings" :key="w" class="note-section" style="margin-bottom:8px;">
+                {{ w }}
+              </div>
 
               <!-- Row 1: Name + Version + Status -->
               <div class="form-grid-3">
                 <div class="form-group">
                   <label>Prompt Name</label>
-                  <input type="text" v-model="promptForm.name" placeholder="e.g. DCAT to ISO Mapping" class="form-input" />
+                  <input type="text" v-model="promptForm.name" placeholder="e.g. DCAT to ISO Mapping" class="form-input" :class="{ 'input-error': promptFieldErrors.name }" />
+                  <div v-if="promptFieldErrors.name" class="field-error">{{ promptFieldErrors.name }}</div>
                 </div>
                 <div class="form-group">
                   <label>Version</label>
-                  <input type="text" v-model="promptForm.version" placeholder="e.g. 1.0" class="form-input" />
+                  <input type="text" v-model="promptForm.version" placeholder="e.g. 1.0.0" class="form-input" :class="{ 'input-error': promptFieldErrors.version }" />
+                  <div v-if="promptFieldErrors.version" class="field-error">{{ promptFieldErrors.version }}</div>
+                  <div v-else-if="isEditingPrompt" class="field-hint">
+                    Changing this number saves a new immutable version and keeps the current one.
+                  </div>
                 </div>
                 <div class="form-group">
                   <label>Status</label>
@@ -3642,11 +3952,14 @@
                 <label>Prompt Template <span class="required">*</span></label>
                 <div class="prompt-template-toolbar">
                   <span class="toolbar-label">Insert variable:</span>
-                  <button type="button" class="var-btn" @click="insertVariable('{SOURCE_ASSET}')">{SOURCE_ASSET}</button>
-                  <button type="button" class="var-btn" @click="insertVariable('{SOURCE_SCHEMA}')">{SOURCE_SCHEMA}</button>
-                  <button type="button" class="var-btn" @click="insertVariable('{TARGET_SCHEMA}')">{TARGET_SCHEMA}</button>
-                  <button type="button" class="var-btn" @click="insertVariable('{EXAMPLES}')">{EXAMPLES}</button>
-                  <button type="button" class="var-btn" @click="insertVariable('{CONSTRAINTS}')">{CONSTRAINTS}</button>
+                  <button
+                    v-for="pv in promptVarList(promptForm.kind)"
+                    :key="pv.name"
+                    type="button"
+                    class="var-btn"
+                    :title="pv.description + (pv.required ? ' (required)' : '')"
+                    @click="insertVariable('{' + pv.name + '}')"
+                  >{{ '{' + pv.name + '}' }}<span v-if="pv.required" class="required">*</span></button>
                 </div>
                 <textarea
                   ref="promptTemplateArea"
@@ -3656,6 +3969,7 @@
                   placeholder="Write your prompt template here. Use variable buttons above to insert placeholders..."
                   :disabled="isEnhancingPrompt"
                 ></textarea>
+                <div v-if="promptFieldErrors.template" class="field-error">{{ promptFieldErrors.template }}</div>
                 <div class="enhance-prompt-row">
                   <button type="button" class="btn-enhance" @click="enhancePromptWithAI" :disabled="isEnhancingPrompt || !promptForm.template || !promptForm.sourceSchema || !promptForm.targetSchema">
                     <span v-if="isEnhancingPrompt" class="spinner-sm spinner-dark"></span>
@@ -3709,7 +4023,9 @@
               <!-- Author (FR-SR-03) -->
               <div class="form-group">
                 <label>Author</label>
-                <input type="text" v-model="promptForm.author" placeholder="e.g. Jane Doe" class="form-input" />
+                <input type="text" v-model="promptForm.author" placeholder="e.g. Jane Doe" class="form-input" :class="{ 'input-error': promptFieldErrors.author }" />
+                <div v-if="promptFieldErrors.author" class="field-error">{{ promptFieldErrors.author }}</div>
+                <div v-else class="field-hint">Stored with this version. Defaults to the signed-in user if left empty.</div>
               </div>
 
               <!-- Template Preview -->
@@ -3727,9 +4043,10 @@
 
             <!-- Footer -->
             <div class="modal-footer">
-              <button class="btn-secondary" @click="closePromptModal">Cancel</button>
-              <button class="btn-primary" @click="savePrompt" :disabled="!promptForm.sourceSchema || !promptForm.targetSchema || !promptForm.template">
-                {{ isEditingPrompt ? 'Update Prompt' : 'Create Prompt' }}
+              <button class="btn-secondary" @click="closePromptModal" :disabled="isSavingPrompt">Cancel</button>
+              <button class="btn-primary" @click="savePrompt" :disabled="isSavingPrompt || !promptForm.sourceSchema || !promptForm.targetSchema || !promptForm.template">
+                <span v-if="isSavingPrompt" class="spinner-sm"></span>
+                {{ isSavingPrompt ? 'Saving...' : (isEditingPrompt ? 'Save Prompt' : 'Create Prompt') }}
               </button>
             </div>
 
@@ -4095,23 +4412,33 @@
               <h4 class="section-title">Basics</h4>
 
               <label class="form-label">Catalogue ID</label>
-              <input class="form-input" v-model="remoteCatalogForm.catalogId" placeholder="e.g., mobil-x-catalogue" />
+              <input class="form-input" :class="{ 'input-error': catalogFieldErrors.catalogId }" v-model="remoteCatalogForm.catalogId" placeholder="e.g., mobil-x-catalogue" />
+              <div v-if="catalogFieldErrors.catalogId" class="field-error" style="color:#dc2626;font-size:12px;margin-top:2px;">{{ catalogFieldErrors.catalogId }}</div>
 
               <label class="form-label">Catalogue Name</label>
-              <input class="form-input" v-model="remoteCatalogForm.catalogName" placeholder="e.g., Mobil-X Catalogue" />
+              <input class="form-input" :class="{ 'input-error': catalogFieldErrors.catalogName }" v-model="remoteCatalogForm.catalogName" placeholder="e.g., Mobil-X Catalogue" />
+              <div v-if="catalogFieldErrors.catalogName" class="field-error" style="color:#dc2626;font-size:12px;margin-top:2px;">{{ catalogFieldErrors.catalogName }}</div>
 
               <label class="form-label">Owner / Contact</label>
               <input class="form-input" v-model="remoteCatalogForm.owner" placeholder="e.g., admin@mobilx.io" />
 
               <label class="form-label">Protocol</label>
               <select class="form-select" v-model="remoteCatalogForm.protocol">
-                <option value="Query interface">Query interface</option>
-                <option value="DCAT">DCAT</option>
-                <option value="OAI-PMH">OAI-PMH</option>
+                <option v-for="p in protocolOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
               </select>
+              <div class="hint" style="margin-top:4px;">
+                <span class="pill" :class="protocolReady ? 'green' : 'gray'">
+                  {{ protocolReady ? 'Protocol configuration complete' : 'Protocol configuration incomplete' }}
+                </span>
+                <ul v-if="!protocolReady" style="margin:6px 0 0 16px;padding:0;color:#b45309;font-size:12px;">
+                  <li v-for="(issue, i) in protocolIssues" :key="'pi-'+i">{{ issue }}</li>
+                </ul>
+              </div>
+              <div v-if="catalogFieldErrors.protocol" class="field-error" style="color:#dc2626;font-size:12px;margin-top:2px;">{{ catalogFieldErrors.protocol }}</div>
 
               <label class="form-label">Access URL / Base Endpoint</label>
-              <input class="form-input" v-model="remoteCatalogForm.baseEndpoint" placeholder="https://api.example.org/query" />
+              <input class="form-input" :class="{ 'input-error': catalogFieldErrors.baseEndpoint }" v-model="remoteCatalogForm.baseEndpoint" placeholder="https://api.example.org/query" />
+              <div v-if="catalogFieldErrors.baseEndpoint" class="field-error" style="color:#dc2626;font-size:12px;margin-top:2px;">{{ catalogFieldErrors.baseEndpoint }}</div>
 
               <label class="form-label">Expected Result MIME Type</label>
               <select class="form-select" v-model="remoteCatalogForm.mimeType">
@@ -4123,51 +4450,140 @@
 
               <!-- Query interface settings (only if protocol=query) -->
               <transition name="slide-fade">
-                <div v-if="remoteCatalogForm.protocol === 'Query interface'" class="subcard">
+                <div v-if="catalogProtocol === 'query-interface'" class="subcard">
                   <div class="subcard-title">Query interface settings</div>
 
-                  <label class="form-label">Query Endpoint(s)</label>
-                  <input class="form-input" v-model="remoteCatalogForm.queryEndpoint" placeholder="https://api.example.org/sparql" />
+                  <label class="form-label">Query Endpoint</label>
+                  <input class="form-input" :class="{ 'input-error': catalogFieldErrors.queryEndpoint }" v-model="remoteCatalogForm.queryEndpoint" placeholder="https://api.example.org/sparql" />
+                  <div v-if="catalogFieldErrors.queryEndpoint" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.queryEndpoint }}</div>
 
-                  <label class="form-label">Supported Query Language(s)</label>
-                  <input class="form-input" v-model="remoteCatalogForm.queryLanguages" placeholder="Search, Custom..." />
+                  <label class="form-label">Query Language</label>
+                  <select class="form-select" :class="{ 'input-error': catalogFieldErrors.queryLanguage }" v-model="remoteCatalogForm.queryLanguage">
+                    <option v-for="l in queryLanguageOptions" :key="l.value" :value="l.value">{{ l.label }}</option>
+                  </select>
+                  <div v-if="catalogFieldErrors.queryLanguage" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.queryLanguage }}</div>
+
+                  <template v-if="catalogQueryExecutable">
+                    <label class="form-label">Method</label>
+                    <select class="form-select" v-model="remoteCatalogForm.queryMethod">
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                    </select>
+                    <div v-if="catalogFieldErrors.queryMethod" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.queryMethod }}</div>
+
+                    <label class="form-label">Query</label>
+                    <textarea class="form-input" rows="5" style="font-family:monospace;font-size:12px;"
+                      :class="{ 'input-error': catalogFieldErrors.queryText }"
+                      v-model="remoteCatalogForm.queryText"
+                      placeholder="SELECT ?s ?label ?type WHERE { ?s a ?type ; rdfs:label ?label } LIMIT 100"></textarea>
+                    <div v-if="catalogFieldErrors.queryText" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.queryText }}</div>
+
+                    <label class="form-label">Query Parameter Name</label>
+                    <input class="form-input" :class="{ 'input-error': catalogFieldErrors.queryParameterName }" v-model="remoteCatalogForm.queryParameterName" placeholder="query" />
+                    <div v-if="catalogFieldErrors.queryParameterName" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.queryParameterName }}</div>
+
+                    <label class="form-label" v-if="remoteCatalogForm.queryMethod === 'POST'">Request Content Type</label>
+                    <select class="form-select" v-if="remoteCatalogForm.queryMethod === 'POST'" v-model="remoteCatalogForm.requestContentType">
+                      <option value="application/sparql-query">application/sparql-query</option>
+                      <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                      <option value="application/json">application/json</option>
+                    </select>
+
+                    <label class="form-label">Expected Result MIME Type</label>
+                    <select class="form-select" :class="{ 'input-error': catalogFieldErrors.resultMimeType }" v-model="remoteCatalogForm.resultMimeType">
+                      <option value="application/sparql-results+json">application/sparql-results+json</option>
+                      <option value="application/ld+json">application/ld+json</option>
+                      <option value="text/turtle">text/turtle</option>
+                      <option value="application/rdf+xml">application/rdf+xml</option>
+                      <option value="application/json">application/json</option>
+                    </select>
+                    <div v-if="catalogFieldErrors.resultMimeType" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.resultMimeType }}</div>
+
+                    <label class="form-label">Result Processing</label>
+                    <select class="form-select" :class="{ 'input-error': catalogFieldErrors.resultMode }" v-model="remoteCatalogForm.resultMode">
+                      <option v-for="m in resultModeOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+                    </select>
+                    <div v-if="catalogFieldErrors.resultMode" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.resultMode }}</div>
+
+                    <template v-if="remoteCatalogForm.resultMode === 'sparql-select'">
+                      <label class="form-label">Identifier Variable</label>
+                      <input class="form-input" :class="{ 'input-error': catalogFieldErrors.resultIdVariable }" v-model="remoteCatalogForm.resultIdVariable" placeholder="s" />
+                      <div v-if="catalogFieldErrors.resultIdVariable" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.resultIdVariable }}</div>
+
+                      <label class="form-label">Name Variable</label>
+                      <input class="form-input" v-model="remoteCatalogForm.resultNameVariable" placeholder="label" />
+
+                      <label class="form-label">Type Variable</label>
+                      <input class="form-input" v-model="remoteCatalogForm.resultTypeVariable" placeholder="type" />
+                    </template>
+
+                    <template v-if="remoteCatalogForm.resultMode === 'custom-json'">
+                      <label class="form-label">Result Root Path</label>
+                      <input class="form-input" :class="{ 'input-error': catalogFieldErrors.resultRootPath }" v-model="remoteCatalogForm.resultRootPath" placeholder="results.items" />
+                      <div v-if="catalogFieldErrors.resultRootPath" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.resultRootPath }}</div>
+                    </template>
+                  </template>
                 </div>
               </transition>
 
               <!-- OAI-PMH settings -->
               <transition name="slide-fade">
-                <div v-if="remoteCatalogForm.protocol === 'OAI-PMH'" class="subcard">
+                <div v-if="catalogProtocol === 'oai-pmh'" class="subcard">
                   <div class="subcard-title">OAI-PMH settings</div>
 
-                  <label class="form-label">Metadata Prefix</label>
-                  <select class="form-select" v-model="remoteCatalogForm.metadataPrefix">
+                  <label class="form-label">Base Endpoint</label>
+                  <input class="form-input" :class="{ 'input-error': catalogFieldErrors.baseEndpoint }" v-model="remoteCatalogForm.baseEndpoint" placeholder="https://repository.example.org/oai" />
+                  <div v-if="catalogFieldErrors.baseEndpoint" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.baseEndpoint }}</div>
+
+                  <label class="form-label">Metadata Prefix (required)</label>
+                  <select class="form-select" :class="{ 'input-error': catalogFieldErrors.metadataPrefix }" v-model="remoteCatalogForm.metadataPrefix">
+                    <option value="">Select a metadata prefix...</option>
                     <option value="oai_dc">oai_dc (Dublin Core)</option>
                     <option value="oai_datacite">oai_datacite</option>
                     <option value="dcat">dcat</option>
                     <option value="iso19139">iso19139</option>
                   </select>
-
-                  <label class="form-label">Set Spec (optional)</label>
-                  <input class="form-input" v-model="remoteCatalogForm.setSpec" placeholder="e.g., openaire_data" />
+                  <div v-if="catalogFieldErrors.metadataPrefix" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.metadataPrefix }}</div>
 
                   <div class="toggle-row" style="margin-top:8px;">
                     <div>
-                      <div class="form-label" style="margin:0;">Resumption Token Support</div>
-                      <div class="hint">Enable paginated harvesting via resumption tokens</div>
+                      <div class="form-label" style="margin:0;">Restrict to a set</div>
+                      <div class="hint">Harvest only one OAI set instead of the whole repository</div>
                     </div>
                     <label class="switch">
-                      <input type="checkbox" v-model="remoteCatalogForm.resumptionToken">
+                      <input type="checkbox" v-model="remoteCatalogForm.setSpecEnabled">
                       <span class="slider"></span>
                     </label>
                   </div>
+                  <template v-if="remoteCatalogForm.setSpecEnabled">
+                    <label class="form-label">Set Specification</label>
+                    <input class="form-input" :class="{ 'input-error': catalogFieldErrors.setSpec }" v-model="remoteCatalogForm.setSpec" placeholder="e.g., openaire_data" />
+                    <div v-if="catalogFieldErrors.setSpec" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.setSpec }}</div>
+                  </template>
+
+                  <div class="toggle-row" style="margin-top:8px;">
+                    <div>
+                      <div class="form-label" style="margin:0;">Follow resumption tokens</div>
+                      <div class="hint">Harvest every page the repository offers</div>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" v-model="remoteCatalogForm.resumptionTokenEnabled">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+
+                  <label class="form-label">Maximum Pages</label>
+                  <input class="form-input" type="number" min="1" :class="{ 'input-error': catalogFieldErrors.maxPages }" v-model.number="remoteCatalogForm.maxPages" />
+                  <div v-if="catalogFieldErrors.maxPages" class="field-error" style="color:#dc2626;font-size:12px;">{{ catalogFieldErrors.maxPages }}</div>
                 </div>
               </transition>
 
               <!-- DCAT Linked Data settings -->
               <transition name="slide-fade">
-                <div v-if="remoteCatalogForm.protocol === 'DCAT'" class="subcard">
+                <div v-if="catalogProtocol === 'dcat'" class="subcard">
                   <div class="subcard-title">DCAT Linked Data settings</div>
 
+                  <div v-if="catalogFieldErrors.dcatCatalogUri" class="field-error" style="color:#dc2626;font-size:12px;margin-bottom:4px;">{{ catalogFieldErrors.dcatCatalogUri }}</div>
                   <label class="form-label">DCAT Catalog URI</label>
                   <input class="form-input" v-model="remoteCatalogForm.dcatCatalogUri" placeholder="https://example.org/catalog" />
 
@@ -4335,7 +4751,8 @@
               <div class="hint" style="margin-bottom:8px;">Configure how to extract assets from the API response. Leave blank for auto-detection.</div>
 
               <label class="form-label">Response Root Path</label>
-              <input class="form-input" v-model="remoteCatalogForm.responseRootPath" placeholder="e.g. empty for root array, or results, data.items" />
+              <input class="form-input" :class="{ 'input-error': catalogFieldErrors.responseRootPath }" v-model="remoteCatalogForm.responseRootPath" placeholder="e.g. empty for root array, or results, data.items" />
+              <div v-if="catalogFieldErrors.responseRootPath" class="field-error" style="color:#dc2626;font-size:12px;margin-top:2px;">{{ catalogFieldErrors.responseRootPath }}</div>
               <div class="hint">JSONPath to the array of assets in the response</div>
 
               <label class="form-label">Asset ID Field</label>
@@ -4411,7 +4828,7 @@
           <div class="modal-footer">
               <button class="btn-secondary" @click="$emit('close')">Cancel</button>
               <button class="btn-secondary" @click="$emit('test-connection')" :disabled="isTestingConnection">{{ isTestingConnection ? 'Testing...' : 'Test connection' }}</button>
-              <button class="btn-primary" @click="$emit('save')" :disabled="isSavingRemoteCatalog">
+              <button class="btn-primary" @click="$emit('save')" :disabled="isSavingRemoteCatalog || !protocolReady" :title="protocolReady ? '' : 'Complete the protocol configuration first'">
                 {{
                   isSavingRemoteCatalog
                     ? 'Saving...'
@@ -4538,7 +4955,7 @@
                         <div class="key-row"><span class="key-label">Domain:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.domain) || '—' }}</span></div>
                         <div class="key-row"><span class="key-label">Keywords:</span><span class="key-value mono">{{ assetDetailTags.join(', ') || '—' }}</span></div>
                         <div class="key-row"><span class="key-label">License:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.license) || (assetDetailRow && assetDetailRow.transformedForm && assetDetailRow.transformedForm.license) || '—' }}</span></div>
-                        <div class="key-row"><span class="key-label">Data Format:</span><span class="key-value mono">{{ (assetDetailRow && assetDetailRow.dataFormat) || 'JSON' }}</span></div>
+                        <div class="key-row"><span class="key-label">Data Format:</span><span class="key-value mono">{{ assetDataFormat }}</span></div>
                     </div>
                 </div>
             </div>
@@ -4840,7 +5257,7 @@
     <!-- Template: Edit User Modal -->
     <template id="tpl-manage-user-modal">
       <div v-if="visible" class="modal-overlay">
-        <div class="invite-modal">
+        <div class="invite-modal manage-user-modal">
           <div class="invite-header">
             <div>
               <div class="invite-title">Edit User &mdash; {{ editUserForm.username }} <span class="pill gray" style="font-size:11px;margin-left:8px;vertical-align:middle;">{{ accessLabel }}</span></div>
@@ -5106,6 +5523,37 @@
             <!-- STEP 4 -->
             <div v-if="harvestWizardStep === 4">
               <h4 class="section-title" style="margin-top:0;">Overview</h4>
+              <div class="overview-card">
+                <div class="overview-head"><div class="overview-section">Protocol Execution</div></div>
+                <ul class="overview-list" style="margin-top:8px;">
+                  <li v-for="cat in wizardSelectedCatalogRows" :key="'ov-proto-'+cat.id" style="align-items:flex-start;">
+                    <span class="check-dot"></span>
+                    <span>
+                      <strong>{{ cat.catalog }}</strong>
+                      <span class="pill" style="margin-left:6px;font-size:11px;">{{ cat.protocol || cat.type || 'query-interface' }}</span>
+                      <div class="hint" style="margin-top:4px;">
+                        <template v-if="(cat.protocol || cat.type) === 'oai-pmh'">
+                          {{ (cat.config && cat.config.baseEndpoint) || cat.endpoint || '-' }} ·
+                          prefix {{ (cat.config && cat.config.metadataPrefix) || '-' }} ·
+                          set {{ (cat.config && cat.config.setSpec) || '-' }} ·
+                          max {{ (cat.config && cat.config.maxPages) || 50 }} page(s) ·
+                          resumption tokens {{ cat.config && cat.config.resumptionTokenEnabled === false ? 'off' : 'on' }}
+                        </template>
+                        <template v-else-if="(cat.protocol || cat.type) === 'dcat'">
+                          {{ (cat.config && (cat.config.dcatCatalogUri || cat.config.baseEndpoint)) || cat.endpoint || '-' }} ·
+                          {{ (cat.config && cat.config.mimeType) || 'RDF content negotiation' }}
+                        </template>
+                        <template v-else>
+                          {{ (cat.config && (cat.config.queryEndpoint || cat.config.baseEndpoint)) || cat.endpoint || '-' }} ·
+                          {{ (cat.config && cat.config.queryLanguage) || 'rest-json' }} ·
+                          {{ (cat.config && cat.config.queryMethod) || 'GET' }} ·
+                          {{ expectedMimeType(cat.config) }}
+                        </template>
+                      </div>
+                    </span>
+                  </li>
+                </ul>
+              </div>
               <div class="overview-card"><div class="overview-row"><div class="overview-left"><div class="overview-icon folder"><svg class="ov-ic" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5h6l2 2H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V7.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h4l2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="overview-title">{{ wizardSelectedCount }} remote catalogue{{ wizardSelectedCount !== 1 ? 's' : '' }} selected</div></div></div><ul class="overview-list" style="margin-top:8px;"><li v-for="cat in wizardSelectedCatalogRows" :key="'ov-cat-'+cat.id"><span class="check-dot"></span><span>{{ cat.catalog }} <span class="pill gray" style="margin-left:6px; font-size:11px;">{{ cat.strategy || 'none' }}</span></span></li></ul></div>
               <div class="overview-card"><div class="overview-head"><div class="overview-icon clock"><svg class="ov-ic" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="overview-section">Harvest Scope</div></div><ul class="overview-list"><li v-for="(line, idx) in overviewScopeLines" :key="'scope-'+idx"><span class="check-dot"></span><span>{{ line }}</span></li></ul></div>
               <div class="overview-card"><div class="overview-head"><div class="overview-icon recycle"><svg class="ov-ic" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 7h-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 7l-2-2m2 2l-2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4 17l2-2m-2 2l2 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8a7 7 0 0 1 11 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M17 16a7 7 0 0 1-11-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="overview-section">Lifecycle &amp; Mapping</div></div><ul class="overview-list"><li v-for="(line, idx) in overviewLifecycleLines" :key="'life-'+idx"><span class="check-dot blue"></span><span>{{ line }}</span></li></ul></div>
