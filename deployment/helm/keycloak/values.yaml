@@ -1,0 +1,97 @@
+# Keycloak-only chart. PostgreSQL is external to this chart.
+# Only the admin password, database password and reachable database host are operational inputs.
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: bitnamilegacy/keycloak
+  tag: 26.3.3-debian-12-r0
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+secret:
+  # When set, this chart does not create a Secret.
+  # The existing Secret must contain:
+  #   keycloak-admin-user
+  #   keycloak-admin-password
+  #   keycloak-db-username
+  #   keycloak-db-password
+  #   keycloak-db-database
+  existingSecret: ""
+
+  adminUser: admin
+  adminPassword: ""
+  database:
+    username: keycloak
+    password: ""
+    database: keycloak
+
+database:
+  vendor: postgresql
+  host: postgresql
+  port: 5432
+
+production: false
+httpRelativePath: /
+
+# Native Keycloak reverse-proxy settings. When ingress is enabled,
+# KC_PROXY_HEADERS defaults to xforwarded and KC_HOSTNAME is derived from
+# ingress.host unless explicitly overridden. Outside ingress mode, strict
+# hostname validation is disabled automatically when no hostname is supplied.
+proxyHeaders: ""
+hostname: ""
+hostnameStrict: true
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1001
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+  host: keycloak.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+extraEnv: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

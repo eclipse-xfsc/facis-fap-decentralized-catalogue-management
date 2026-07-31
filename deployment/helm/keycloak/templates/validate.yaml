@@ -1,0 +1,9 @@
+{{- if not .Values.database.host }}
+{{- fail "database.host is required" }}
+{{- end }}
+{{- if ne .Values.database.vendor "postgresql" }}
+{{- fail "database.vendor must be postgresql for this chart" }}
+{{- end }}
+{{- if and .Values.ingress.enabled (or (not .Values.ingress.host) (hasSuffix ".example.com" .Values.ingress.host)) }}
+{{- fail "ingress.host must be set to a real hostname when ingress.enabled=true" }}
+{{- end }}

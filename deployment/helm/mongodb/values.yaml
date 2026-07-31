@@ -1,0 +1,71 @@
+# MongoDB-only chart.
+# Only secret.rootPassword and secret.password are required when existingSecret is empty.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: mongo
+  tag: "7.0"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+secret:
+  # When set, this chart does not create a Secret.
+  # The existing Secret must contain:
+  #   mongo-root-username
+  #   mongo-root-password
+  #   mongo-username
+  #   mongo-password
+  #   mongo-database
+  existingSecret: ""
+
+  rootUsername: root
+  rootPassword: ""
+  username: dcm
+  password: ""
+  database: dcm
+
+service:
+  port: 27017
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 999
+
+# The official MongoDB entrypoint starts as root to prepare the data directory
+# and then drops privileges to the mongodb user.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: false
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

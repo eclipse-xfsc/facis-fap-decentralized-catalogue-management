@@ -1,0 +1,7 @@
+secret:
+  adminPassword: "<strong-keycloak-admin-password>"
+  database:
+    password: "<strong-postgresql-password>"
+
+database:
+  host: postgresql

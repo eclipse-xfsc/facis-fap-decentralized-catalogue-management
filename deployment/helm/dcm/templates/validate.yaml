@@ -1,0 +1,6 @@
+{{- if and .Values.ingress.enabled (or (not .Values.ingress.host) (hasSuffix ".example.com" .Values.ingress.host)) }}
+{{- fail "ingress.host must be set to a real hostname when ingress.enabled=true" }}
+{{- end }}
+{{- if and .Values.filebrowserIngress.enabled (or (not .Values.filebrowserIngress.host) (hasSuffix ".example.com" .Values.filebrowserIngress.host)) }}
+{{- fail "filebrowserIngress.host must be set to a real hostname when filebrowserIngress.enabled=true" }}
+{{- end }}

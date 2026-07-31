@@ -1,6 +1,6 @@
 [
     {
-        "id": "52b819f7ec3ad8e1",
+        "id": "779428903ded31cc",
         "type": "tab",
         "label": "M2_DCM-CatalogueRegistry",
         "disabled": false,
@@ -11,10 +11,10 @@
         "id": "b991ffcd8f6c360a",
         "type": "mongodb4-client",
         "name": "",
-        "protocol": "mongodb+srv",
-        "hostname": "",
-        "port": "",
-        "dbName": "PartnerOnboarding",
+        "protocol": "mongodb",
+        "hostname": "mdb.facis.cloud",
+        "port": "27017",
+        "dbName": "DCM",
         "appName": "",
         "authSource": "",
         "authMechanism": "DEFAULT",
@@ -32,9 +32,9 @@
         "uriTabActive": "tab-uri-simple"
     },
     {
-        "id": "c8f50f43d21eca9c",
+        "id": "3dca1c29430603ab",
         "type": "comment",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "══ Catalogue Registry Backend ══",
         "info": "Handles all Catalogue Registry operations.\nResponses go back to Dashboard uibuilder via link-out → dashboard-linkin.",
         "x": 260,
@@ -42,25 +42,25 @@
         "wires": []
     },
     {
-        "id": "e2f70557fca63bd2",
+        "id": "238055db0f480ead",
         "type": "link in",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "catalogue-registry-in",
         "links": [
-            "ff01000000000032"
+            "aef52ac803b130f9"
         ],
         "x": 115,
         "y": 200,
         "wires": [
             [
-                "d4696fb0da556bb1"
+                "ac02000000000001"
             ]
         ]
     },
     {
-        "id": "d4696fb0da556bb1",
+        "id": "284c5ccdf5bca33d",
         "type": "switch",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "route by msg.type",
         "property": "type",
         "propertyType": "msg",
@@ -143,56 +143,56 @@
         "y": 200,
         "wires": [
             [
-                "28b04a031cdca03c"
+                "8a86fbda05611c3f"
             ],
             [
-                "3fca2c79d5500301"
+                "40a57707386e3166"
             ],
             [
-                "ec4c68ae263a3cec"
+                "82fcd368e545f672"
             ],
             [
-                "858298690d53be42"
+                "ee2323e4b7f03bc9"
             ],
             [
-                "af924e78dc8378a0"
+                "590325a127c4ef12"
             ],
             [
-                "at01000000000010"
+                "3f2d603d3b70a0ce"
             ],
             [
-                "at01000000000020"
+                "52acf1c1f8584417"
             ],
             [
-                "at01000000000030"
+                "d5543d4c9ff82ad2"
             ],
             [
-                "at01000000000040"
+                "f6dfdfce55357b20"
             ],
             [
-                "tc01000000000010"
+                "1e82583ea886028c"
             ],
             [
-                "cr03m2000010"
+                "b8439cb1e5e1c835"
             ],
             [
-                "cr03m2000020"
+                "c3015a05954e8a46"
             ],
             [
-                "cr03m2000030"
+                "04b5f2f4512f3d1d"
             ],
             [
-                "cr03m2000040"
+                "34eaeded59b38e9a"
             ]
         ]
     },
     {
-        "id": "28b04a031cdca03c",
+        "id": "8a86fbda05611c3f",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Register Remote Catalog",
-        "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet randomPart = '';\nfor (let i = 0; i < 12; i++) {\n  randomPart += chars[Math.floor(Math.random() * chars.length)];\n}\nconst id = Date.now().toString(36) + randomPart;\n\nconst d = msg.data || {};\nd.createdAt = new Date().toISOString();\nd.updatedAt = d.createdAt;\n\nmsg.uniqueId = id;\nmsg.operation = \"insertOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = {\n    catalog: d,\n    uniqueId: id\n};\nreturn msg;",
-        "outputs": 1,
+        "func": "// NF-4 RC-10: validate catalogue configuration before any DB write\nconst d = msg.data || {};\nfunction isHttpUrl(u){ return typeof u === 'string' && /^https?:\\/\\/\\S+$/i.test(u.trim()); }\nconst fieldErrors = {};\nif (!d.catalogName || !String(d.catalogName).trim()) fieldErrors.catalogName = 'Catalogue Name is required.';\nif (!d.catalogId || !String(d.catalogId).trim()) fieldErrors.catalogId = 'Catalogue ID is required.';\nconst endpoints = [d.baseEndpoint, d.queryEndpoint, d.dcatCatalogUri, d.linkedDataEndpoint].filter(function(x){ return x && String(x).trim(); });\nconst hasSource = !!d.sourceData;\nif (endpoints.length === 0 && !hasSource) fieldErrors.baseEndpoint = 'An endpoint URL is required unless a JSON source file is uploaded.';\nfor (const ep of [['baseEndpoint', d.baseEndpoint], ['queryEndpoint', d.queryEndpoint], ['dcatCatalogUri', d.dcatCatalogUri], ['linkedDataEndpoint', d.linkedDataEndpoint]]) {\n    if (ep[1] && String(ep[1]).trim() && !isHttpUrl(ep[1])) fieldErrors[ep[0]] = '\"' + ep[1] + '\" is not a valid absolute http(s) URL.';\n}\nconst auth = d.auth || 'none';\nif (auth === 'token-login' && (!d.authLoginEndpoint || !d.authUsername || !d.authPassword)) fieldErrors.auth = 'Token-login auth requires a login endpoint, username and password.';\nif (auth === 'static-token' && !d.authStaticToken) fieldErrors.auth = 'Static-token auth requires a token.';\nif (auth === 'api-key' && !d.authApiKey) fieldErrors.auth = 'API-key auth requires an API key.';\n// NF-2: a catalogue is only protocol-ready when its protocol-specific fields\n// are complete. Legacy labels are accepted and normalised.\nfunction protoValidate(cfg, fieldErrors) {\n    function txt(v) { return v === undefined || v === null ? '' : String(v).trim(); }\n    var raw = txt(cfg.protocol).toLowerCase().replace(/[\\s_]+/g, '-');\n    var protocol = raw === 'oaipmh' || raw === 'oai' ? 'oai-pmh'\n        : raw === 'dcat-ap' || raw === 'linked-data' ? 'dcat'\n        : raw === 'query' || raw === 'sparql' ? 'query-interface'\n        : (raw || 'query-interface');\n    if (['query-interface', 'dcat', 'oai-pmh'].indexOf(protocol) === -1) {\n        fieldErrors.protocol = 'Unsupported protocol \"' + txt(cfg.protocol) + '\". Use Query interface, DCAT or OAI-PMH.';\n        return protocol;\n    }\n    if (cfg.sourceData) return protocol;\n\n    if (protocol === 'oai-pmh') {\n        if (!txt(cfg.baseEndpoint)) fieldErrors.baseEndpoint = 'OAI-PMH requires a base endpoint.';\n        if (!txt(cfg.metadataPrefix)) fieldErrors.metadataPrefix = 'OAI-PMH requires a metadata prefix.';\n        var pages = cfg.maxPages === undefined || cfg.maxPages === null || cfg.maxPages === '' ? 50 : Number(cfg.maxPages);\n        if (!isFinite(pages) || pages < 1 || Math.floor(pages) !== pages) {\n            fieldErrors.maxPages = 'Maximum page limit must be a whole number of at least 1.';\n        }\n        if (cfg.setSpecEnabled && !txt(cfg.setSpec)) {\n            fieldErrors.setSpec = 'A set specification is enabled but empty.';\n        }\n    } else if (protocol === 'dcat') {\n        if (!txt(cfg.dcatCatalogUri) && !txt(cfg.baseEndpoint)) {\n            fieldErrors.dcatCatalogUri = 'DCAT requires a catalogue URI or base endpoint.';\n        }\n    } else {\n        var endpoint = txt(cfg.queryEndpoint) || txt(cfg.baseEndpoint);\n        if (!endpoint) fieldErrors.queryEndpoint = 'A query interface requires a query endpoint.';\n        var lang = txt(cfg.queryLanguage || cfg.queryLanguages).toLowerCase();\n        if (!lang) {\n            fieldErrors.queryLanguage = 'Select the query language, or REST/JSON for a plain endpoint.';\n        } else if (/sparql|graphql|custom-query/.test(lang)) {\n            var method = txt(cfg.queryMethod).toUpperCase() || 'GET';\n            if (!txt(cfg.queryText)) fieldErrors.queryText = 'An executable query is required for ' + lang + '.';\n            if (method !== 'GET' && method !== 'POST') fieldErrors.queryMethod = 'Unsupported method \"' + method + '\". Use GET or POST.';\n            var form = txt(cfg.requestContentType).toLowerCase().indexOf('x-www-form-urlencoded') >= 0;\n            if ((method === 'GET' || form) && !txt(cfg.queryParameterName)) {\n                fieldErrors.queryParameterName = 'A query parameter name is required for ' + (method === 'GET' ? 'GET' : 'form-encoded POST') + ' requests.';\n            }\n            if (!txt(cfg.resultMimeType)) fieldErrors.resultMimeType = 'An expected result MIME type is required.';\n            var mode = txt(cfg.resultMode);\n            if (!mode) fieldErrors.resultMode = 'Select how query results should be processed.';\n            else if (mode === 'sparql-select' && !txt(cfg.resultIdVariable)) fieldErrors.resultIdVariable = 'SELECT harvesting requires the variable that carries the asset identifier.';\n            else if (mode === 'custom-json' && !txt(cfg.resultRootPath)) fieldErrors.resultRootPath = 'Custom JSON results require the result root path.';\n        }\n    }\n    return protocol;\n}\nprotoValidate(d, fieldErrors);\nif (d.responseRootPath && String(d.responseRootPath).trim() && !/^[A-Za-z0-9_$@][A-Za-z0-9_$@.\\\\[\\\\]-]*$/.test(String(d.responseRootPath).trim())) fieldErrors.responseRootPath = 'Response Root Path \"' + d.responseRootPath + '\" is not a valid dot path.';\nconst strategy = d.strategy || 'none';\nconst validStrategies = ['none', 'ai', 'deterministic', 'hybrid', 'JSON Field Mapping'];\nif (strategy && validStrategies.indexOf(strategy) === -1) fieldErrors.strategy = 'Unknown transformation strategy \"' + strategy + '\".';\nif ((strategy === 'ai' || strategy === 'hybrid') && (!d.promptId || !d.llmConfigId)) fieldErrors.strategy = 'AI-driven strategy requires a prompt and an LLM configuration.';\n\nif (Object.keys(fieldErrors).length > 0) {\n    msg.response = { action: 'registerRemoteCatalog', status: 'error', ok: false, code: 'validation_failed', message: 'Catalogue configuration is invalid.', fieldErrors: fieldErrors };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg._pendingCatalogId = String(d.catalogId).trim();\nmsg.operation = 'find';\nmsg.collection = 'cr_catalogues';\nmsg.payload = [ { 'catalog.catalogId': msg._pendingCatalogId } ];\nreturn [msg, null];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -202,14 +202,17 @@
         "y": 100,
         "wires": [
             [
-                "3da920f6b916d82b"
+                "a2b2c3d4e5f60001"
+            ],
+            [
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "3da920f6b916d82b",
+        "id": "5235eca135f5ae94",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -222,14 +225,14 @@
         "y": 100,
         "wires": [
             [
-                "44141c44f27e9af0"
+                "8bcbb57a7194571c"
             ]
         ]
     },
     {
-        "id": "44141c44f27e9af0",
+        "id": "8bcbb57a7194571c",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "response",
         "func": "msg.response = {\n    action: \"registerRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.uniqueId\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -242,14 +245,14 @@
         "y": 100,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "3fca2c79d5500301",
+        "id": "40a57707386e3166",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Get Catalog Registry",
         "func": "msg.operation = \"find\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n    {},\n    { projection: { catalog: 1, uniqueId: 1, _id: 0 } }\n];\nreturn msg;",
         "outputs": 1,
@@ -262,14 +265,14 @@
         "y": 200,
         "wires": [
             [
-                "ea9703dee343d155"
+                "afc918de47f1f81c"
             ]
         ]
     },
     {
-        "id": "ea9703dee343d155",
+        "id": "afc918de47f1f81c",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -282,14 +285,14 @@
         "y": 200,
         "wires": [
             [
-                "7babcfad97f61929"
+                "22302bc22f4b4fa9"
             ]
         ]
     },
     {
-        "id": "7babcfad97f61929",
+        "id": "22302bc22f4b4fa9",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "response",
         "func": "msg.response = {\n    action: \"getCatalogRegistry\",\n    status: \"success\",\n    catalogs: msg.payload\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -302,17 +305,17 @@
         "y": 200,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "ec4c68ae263a3cec",
+        "id": "82fcd368e545f672",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Update Remote Catalog",
-        "func": "const patch = msg.data.patch;\nconst update = Object.fromEntries(\n  Object.entries(patch).map(([key, value]) => [\n    `catalog.${key}`,\n    value\n  ])\n);\n\nmsg.operation = \"updateOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = [\n  { uniqueId: msg.data.uniqueId },\n  { $set: update }\n];\nreturn msg;",
-        "outputs": 1,
+        "func": "// NF-4 RC-10: validate patch before writing\nconst patch = (msg.data && msg.data.patch) || {};\nfunction has(k){ return Object.prototype.hasOwnProperty.call(patch, k); }\nfunction isHttpUrl(u){ return typeof u === 'string' && /^https?:\\/\\/\\S+$/i.test(u.trim()); }\nconst fieldErrors = {};\nif (has('catalogName') && (!patch.catalogName || !String(patch.catalogName).trim())) fieldErrors.catalogName = 'Catalogue Name is required.';\nfor (const ep of [['baseEndpoint', patch.baseEndpoint], ['queryEndpoint', patch.queryEndpoint], ['dcatCatalogUri', patch.dcatCatalogUri], ['linkedDataEndpoint', patch.linkedDataEndpoint]]) {\n    if (has(ep[0]) && ep[1] && String(ep[1]).trim() && !isHttpUrl(ep[1])) fieldErrors[ep[0]] = '\"' + ep[1] + '\" is not a valid absolute http(s) URL.';\n}\nif (has('auth')) {\n    const auth = patch.auth;\n    if (auth === 'token-login' && (!patch.authLoginEndpoint || !patch.authUsername || !patch.authPassword)) fieldErrors.auth = 'Token-login auth requires a login endpoint, username and password.';\n    if (auth === 'static-token' && !patch.authStaticToken) fieldErrors.auth = 'Static-token auth requires a token.';\n    if (auth === 'api-key' && !patch.authApiKey) fieldErrors.auth = 'API-key auth requires an API key.';\n}\n// NF-2: a catalogue is only protocol-ready when its protocol-specific fields\n// are complete. Legacy labels are accepted and normalised.\nfunction protoValidate(cfg, fieldErrors) {\n    function txt(v) { return v === undefined || v === null ? '' : String(v).trim(); }\n    var raw = txt(cfg.protocol).toLowerCase().replace(/[\\s_]+/g, '-');\n    var protocol = raw === 'oaipmh' || raw === 'oai' ? 'oai-pmh'\n        : raw === 'dcat-ap' || raw === 'linked-data' ? 'dcat'\n        : raw === 'query' || raw === 'sparql' ? 'query-interface'\n        : (raw || 'query-interface');\n    if (['query-interface', 'dcat', 'oai-pmh'].indexOf(protocol) === -1) {\n        fieldErrors.protocol = 'Unsupported protocol \"' + txt(cfg.protocol) + '\". Use Query interface, DCAT or OAI-PMH.';\n        return protocol;\n    }\n    if (cfg.sourceData) return protocol;\n\n    if (protocol === 'oai-pmh') {\n        if (!txt(cfg.baseEndpoint)) fieldErrors.baseEndpoint = 'OAI-PMH requires a base endpoint.';\n        if (!txt(cfg.metadataPrefix)) fieldErrors.metadataPrefix = 'OAI-PMH requires a metadata prefix.';\n        var pages = cfg.maxPages === undefined || cfg.maxPages === null || cfg.maxPages === '' ? 50 : Number(cfg.maxPages);\n        if (!isFinite(pages) || pages < 1 || Math.floor(pages) !== pages) {\n            fieldErrors.maxPages = 'Maximum page limit must be a whole number of at least 1.';\n        }\n        if (cfg.setSpecEnabled && !txt(cfg.setSpec)) {\n            fieldErrors.setSpec = 'A set specification is enabled but empty.';\n        }\n    } else if (protocol === 'dcat') {\n        if (!txt(cfg.dcatCatalogUri) && !txt(cfg.baseEndpoint)) {\n            fieldErrors.dcatCatalogUri = 'DCAT requires a catalogue URI or base endpoint.';\n        }\n    } else {\n        var endpoint = txt(cfg.queryEndpoint) || txt(cfg.baseEndpoint);\n        if (!endpoint) fieldErrors.queryEndpoint = 'A query interface requires a query endpoint.';\n        var lang = txt(cfg.queryLanguage || cfg.queryLanguages).toLowerCase();\n        if (!lang) {\n            fieldErrors.queryLanguage = 'Select the query language, or REST/JSON for a plain endpoint.';\n        } else if (/sparql|graphql|custom-query/.test(lang)) {\n            var method = txt(cfg.queryMethod).toUpperCase() || 'GET';\n            if (!txt(cfg.queryText)) fieldErrors.queryText = 'An executable query is required for ' + lang + '.';\n            if (method !== 'GET' && method !== 'POST') fieldErrors.queryMethod = 'Unsupported method \"' + method + '\". Use GET or POST.';\n            var form = txt(cfg.requestContentType).toLowerCase().indexOf('x-www-form-urlencoded') >= 0;\n            if ((method === 'GET' || form) && !txt(cfg.queryParameterName)) {\n                fieldErrors.queryParameterName = 'A query parameter name is required for ' + (method === 'GET' ? 'GET' : 'form-encoded POST') + ' requests.';\n            }\n            if (!txt(cfg.resultMimeType)) fieldErrors.resultMimeType = 'An expected result MIME type is required.';\n            var mode = txt(cfg.resultMode);\n            if (!mode) fieldErrors.resultMode = 'Select how query results should be processed.';\n            else if (mode === 'sparql-select' && !txt(cfg.resultIdVariable)) fieldErrors.resultIdVariable = 'SELECT harvesting requires the variable that carries the asset identifier.';\n            else if (mode === 'custom-json' && !txt(cfg.resultRootPath)) fieldErrors.resultRootPath = 'Custom JSON results require the result root path.';\n        }\n    }\n    return protocol;\n}\nif (has('protocol')) protoValidate(patch, fieldErrors);\nif (has('responseRootPath') && patch.responseRootPath && String(patch.responseRootPath).trim() && !/^[A-Za-z0-9_$@][A-Za-z0-9_$@.\\\\[\\\\]-]*$/.test(String(patch.responseRootPath).trim())) fieldErrors.responseRootPath = 'Response Root Path \"' + patch.responseRootPath + '\" is not a valid dot path.';\nif (has('strategy')) {\n    const strategy = patch.strategy || 'none';\n    if (['none','ai','deterministic','hybrid','JSON Field Mapping'].indexOf(strategy) === -1) fieldErrors.strategy = 'Unknown transformation strategy \"' + strategy + '\".';\n    if ((strategy === 'ai' || strategy === 'hybrid') && (!patch.promptId || !patch.llmConfigId)) fieldErrors.strategy = 'AI-driven strategy requires a prompt and an LLM configuration.';\n}\nif (Object.keys(fieldErrors).length > 0) {\n    msg.response = { action: 'updateRemoteCatalog', status: 'error', ok: false, code: 'validation_failed', message: 'Catalogue configuration is invalid.', fieldErrors: fieldErrors };\n    delete msg.payload;\n    return [null, msg];\n}\nconst update = Object.fromEntries(Object.entries(patch).map(function(kv){ return ['catalog.' + kv[0], kv[1]]; }));\nmsg.operation = 'updateOne';\nmsg.collection = 'cr_catalogues';\nmsg.payload = [ { uniqueId: msg.data.uniqueId }, { $set: update } ];\nreturn [msg, null];",
+        "outputs": 2,
         "timeout": 0,
         "noerr": 0,
         "initialize": "",
@@ -322,14 +325,17 @@
         "y": 300,
         "wires": [
             [
-                "f29cfd0961168adb"
+                "877d972cdb6d57af"
+            ],
+            [
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "f29cfd0961168adb",
+        "id": "877d972cdb6d57af",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -342,14 +348,14 @@
         "y": 300,
         "wires": [
             [
-                "d6727fd31daf3d3e"
+                "35334dd52878cb5e"
             ]
         ]
     },
     {
-        "id": "d6727fd31daf3d3e",
+        "id": "35334dd52878cb5e",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "response",
         "func": "msg.response = {\n    action: \"updateRemoteCatalog\",\n    status: \"success\"\n};\nreturn msg;",
         "outputs": 1,
@@ -362,16 +368,16 @@
         "y": 300,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "858298690d53be42",
+        "id": "ee2323e4b7f03bc9",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Delete Remote Catalog",
-        "func": "msg.operation = \"deleteOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = { uniqueId: msg.data.uniqueId };\nreturn msg;",
+        "func": "const id = String((msg.data && msg.data.uniqueId) || \"\").trim();\nif (!id) {\n    msg.response = { action: \"deleteRemoteCatalog\", status: \"error\", ok: false, code: \"validation_failed\", message: \"No catalogue identifier was supplied.\" };\n    delete msg.payload;\n    return msg;\n}\n// Catalogues registered before uniqueId was mandatory are matched by catalogId.\nmsg._deleteId = id;\nmsg.operation = \"deleteOne\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = { $or: [ { uniqueId: id }, { \"catalog.catalogId\": id } ] };\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -382,14 +388,14 @@
         "y": 400,
         "wires": [
             [
-                "c5ea6dc6be7cd5de"
+                "ce256d739919b3a6"
             ]
         ]
     },
     {
-        "id": "c5ea6dc6be7cd5de",
+        "id": "ce256d739919b3a6",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -402,16 +408,16 @@
         "y": 400,
         "wires": [
             [
-                "c215fd54bb69977d"
+                "24ee976f2b4b3c0f"
             ]
         ]
     },
     {
-        "id": "c215fd54bb69977d",
+        "id": "24ee976f2b4b3c0f",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "response",
-        "func": "msg.response = {\n    action: \"deleteRemoteCatalog\",\n    status: \"success\",\n    uniqueId: msg.data.uniqueId\n};\nreturn msg;",
+        "func": "const result = msg.payload || {};\nconst deleted = Number(result.deletedCount != null ? result.deletedCount : 0);\nconst id = msg._deleteId || (msg.data && msg.data.uniqueId) || \"\";\ndelete msg._deleteId;\nmsg.response = deleted > 0\n    ? { action: \"deleteRemoteCatalog\", status: \"success\", ok: true, uniqueId: id, deletedCount: deleted }\n    : { action: \"deleteRemoteCatalog\", status: \"error\", ok: false, code: \"not_found\", uniqueId: id, deletedCount: 0, message: \"Catalogue \\\"\" + id + \"\\\" was not found; nothing was deleted.\" };\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -422,14 +428,14 @@
         "y": 400,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "af924e78dc8378a0",
+        "id": "590325a127c4ef12",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Upload Catalog JSON (bulk insert)",
         "func": "// Expects msg.data.catalogs = array of catalog objects\nconst catalogs = msg.data.catalogs || [];\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\n\nconst docs = catalogs.map(c => {\n    let randomPart = '';\n    for (let i = 0; i < 12; i++) {\n        randomPart += chars[Math.floor(Math.random() * chars.length)];\n    }\n    const id = Date.now().toString(36) + randomPart;\n    return { catalog: c, uniqueId: id };\n});\n\nif (docs.length === 0) {\n    msg.response = {\n        action: \"uploadCatalogJson\",\n        status: \"error\",\n        message: \"No catalogue entries found in JSON file.\"\n    };\n    return [null, msg];\n}\n\nmsg._uploadedDocs = docs;\nmsg.operation = \"insertMany\";\nmsg.collection = \"cr_catalogues\";\nmsg.payload = docs;\nreturn [msg, null];",
         "outputs": 2,
@@ -442,17 +448,17 @@
         "y": 500,
         "wires": [
             [
-                "65a986661f55b529"
+                "59f721081c88e4aa"
             ],
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "65a986661f55b529",
+        "id": "59f721081c88e4aa",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -465,14 +471,14 @@
         "y": 500,
         "wires": [
             [
-                "a696f4e764e66002"
+                "45d58e0a93a6bba2"
             ]
         ]
     },
     {
-        "id": "a696f4e764e66002",
+        "id": "45d58e0a93a6bba2",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "response",
         "func": "msg.response = {\n    action: \"uploadCatalogJson\",\n    status: \"success\",\n    catalogs: msg._uploadedDocs || []\n};\ndelete msg._uploadedDocs;\nreturn msg;",
         "outputs": 1,
@@ -485,27 +491,27 @@
         "y": 620,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "f8063c93b0f6d90b",
+        "id": "e363243f7433bd75",
         "type": "link out",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "→ Dashboard uibuilder",
         "mode": "link",
         "links": [
-            "c48570326bcd6b3d"
+            "4f7511bc7069ea47"
         ],
         "x": 1315,
         "y": 300,
         "wires": []
     },
     {
-        "id": "at01000000000010",
+        "id": "3f2d603d3b70a0ce",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "List Asset Types",
         "func": "msg.operation = \"find\";\nmsg.collection = \"cr_asset_types\";\nmsg.payload = [\n    {},\n    { projection: { _id: 0 }, sort: { name: 1 } }\n];\nreturn msg;",
         "outputs": 1,
@@ -518,14 +524,14 @@
         "y": 600,
         "wires": [
             [
-                "at01000000000011"
+                "3e6dc86491ca3993"
             ]
         ]
     },
     {
-        "id": "at01000000000011",
+        "id": "3e6dc86491ca3993",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "cr_asset_types",
@@ -538,14 +544,14 @@
         "y": 600,
         "wires": [
             [
-                "at01000000000012"
+                "240efbd8fd14c5ea"
             ]
         ]
     },
     {
-        "id": "at01000000000012",
+        "id": "240efbd8fd14c5ea",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: listAssetTypes",
         "func": "const items = Array.isArray(msg.payload) ? msg.payload : [];\nmsg.response = { action: \"listAssetTypes\", status: \"success\", items };\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -558,14 +564,14 @@
         "y": 600,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "at01000000000020",
+        "id": "52acf1c1f8584417",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Save Asset Type",
         "func": "const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet randomPart = '';\nfor (let i = 0; i < 12; i++) {\n    randomPart += chars[Math.floor(Math.random() * chars.length)];\n}\nconst id = 'at_' + Date.now().toString(36) + randomPart;\n\nconst d = msg.data || {};\nconst doc = {\n    uniqueId: id,\n    name: (d.name || '').trim(),\n    description: d.description || '',\n    icon: d.icon || 'dataset',\n    createdAt: new Date().toISOString(),\n    updatedAt: new Date().toISOString()\n};\n\nif (!doc.name) {\n    msg.response = { action: \"saveAssetType\", status: \"error\", message: \"Name is required\" };\n    delete msg.payload;\n    return [null, msg];\n}\n\nmsg.uniqueId = id;\nmsg._newDoc = doc;\nmsg.operation = \"insertOne\";\nmsg.collection = \"cr_asset_types\";\nmsg.payload = doc;\nreturn [msg, null];",
         "outputs": 2,
@@ -578,17 +584,17 @@
         "y": 700,
         "wires": [
             [
-                "at01000000000021"
+                "4c7356e87a4bfc4c"
             ],
             [
-                "at01000000000022"
+                "b7f328aa96f6c406"
             ]
         ]
     },
     {
-        "id": "at01000000000021",
+        "id": "4c7356e87a4bfc4c",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "cr_asset_types",
@@ -601,14 +607,14 @@
         "y": 700,
         "wires": [
             [
-                "at01000000000022"
+                "b7f328aa96f6c406"
             ]
         ]
     },
     {
-        "id": "at01000000000022",
+        "id": "b7f328aa96f6c406",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: saveAssetType",
         "func": "if (msg.response && msg.response.status === \"error\") {\n    return msg;\n}\nmsg.response = {\n    action: \"saveAssetType\",\n    status: \"success\",\n    uniqueId: msg.uniqueId,\n    item: msg._newDoc\n};\ndelete msg.payload;\ndelete msg._newDoc;\nreturn msg;",
         "outputs": 1,
@@ -621,14 +627,14 @@
         "y": 700,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "at01000000000030",
+        "id": "d5543d4c9ff82ad2",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Update Asset Type",
         "func": "const d = msg.data || {};\nif (!d.uniqueId) {\n    msg.response = { action: \"updateAssetType\", status: \"error\", message: \"uniqueId is required\" };\n    delete msg.payload;\n    return [null, msg];\n}\nconst patch = Object.assign({}, d.patch || {}, { updatedAt: new Date().toISOString() });\nmsg.uniqueId = d.uniqueId;\nmsg._patch = patch;\nmsg.operation = \"updateOne\";\nmsg.collection = \"cr_asset_types\";\nmsg.payload = [{ uniqueId: d.uniqueId }, { $set: patch }];\nreturn [msg, null];",
         "outputs": 2,
@@ -641,17 +647,17 @@
         "y": 800,
         "wires": [
             [
-                "at01000000000031"
+                "8506094a3a81fbd7"
             ],
             [
-                "at01000000000032"
+                "24afff2975ca21cd"
             ]
         ]
     },
     {
-        "id": "at01000000000031",
+        "id": "8506094a3a81fbd7",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "cr_asset_types",
@@ -664,14 +670,14 @@
         "y": 800,
         "wires": [
             [
-                "at01000000000032"
+                "24afff2975ca21cd"
             ]
         ]
     },
     {
-        "id": "at01000000000032",
+        "id": "24afff2975ca21cd",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: updateAssetType",
         "func": "if (msg.response && msg.response.status === \"error\") {\n    return msg;\n}\nmsg.response = {\n    action: \"updateAssetType\",\n    status: \"success\",\n    uniqueId: msg.uniqueId,\n    patch: msg._patch\n};\ndelete msg.payload;\ndelete msg._patch;\nreturn msg;",
         "outputs": 1,
@@ -684,14 +690,14 @@
         "y": 800,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "at01000000000040",
+        "id": "f6dfdfce55357b20",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "Delete Asset Type",
         "func": "const d = msg.data || {};\nif (!d.uniqueId) {\n    msg.response = { action: \"deleteAssetType\", status: \"error\", message: \"uniqueId is required\" };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg.uniqueId = d.uniqueId;\nmsg.operation = \"deleteOne\";\nmsg.collection = \"cr_asset_types\";\nmsg.payload = { uniqueId: d.uniqueId };\nreturn [msg, null];",
         "outputs": 2,
@@ -704,17 +710,17 @@
         "y": 900,
         "wires": [
             [
-                "at01000000000041"
+                "2443a27ac9a58e8e"
             ],
             [
-                "at01000000000042"
+                "11712ebb3e63ddc3"
             ]
         ]
     },
     {
-        "id": "at01000000000041",
+        "id": "2443a27ac9a58e8e",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "cr_asset_types",
@@ -727,14 +733,14 @@
         "y": 900,
         "wires": [
             [
-                "at01000000000042"
+                "11712ebb3e63ddc3"
             ]
         ]
     },
     {
-        "id": "at01000000000042",
+        "id": "11712ebb3e63ddc3",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: deleteAssetType",
         "func": "if (msg.response && msg.response.status === \"error\") {\n    return msg;\n}\nmsg.response = { action: \"deleteAssetType\", status: \"success\", uniqueId: msg.uniqueId };\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -747,14 +753,14 @@
         "y": 900,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "bb02000000000h01",
+        "id": "37bbc0daf66c9986",
         "type": "inject",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "heartbeat: CatalogueRegistry",
         "props": [],
         "repeat": "30",
@@ -766,14 +772,14 @@
         "y": 1900,
         "wires": [
             [
-                "bb02000000000h02"
+                "be43ac8c7e41aade"
             ]
         ]
     },
     {
-        "id": "bb02000000000h02",
+        "id": "be43ac8c7e41aade",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "write heartbeat",
         "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"CatalogueRegistry\" },\n  { $set: { module: \"CatalogueRegistry\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
         "outputs": 1,
@@ -781,14 +787,14 @@
         "y": 1900,
         "wires": [
             [
-                "bb02000000000h03"
+                "cb00b80c7fb0f1f5"
             ]
         ]
     },
     {
-        "id": "bb02000000000h03",
+        "id": "cb00b80c7fb0f1f5",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -802,11 +808,11 @@
         ]
     },
     {
-        "id": "tc01000000000010",
+        "id": "1e82583ea886028c",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "testConnection: build http request",
-        "func": "const data = msg.data || {};\nconst auth = String(data.auth || 'none').toLowerCase();\nconst protocol = String(data.protocol || '').toLowerCase();\nconst endpoint = (data.baseEndpoint || data.queryEndpoint || '').trim();\n\nmsg._testStartMs = Date.now();\nmsg._testMeta = { auth: auth, protocol: protocol };\nmsg._testAction = 'testRemoteCatalogConnection';\n\nfunction errorOut(message) {\n    const m = RED.util.cloneMessage(msg);\n    m.response = { action: 'testRemoteCatalogConnection', status: 'error', message: message, latency: 0, httpCode: 0 };\n    delete m.payload;\n    return [null, m];\n}\n\nif (auth === 'oauth') {\n    return errorOut('OAuth2 connection test is not yet supported.');\n}\n\nif (auth === 'token-login') {\n    const loginUrl = (data.authLoginEndpoint || '').trim();\n    if (!loginUrl) return errorOut('Login endpoint URL is required for Token Login auth.');\n    if (!data.authUsername || !data.authPassword) return errorOut('Username and password are required for Token Login auth.');\n    msg.url = loginUrl;\n    msg.method = 'POST';\n    msg.headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };\n    msg.payload = { username: data.authUsername, password: data.authPassword };\n    return [msg, null];\n}\n\nif (!endpoint) return errorOut('No endpoint URL provided.');\n\nmsg.url = endpoint;\nmsg.method = 'GET';\nmsg.headers = { 'Accept': 'application/json' };\n\nif (auth === 'bearer') {\n    const token = (data.authStaticToken || '').trim();\n    if (token) msg.headers['Authorization'] = 'Bearer ' + token;\n} else if (auth === 'apikey') {\n    const header = (data.authApiKeyHeader || 'X-API-Key').trim();\n    const key = (data.authApiKey || '').trim();\n    if (key) msg.headers[header] = key;\n}\n\ndelete msg.payload;\nreturn [msg, null];",
+        "func": "const data = msg.data || {};\nconst auth = String(data.auth || 'none').toLowerCase();\n\n// ── NF-2 protocol library (shared, must stay identical in every node) ──────\n// Normalised protocol values: 'query-interface' | 'dcat' | 'oai-pmh'.\nfunction protoNormalise(value) {\n    var s = String(value == null ? '' : value).trim().toLowerCase();\n    if (!s) return 'query-interface';\n    s = s.replace(/[\\s_]+/g, '-');\n    if (s === 'oai-pmh' || s === 'oaipmh' || s === 'oai') return 'oai-pmh';\n    if (s === 'dcat' || s === 'dcat-ap' || s === 'linked-data') return 'dcat';\n    if (s === 'query-interface' || s === 'query' || s === 'sparql' || s === 'query-interfaces') return 'query-interface';\n    return s;\n}\nfunction protoIsSupported(p) {\n    return p === 'query-interface' || p === 'dcat' || p === 'oai-pmh';\n}\nfunction protoText(v) {\n    if (v === undefined || v === null) return '';\n    return String(v).trim();\n}\n// 123 and 91 are the character codes of the JSON object and array openers.\nfunction looksLikeJsonText(s) {\n    var code = String(s == null ? '' : s).trim().charCodeAt(0);\n    return code === 123 || code === 91;\n}\nfunction protoIsHttpUrl(u) {\n    return typeof u === 'string' && /^https?:\\/\\/\\S+$/i.test(u.trim());\n}\nfunction protoQueryLanguage(cat) {\n    var q = protoText(cat.queryLanguage || cat.queryLanguages).toLowerCase();\n    if (!q) return 'rest-json';\n    if (/sparql/.test(q)) return 'sparql';\n    if (/graphql/.test(q)) return 'graphql';\n    if (/rest|json|search|custom$/.test(q)) return 'rest-json';\n    return q;\n}\n// A query language that actually executes a query text, as opposed to a plain\n// REST endpoint that is simply fetched.\nfunction protoIsExecutableQuery(lang) {\n    return lang === 'sparql' || lang === 'graphql' || lang === 'custom-query';\n}\nfunction protoMaxPages(cat) {\n    var n = parseInt(cat.maxPages, 10);\n    if (!isFinite(n) || n <= 0) return 50;\n    return Math.min(n, 1000);\n}\nfunction protoRdfMime(ct) {\n    return /ld\\+json|turtle|n-quads|nquads|n-triples|ntriples|trig|rdf\\+xml/i.test(ct || '');\n}\nfunction protoXmlMime(ct) {\n    return /xml/i.test(ct || '');\n}\nfunction protoAddQuery(url, params) {\n    var parts = [];\n    Object.keys(params).forEach(function (k) {\n        var v = params[k];\n        if (v === undefined || v === null || v === '') return;\n        parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));\n    });\n    if (!parts.length) return url;\n    return url + (url.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');\n}\n// Builds the OAI-PMH request URL. A resumption token is exclusive: the spec\n// forbids sending metadataPrefix or set alongside it.\nfunction protoOaiUrl(base, opts) {\n    if (opts && opts.resumptionToken) {\n        return protoAddQuery(base, { verb: 'ListRecords', resumptionToken: opts.resumptionToken });\n    }\n    return protoAddQuery(base, {\n        verb: 'ListRecords',\n        metadataPrefix: (opts && opts.metadataPrefix) || 'oai_dc',\n        set: (opts && opts.setSpec) || ''\n    });\n}\n// Namespace-tolerant XML helpers. Node-RED function nodes have no XML parser\n// available, so the OAI envelope is read with anchored tag scans.\nfunction protoTag(name) {\n    return '(?:[A-Za-z0-9_.-]+:)?' + name;\n}\nfunction protoFindBlocks(xml, name) {\n    var out = [];\n    var re = new RegExp('<' + protoTag(name) + '(\\\\s[^>]*)?>([\\\\s\\\\S]*?)<\\\\/' + protoTag(name) + '>', 'g');\n    var m;\n    while ((m = re.exec(xml)) !== null) out.push({ attrs: m[1] || '', inner: m[2], whole: m[0] });\n    return out;\n}\nfunction protoFirstBlock(xml, name) {\n    var blocks = protoFindBlocks(xml, name);\n    return blocks.length ? blocks[0] : null;\n}\nfunction protoTagText(xml, name) {\n    var b = protoFirstBlock(xml, name);\n    if (!b) return '';\n    return protoDecodeXml(b.inner.replace(/<[^>]*>/g, '')).trim();\n}\nfunction protoSelfClosing(xml, name) {\n    var re = new RegExp('<' + protoTag(name) + '(\\\\s[^>]*)?\\\\/>');\n    var m = re.exec(xml);\n    return m ? { attrs: m[1] || '', inner: '', whole: m[0] } : null;\n}\nfunction protoAttr(attrs, name) {\n    var m = new RegExp(name + '\\\\s*=\\\\s*\"([^\"]*)\"').exec(attrs || '');\n    if (m) return m[1];\n    m = new RegExp(name + \"\\\\s*=\\\\s*'([^']*)'\").exec(attrs || '');\n    return m ? m[1] : '';\n}\nfunction protoDecodeXml(s) {\n    return String(s == null ? '' : s)\n        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n        .replace(/&quot;/g, '\"').replace(/&apos;/g, \"'\")\n        .replace(/&#(\\d+);/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })\n        .replace(/&amp;/g, '&');\n}\n\nconst protocol = protoNormalise(data.protocol);\nmsg._testStartMs = Date.now();\nmsg._testAction = 'testRemoteCatalogConnection';\n\nfunction errorOut(code, message) {\n    const m = RED.util.cloneMessage(msg);\n    m.response = { action: 'testRemoteCatalogConnection', status: 'error', ok: false, code: code, message: message, latency: 0, httpCode: 0, protocol: protocol };\n    delete m.payload;\n    return [null, m];\n}\n\nif (!protoIsSupported(protocol)) {\n    return errorOut('PROTOCOL_UNSUPPORTED', 'Protocol \"' + protoText(data.protocol) + '\" is not supported. Use Query interface, DCAT or OAI-PMH.');\n}\nif (auth === 'oauth') {\n    return errorOut('AUTH_UNSUPPORTED', 'OAuth2 connection test is not yet supported.');\n}\n\n// Token-login is verified first; the protocol probe itself is a separate action.\nif (auth === 'token-login') {\n    const loginUrl = protoText(data.authLoginEndpoint);\n    if (!loginUrl) return errorOut('AUTH_CONFIG_INVALID', 'Login endpoint URL is required for Token Login auth.');\n    if (!data.authUsername || !data.authPassword) return errorOut('AUTH_CONFIG_INVALID', 'Username and password are required for Token Login auth.');\n    msg._testMeta = { auth: auth, protocol: protocol, probe: 'login' };\n    msg.url = loginUrl;\n    msg.method = 'POST';\n    msg.headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };\n    msg.payload = { username: data.authUsername, password: data.authPassword };\n    return [msg, null];\n}\n\nconst queryLang = protoQueryLanguage(data);\nconst executable = protocol === 'query-interface' && protoIsExecutableQuery(queryLang);\n\nlet endpoint = '';\nif (protocol === 'oai-pmh') endpoint = protoText(data.baseEndpoint);\nelse if (protocol === 'dcat') endpoint = protoText(data.dcatCatalogUri) || protoText(data.baseEndpoint) || protoText(data.linkedDataEndpoint);\nelse endpoint = protoText(data.queryEndpoint) || protoText(data.baseEndpoint);\n\nif (!endpoint) return errorOut('ENDPOINT_REQUIRED', 'No endpoint URL provided for protocol ' + protocol + '.');\nif (!protoIsHttpUrl(endpoint)) return errorOut('ENDPOINT_INVALID', 'Endpoint \"' + endpoint + '\" is not a valid absolute http(s) URL.');\n\nconst headers = {};\nif (auth === 'bearer' || auth === 'static-token') {\n    const tokenValue = protoText(data.authStaticToken);\n    if (tokenValue) headers['Authorization'] = (protoText(data.authTokenPrefix) || 'Bearer') + ' ' + tokenValue;\n} else if (auth === 'apikey' || auth === 'api-key') {\n    const headerName = protoText(data.authApiKeyHeader) || 'X-API-Key';\n    const key = protoText(data.authApiKey);\n    if (key) headers[headerName] = key;\n}\n\nmsg.method = 'GET';\ndelete msg.payload;\n\nif (protocol === 'oai-pmh') {\n    if (!protoText(data.metadataPrefix)) {\n        return errorOut('OAI_METADATA_PREFIX_REQUIRED', 'OAI-PMH requires a metadata prefix before the connection can be verified.');\n    }\n    headers['Accept'] = 'text/xml, application/xml';\n    const listOpts = { metadataPrefix: protoText(data.metadataPrefix) };\n    if (data.setSpecEnabled !== false && protoText(data.setSpec)) listOpts.setSpec = protoText(data.setSpec);\n    msg.url = protoOaiUrl(endpoint, listOpts);\n    msg._testMeta = { auth: auth, protocol: protocol, probe: 'ListRecords', metadataPrefix: listOpts.metadataPrefix, setSpec: listOpts.setSpec || '' };\n} else if (protocol === 'dcat') {\n    const dcatMime = protoText(data.contentNegotiation) || protoText(data.mimeType) ||\n        'application/ld+json, text/turtle, application/rdf+xml, application/n-triples';\n    headers['Accept'] = dcatMime;\n    msg.url = endpoint;\n    msg._testMeta = { auth: auth, protocol: protocol, probe: 'dcat', requestedMime: dcatMime };\n} else if (executable) {\n    const method = protoText(data.queryMethod).toUpperCase() || 'GET';\n    if (method !== 'GET' && method !== 'POST') return errorOut('QUERY_CONFIGURATION_INVALID', 'Unsupported query method \"' + method + '\". Use GET or POST.');\n    const queryText = protoText(data.connectionQuery) || protoText(data.queryText);\n    if (!queryText) return errorOut('QUERY_CONFIGURATION_INVALID', 'A query is required before the query interface can be verified.');\n    const accept = protoText(data.resultMimeType) || 'application/sparql-results+json';\n    const paramName = protoText(data.queryParameterName) || 'query';\n    headers['Accept'] = accept;\n    msg._testMeta = { auth: auth, protocol: protocol, probe: 'query', queryLanguage: queryLang, requestedMime: accept, resultMode: protoText(data.resultMode) || 'sparql-select', rootPath: protoText(data.resultRootPath) };\n    if (method === 'GET') {\n        const params = {};\n        params[paramName] = queryText;\n        msg.url = protoAddQuery(endpoint, params);\n    } else {\n        const contentType = protoText(data.requestContentType) || 'application/sparql-query';\n        msg.method = 'POST';\n        msg.url = endpoint;\n        headers['Content-Type'] = contentType;\n        msg.payload = contentType.toLowerCase().indexOf('x-www-form-urlencoded') >= 0\n            ? (encodeURIComponent(paramName) + '=' + encodeURIComponent(queryText))\n            : queryText;\n    }\n} else {\n    // REST/JSON query interface.\n    const restMime = protoText(data.resultMimeType) || protoText(data.mimeType) || 'application/json';\n    headers['Accept'] = restMime;\n    msg.url = endpoint;\n    msg._testMeta = { auth: auth, protocol: protocol, probe: 'rest', requestedMime: restMime, rootPath: protoText(data.resultRootPath) || protoText(data.responseRootPath) };\n}\n\nmsg.headers = headers;\nreturn [msg, null];\n",
         "outputs": 2,
         "noerr": 0,
         "initialize": "",
@@ -816,17 +822,17 @@
         "y": 1500,
         "wires": [
             [
-                "tc01000000000020"
+                "bddb93561015e424"
             ],
             [
-                "tc01000000000030"
+                "5e2edf8c043a0297"
             ]
         ]
     },
     {
-        "id": "tc01000000000020",
+        "id": "bddb93561015e424",
         "type": "http request",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "testConnection: http",
         "method": "use",
         "ret": "txt",
@@ -843,33 +849,38 @@
         "y": 1500,
         "wires": [
             [
-                "tc01000000000030"
+                "5e2edf8c043a0297"
             ]
         ]
     },
     {
-        "id": "tc01000000000030",
+        "id": "5e2edf8c043a0297",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "testConnection: format response",
-        "func": "const latency = Date.now() - (msg._testStartMs || Date.now());\nconst code = Number(msg.statusCode || 0);\nconst meta = msg._testMeta || {};\n\nif (msg.response && msg.response.action === 'testRemoteCatalogConnection') {\n    msg.response.latency = msg.response.latency || 0;\n    delete msg.payload; delete msg.url; delete msg.method; delete msg.headers;\n    delete msg._testStartMs; delete msg._testMeta; delete msg._testAction; delete msg.statusCode;\n    return msg;\n}\n\nlet status = 'error';\nlet message = '';\n\nif (code >= 200 && code < 400) {\n    status = 'success';\n    const authLabel = meta.auth === 'token-login' ? ' (Token Login authenticated)'\n        : meta.auth === 'bearer' ? ' (Bearer Token)'\n        : meta.auth === 'apikey' ? ' (API Key)'\n        : meta.auth === 'none' ? ''\n        : ' (' + meta.auth + ')';\n    message = 'Connection successful' + authLabel + ' \\u2014 HTTP ' + code;\n} else if (code >= 400 && code < 600) {\n    status = 'error';\n    message = 'Remote returned HTTP ' + code;\n} else if (code === 0) {\n    status = 'error';\n    message = 'Network error: could not reach endpoint';\n} else {\n    status = 'error';\n    message = 'Unexpected response code: ' + code;\n}\n\nmsg.response = { action: 'testRemoteCatalogConnection', status: status, message: message, latency: latency, httpCode: code };\ndelete msg.payload; delete msg.url; delete msg.method; delete msg.headers;\ndelete msg._testStartMs; delete msg._testMeta; delete msg._testAction; delete msg.statusCode;\nreturn msg;",
+        "func": "const latency = Date.now() - (msg._testStartMs || Date.now());\nconst code = Number(msg.statusCode || 0);\nconst meta = msg._testMeta || {};\nconst protocol = meta.protocol || '';\n\n// ── NF-2 protocol library (shared, must stay identical in every node) ──────\n// Normalised protocol values: 'query-interface' | 'dcat' | 'oai-pmh'.\nfunction protoNormalise(value) {\n    var s = String(value == null ? '' : value).trim().toLowerCase();\n    if (!s) return 'query-interface';\n    s = s.replace(/[\\s_]+/g, '-');\n    if (s === 'oai-pmh' || s === 'oaipmh' || s === 'oai') return 'oai-pmh';\n    if (s === 'dcat' || s === 'dcat-ap' || s === 'linked-data') return 'dcat';\n    if (s === 'query-interface' || s === 'query' || s === 'sparql' || s === 'query-interfaces') return 'query-interface';\n    return s;\n}\nfunction protoIsSupported(p) {\n    return p === 'query-interface' || p === 'dcat' || p === 'oai-pmh';\n}\nfunction protoText(v) {\n    if (v === undefined || v === null) return '';\n    return String(v).trim();\n}\n// 123 and 91 are the character codes of the JSON object and array openers.\nfunction looksLikeJsonText(s) {\n    var code = String(s == null ? '' : s).trim().charCodeAt(0);\n    return code === 123 || code === 91;\n}\nfunction protoIsHttpUrl(u) {\n    return typeof u === 'string' && /^https?:\\/\\/\\S+$/i.test(u.trim());\n}\nfunction protoQueryLanguage(cat) {\n    var q = protoText(cat.queryLanguage || cat.queryLanguages).toLowerCase();\n    if (!q) return 'rest-json';\n    if (/sparql/.test(q)) return 'sparql';\n    if (/graphql/.test(q)) return 'graphql';\n    if (/rest|json|search|custom$/.test(q)) return 'rest-json';\n    return q;\n}\n// A query language that actually executes a query text, as opposed to a plain\n// REST endpoint that is simply fetched.\nfunction protoIsExecutableQuery(lang) {\n    return lang === 'sparql' || lang === 'graphql' || lang === 'custom-query';\n}\nfunction protoMaxPages(cat) {\n    var n = parseInt(cat.maxPages, 10);\n    if (!isFinite(n) || n <= 0) return 50;\n    return Math.min(n, 1000);\n}\nfunction protoRdfMime(ct) {\n    return /ld\\+json|turtle|n-quads|nquads|n-triples|ntriples|trig|rdf\\+xml/i.test(ct || '');\n}\nvar RDF_CANONICAL_TYPES = {\n    'text/turtle': 'text/turtle', 'application/x-turtle': 'text/turtle',\n    'turtle': 'text/turtle', 'ttl': 'text/turtle',\n    'application/n-triples': 'application/n-triples', 'ntriples': 'application/n-triples', 'nt': 'application/n-triples',\n    'application/n-quads': 'application/n-quads', 'nquads': 'application/n-quads', 'nq': 'application/n-quads',\n    'application/trig': 'application/trig', 'trig': 'application/trig',\n    'application/ld+json': 'application/ld+json', 'jsonld': 'application/ld+json', 'json-ld': 'application/ld+json',\n    'application/rdf+xml': 'application/rdf+xml', 'rdfxml': 'application/rdf+xml', 'rdf/xml': 'application/rdf+xml'\n};\nvar RDF_TITLE_PREDICATES = [\n    'http://purl.org/dc/terms/title',\n    'http://purl.org/dc/elements/1.1/title',\n    'http://www.w3.org/2000/01/rdf-schema#label',\n    'http://schema.org/name',\n    'http://xmlns.com/foaf/0.1/name'\n];\nvar RDF_PRIMARY_TYPES = [\n    'http://www.w3.org/ns/dcat#Catalog',\n    'http://www.w3.org/ns/dcat#Dataset',\n    'http://www.w3.org/ns/dcat#DataService',\n    'http://www.w3.org/ns/dcat#Distribution'\n];\nfunction rdfCanonicalType(ct) {\n    var key = String(ct == null ? '' : ct).split(';')[0].trim().toLowerCase();\n    return RDF_CANONICAL_TYPES[key] || '';\n}\nfunction rdfIsHtml(text, ct) {\n    if (/text\\/html/i.test(ct || '')) return true;\n    return /^\\s*<(?:!doctype|html)[\\s>]/i.test(String(text == null ? '' : text));\n}\nfunction rdfSniffType(text) {\n    var s = String(text == null ? '' : text).trim();\n    if (!s) return '';\n    if (/^<\\?xml/i.test(s) || /<rdf:RDF[\\s>]/i.test(s)) return 'application/rdf+xml';\n    var first = s.charAt(0);\n    if (first === '[' || first === String.fromCharCode(123)) return 'application/ld+json';\n    if (/@prefix\\s|@base\\s/i.test(s) || /^\\s*PREFIX\\s/im.test(s)) return 'text/turtle';\n    if (/^\\s*(?:<[^>\\s]*>|_:\\S+)\\s+<[^>\\s]*>\\s/m.test(s)) return 'application/n-triples';\n    return '';\n}\nfunction rdfJsonLdStatements(text) {\n    var doc = JSON.parse(text);\n    var nodes = Array.isArray(doc) ? doc : (doc && Array.isArray(doc['@graph']) ? doc['@graph'] : [doc]);\n    var linked = !Array.isArray(doc) && doc && doc['@context'] !== undefined;\n    var count = 0;\n    var subject = '';\n    var title = '';\n    for (var i = 0; i < nodes.length; i++) {\n        var node = nodes[i];\n        if (!node || typeof node !== 'object') continue;\n        var keys = Object.keys(node);\n        for (var k = 0; k < keys.length; k++) {\n            var key = keys[k];\n            if (key === '@context') continue;\n            if (key.charAt(0) === '@') {\n                linked = true;\n                if (key === '@id' && !subject) subject = String(node[key] || '');\n                continue;\n            }\n            count++;\n            if (!title && /(^|[:#\\/])(title|name|label)$/i.test(key) && typeof node[key] === 'string') {\n                title = node[key].trim();\n            }\n        }\n    }\n    if (!linked) throw new Error('JSON document is not JSON-LD: no @context, @id or @type.');\n    return { statements: count, subject: subject, title: title, quads: null };\n}\nfunction rdfXmlStatements(text) {\n    if (!/<rdf:RDF[\\s>]/i.test(text)) throw new Error('No rdf:RDF root element.');\n    var subjects = text.match(/rdf:(?:about|nodeID|ID)\\s*=\\s*\"([^\"]*)\"/gi) || [];\n    var first = /rdf:about\\s*=\\s*\"([^\"]*)\"/i.exec(text);\n    var titleMatch = /<(?:dct|dcterms|dc):title[^>]*>([^<]*)</i.exec(text);\n    return {\n        statements: subjects.length,\n        subject: first ? first[1] : '',\n        title: titleMatch ? titleMatch[1].trim() : '',\n        quads: null\n    };\n}\nfunction rdfPrimaryResource(quads) {\n    var out = { subject: '', title: '' };\n    if (!quads || !quads.length) return out;\n    var typed = '';\n    var firstNamed = '';\n    for (var i = 0; i < quads.length; i++) {\n        var q = quads[i];\n        if (!q.subject || q.subject.termType !== 'NamedNode') continue;\n        if (!firstNamed) firstNamed = q.subject.value;\n        if (!typed && q.predicate.value === 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' &&\n            q.object && RDF_PRIMARY_TYPES.indexOf(q.object.value) >= 0) typed = q.subject.value;\n    }\n    out.subject = typed || firstNamed;\n    if (!out.subject) return out;\n    for (var p = 0; p < RDF_TITLE_PREDICATES.length; p++) {\n        for (var j = 0; j < quads.length; j++) {\n            var t = quads[j];\n            if (t.subject.value !== out.subject) continue;\n            if (t.predicate.value !== RDF_TITLE_PREDICATES[p]) continue;\n            if (t.object && t.object.termType === 'Literal' && String(t.object.value).trim()) {\n                out.title = String(t.object.value).trim();\n                return out;\n            }\n        }\n    }\n    return out;\n}\nfunction rdfParseAs(text, type) {\n    if (type === 'application/ld+json') return rdfJsonLdStatements(text);\n    if (type === 'application/rdf+xml') return rdfXmlStatements(text);\n    // A document that parses cleanly is RDF even when it carries no triples;\n    // the harvest then simply yields no assets.\n    var quads = new N3.Parser({ format: type, baseIRI: 'urn:facis:source:' }).parse(text) || [];\n    var primary = rdfPrimaryResource(quads);\n    return { statements: quads.length, subject: primary.subject, title: primary.title, quads: quads };\n}\nfunction rdfAccept(text, responseType, requestedType, configuredType) {\n    var body = String(text == null ? '' : text);\n    if (!body.trim()) return { ok: false, reason: 'the endpoint returned an empty body' };\n    if (rdfIsHtml(body, responseType)) return { ok: false, reason: 'the endpoint returned an HTML page' };\n    var candidates = [];\n    var sources = [responseType, requestedType, configuredType];\n    for (var s = 0; s < sources.length; s++) {\n        var parts = String(sources[s] == null ? '' : sources[s]).split(',');\n        for (var p = 0; p < parts.length; p++) {\n            var canon = rdfCanonicalType(parts[p]);\n            if (canon && candidates.indexOf(canon) < 0) candidates.push(canon);\n        }\n    }\n    var sniffed = rdfSniffType(body);\n    if (sniffed && candidates.indexOf(sniffed) < 0) candidates.push(sniffed);\n    if (candidates.indexOf('text/turtle') < 0) candidates.push('text/turtle');\n    var lastError = '';\n    for (var c = 0; c < candidates.length; c++) {\n        try {\n            var parsed = rdfParseAs(body, candidates[c]);\n            return {\n                ok: true, type: candidates[c], statements: parsed.statements,\n                subject: parsed.subject || '', title: parsed.title || '', quads: parsed.quads || null\n            };\n        } catch (e) {\n            if (!lastError) lastError = e.message;\n        }\n    }\n    return { ok: false, reason: 'the body does not parse as RDF (' + (lastError || 'unknown parse error') + ')' };\n}\nfunction protoXmlMime(ct) {\n    return /xml/i.test(ct || '');\n}\nfunction protoAddQuery(url, params) {\n    var parts = [];\n    Object.keys(params).forEach(function (k) {\n        var v = params[k];\n        if (v === undefined || v === null || v === '') return;\n        parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(v)));\n    });\n    if (!parts.length) return url;\n    return url + (url.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');\n}\n// Builds the OAI-PMH request URL. A resumption token is exclusive: the spec\n// forbids sending metadataPrefix or set alongside it.\nfunction protoOaiUrl(base, opts) {\n    if (opts && opts.resumptionToken) {\n        return protoAddQuery(base, { verb: 'ListRecords', resumptionToken: opts.resumptionToken });\n    }\n    return protoAddQuery(base, {\n        verb: 'ListRecords',\n        metadataPrefix: (opts && opts.metadataPrefix) || 'oai_dc',\n        set: (opts && opts.setSpec) || ''\n    });\n}\n// Namespace-tolerant XML helpers. Node-RED function nodes have no XML parser\n// available, so the OAI envelope is read with anchored tag scans.\nfunction protoTag(name) {\n    return '(?:[A-Za-z0-9_.-]+:)?' + name;\n}\nfunction protoFindBlocks(xml, name) {\n    var out = [];\n    var re = new RegExp('<' + protoTag(name) + '(\\\\s[^>]*)?>([\\\\s\\\\S]*?)<\\\\/' + protoTag(name) + '>', 'g');\n    var m;\n    while ((m = re.exec(xml)) !== null) out.push({ attrs: m[1] || '', inner: m[2], whole: m[0] });\n    return out;\n}\nfunction protoFirstBlock(xml, name) {\n    var blocks = protoFindBlocks(xml, name);\n    return blocks.length ? blocks[0] : null;\n}\nfunction protoTagText(xml, name) {\n    var b = protoFirstBlock(xml, name);\n    if (!b) return '';\n    return protoDecodeXml(b.inner.replace(/<[^>]*>/g, '')).trim();\n}\nfunction protoSelfClosing(xml, name) {\n    var re = new RegExp('<' + protoTag(name) + '(\\\\s[^>]*)?\\\\/>');\n    var m = re.exec(xml);\n    return m ? { attrs: m[1] || '', inner: '', whole: m[0] } : null;\n}\nfunction protoAttr(attrs, name) {\n    var m = new RegExp(name + '\\\\s*=\\\\s*\"([^\"]*)\"').exec(attrs || '');\n    if (m) return m[1];\n    m = new RegExp(name + \"\\\\s*=\\\\s*'([^']*)'\").exec(attrs || '');\n    return m ? m[1] : '';\n}\nfunction protoDecodeXml(s) {\n    return String(s == null ? '' : s)\n        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n        .replace(/&quot;/g, '\"').replace(/&apos;/g, \"'\")\n        .replace(/&#(\\d+);/g, function (_, d) { return String.fromCharCode(parseInt(d, 10)); })\n        .replace(/&amp;/g, '&');\n}\n\nfunction cleanup(m) {\n    delete m.payload; delete m.url; delete m.method; delete m.headers;\n    delete m._testStartMs; delete m._testMeta; delete m._testAction; delete m.statusCode;\n    return m;\n}\n\n// A validation error built upstream short-circuits the probe.\nif (msg.response && msg.response.action === 'testRemoteCatalogConnection') {\n    msg.response.latency = msg.response.latency || 0;\n    return cleanup(msg);\n}\n\nconst raw = msg.payload;\nconst bodyText = (typeof raw === 'string') ? raw : (Buffer.isBuffer(raw) ? raw.toString('utf8') : (raw ? JSON.stringify(raw) : ''));\nconst mimeType = String((msg.headers && (msg.headers['content-type'] || msg.headers['Content-Type'])) || '').split(';')[0].trim();\n\nfunction fail(errCode, message, evidence) {\n    msg.response = {\n        action: 'testRemoteCatalogConnection', status: 'error', ok: false,\n        code: errCode, message: message, latency: latency, httpCode: code,\n        protocol: protocol, mimeType: mimeType, evidence: evidence || null\n    };\n    return cleanup(msg);\n}\nfunction pass(message, evidence) {\n    msg.response = {\n        action: 'testRemoteCatalogConnection', status: 'success', ok: true,\n        message: message, latency: latency, httpCode: code,\n        protocol: protocol, mimeType: mimeType, evidence: evidence || null\n    };\n    return cleanup(msg);\n}\n\nif (code === 0) return fail('TRANSPORT_ERROR', 'Network error: could not reach the endpoint.');\nif (code >= 400) return fail('HTTP_ERROR', 'Remote returned HTTP ' + code + '.');\nif (code < 200 || code >= 400) return fail('HTTP_ERROR', 'Unexpected response code: ' + code + '.');\n\nconst authLabel = meta.auth === 'token-login' ? ' (Token Login authenticated)'\n    : meta.auth === 'bearer' || meta.auth === 'static-token' ? ' (Bearer Token)'\n    : (meta.auth === 'apikey' || meta.auth === 'api-key') ? ' (API Key)'\n    : '';\n\n// Token-login probe: only the login call is verified here.\nif (meta.probe === 'login') {\n    return pass('Login succeeded' + authLabel + ' - HTTP ' + code + '.', { probe: 'login' });\n}\n\nif (protocol === 'oai-pmh') {\n    if (!/<(?:[A-Za-z0-9_.-]+:)?OAI-PMH[\\s>]/.test(bodyText)) {\n        return fail('OAI_INVALID_RESPONSE', 'HTTP ' + code + ' but the response is not an OAI-PMH envelope.', { snippet: bodyText.slice(0, 160) });\n    }\n    const oaiErr = protoFirstBlock(bodyText, 'error') || protoSelfClosing(bodyText, 'error');\n    if (oaiErr) {\n        const oaiCode = protoAttr(oaiErr.attrs, 'code') || 'unknown';\n        return fail('OAI_PROTOCOL_ERROR', 'OAI-PMH responded with protocol error \"' + oaiCode + '\".', { oaiErrorCode: oaiCode });\n    }\n    const listRecords = protoFirstBlock(bodyText, 'ListRecords');\n    if (!listRecords) {\n        return fail('OAI_INVALID_RESPONSE', 'OAI-PMH envelope received but it contains no ListRecords result.', { snippet: bodyText.slice(0, 160) });\n    }\n    const recordMatches = listRecords.inner.match(/<(?:[A-Za-z0-9_.-]+:)?record[\\s>]/g);\n    const recordCount = recordMatches ? recordMatches.length : 0;\n    const tokenBlock = protoFirstBlock(listRecords.inner, 'resumptionToken');\n    const token = tokenBlock ? String(tokenBlock.inner || '').trim() : '';\n    return pass('OAI-PMH ListRecords verified' + authLabel + ' - HTTP ' + code + ', ' + recordCount + ' record(s)' + (token ? ', resumption token returned' : '') + '.', {\n        verb: 'ListRecords',\n        metadataPrefix: meta.metadataPrefix || '',\n        setSpec: meta.setSpec || '',\n        recordCount: recordCount,\n        resumptionToken: !!token,\n        completeListSize: tokenBlock ? protoAttr(tokenBlock.attrs, 'completeListSize') : '',\n        cursor: tokenBlock ? protoAttr(tokenBlock.attrs, 'cursor') : ''\n    });\n}\n\nlet parsed = null;\nlet isJson = false;\nif (/json/i.test(mimeType) || looksLikeJsonText(bodyText)) {\n    try { parsed = JSON.parse(bodyText); isJson = true; } catch (e) { isJson = false; }\n}\nconst looksHtml = /^\\s*<(!doctype|html)[\\s>]/i.test(bodyText) || /text\\/html/i.test(mimeType);\n\nif (protocol === 'dcat') {\n    const verdict = rdfAccept(bodyText, mimeType, meta.requestedMime, '');\n    if (!verdict.ok) {\n        return fail('DCAT_RESPONSE_INVALID', 'The response is not parseable RDF/DCAT data: ' + verdict.reason + ' (content type ' + (mimeType || 'unknown') + ').', { mimeType: mimeType });\n    }\n    return pass('DCAT catalogue verified' + authLabel + ' - HTTP ' + code + ', ' + verdict.statements + ' statement(s) parsed as ' + verdict.type + '.', {\n        serialisation: verdict.type,\n        responseContentType: mimeType || '',\n        statements: verdict.statements,\n        subject: verdict.subject || null,\n        title: verdict.title || null\n    });\n}\n\n// Query interface / SPARQL.\nif (looksHtml) return fail('QUERY_RESULT_INVALID', 'The query endpoint returned an HTML page, not a machine-readable result.', { mimeType: mimeType });\nif (protoRdfMime(mimeType)) {\n    return pass('Query interface verified' + authLabel + ' - RDF result (' + mimeType + ').', { resultKind: 'rdf', mimeType: mimeType });\n}\nif (!isJson) {\n    return fail('QUERY_RESULT_INVALID', 'The query endpoint returned neither JSON nor RDF (content type ' + (mimeType || 'unknown') + ').', { mimeType: mimeType, snippet: bodyText.slice(0, 160) });\n}\nif (meta.probe === 'rest' || meta.resultMode === 'custom-json') {\n    const root = meta.rootPath ? meta.rootPath.split('.').reduce(function (acc, k) { return (acc == null) ? acc : acc[k]; }, parsed) : parsed;\n    if (root === undefined || root === null) {\n        return fail('QUERY_RESULT_INVALID', 'JSON received but the configured result root \"' + meta.rootPath + '\" is not present.', { rootPath: meta.rootPath });\n    }\n    return pass('Query interface verified' + authLabel + ' - JSON result.', {\n        resultKind: 'json', rootPath: meta.rootPath || '(root)', recordCount: Array.isArray(root) ? root.length : 1\n    });\n}\nif (parsed && typeof parsed.boolean === 'boolean') {\n    return pass('SPARQL ASK verified' + authLabel + ' - result ' + parsed.boolean + '.', { resultKind: 'ask', askResult: parsed.boolean });\n}\nif (parsed && parsed.head && parsed.results && Array.isArray(parsed.results.bindings)) {\n    return pass('SPARQL SELECT verified' + authLabel + ' - ' + parsed.results.bindings.length + ' binding(s).', {\n        resultKind: 'select',\n        variables: Array.isArray(parsed.head.vars) ? parsed.head.vars : [],\n        bindingCount: parsed.results.bindings.length\n    });\n}\nreturn fail('SPARQL_RESULT_INVALID', 'JSON received but it is not a SPARQL result set and no custom result mode is configured.', { mimeType: mimeType });\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
-        "libs": [],
+        "libs": [
+            {
+                "var": "N3",
+                "module": "n3"
+            }
+        ],
         "x": 920,
         "y": 1500,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2hdr00001",
+        "id": "a97d7fcba0276414",
         "type": "comment",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "── FR-CR-03: Catalogue API Mappings (cr_api_mappings) ──",
         "info": "",
         "x": 200,
@@ -877,9 +888,9 @@
         "wires": []
     },
     {
-        "id": "cr03m2000010",
+        "id": "b8439cb1e5e1c835",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "listApiMappings: prepare find",
         "func": "const filter = {};\nif (msg.data && msg.data.catalogueId) filter.catalogueId = msg.data.catalogueId;\nif (msg.data && msg.data.localTypeId) filter.localTypeId = msg.data.localTypeId;\nmsg.collection = 'cr_api_mappings';\nmsg.operation  = 'find';\nmsg.payload    = [filter];\nreturn msg;",
         "outputs": 1,
@@ -892,14 +903,14 @@
         "y": 740,
         "wires": [
             [
-                "cr03m2000011"
+                "1bb520cfa44d1b5e"
             ]
         ]
     },
     {
-        "id": "cr03m2000011",
+        "id": "1bb520cfa44d1b5e",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -912,14 +923,14 @@
         "y": 740,
         "wires": [
             [
-                "cr03m2000012"
+                "439343dd1b645118"
             ]
         ]
     },
     {
-        "id": "cr03m2000012",
+        "id": "439343dd1b645118",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: listApiMappings",
         "func": "msg.response = {\n    action: 'listApiMappings',\n    status: 'success',\n    mappings: Array.isArray(msg.payload) ? msg.payload : []\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -932,14 +943,14 @@
         "y": 740,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2000020",
+        "id": "c3015a05954e8a46",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "saveApiMapping: prepare",
         "func": "const d = msg.data || {};\nif (!d.catalogueId || !d.localTypeId) {\n    msg.response = { action: 'saveApiMapping', status: 'error', message: 'catalogueId and localTypeId required' };\n    delete msg.payload;\n    return [null, msg];\n}\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet rnd = '';\nfor (let i = 0; i < 12; i++) rnd += chars[Math.floor(Math.random() * chars.length)];\nconst now = new Date().toISOString();\nconst apiRequest = d.apiRequest || { method: 'GET', pathTemplate: '', queryParams: {}, headers: {}, bodyTemplate: null, notes: '' };\nif (d.uniqueId) {\n    msg.uniqueId = d.uniqueId;\n    msg.collection = 'cr_api_mappings';\n    msg.operation  = 'updateOne';\n    msg.payload = [{ uniqueId: d.uniqueId }, { $set: {\n        catalogueId: d.catalogueId,\n        localTypeId: d.localTypeId,\n        remoteType: d.remoteType || '',\n        apiRequest: apiRequest,\n        promptId: d.promptId || '',\n        promptVersion: d.promptVersion || '',\n        generatedBy: d.generatedBy || 'manual',\n        status: d.status || 'active',\n        updatedAt: now\n    } }];\n    msg._newDoc = null;\n    return [msg, null];\n}\nconst id = 'am_' + Date.now().toString(36) + rnd;\nconst doc = {\n    uniqueId: id,\n    catalogueId: d.catalogueId,\n    localTypeId: d.localTypeId,\n    remoteType: d.remoteType || '',\n    apiRequest: apiRequest,\n    promptId: d.promptId || '',\n    promptVersion: d.promptVersion || '',\n    generatedBy: d.generatedBy || 'manual',\n    status: d.status || 'active',\n    createdAt: now,\n    updatedAt: now\n};\nmsg.uniqueId   = id;\nmsg._newDoc    = doc;\nmsg.collection = 'cr_api_mappings';\nmsg.operation  = 'insertOne';\nmsg.payload    = doc;\nreturn [msg, null];",
         "outputs": 2,
@@ -952,17 +963,17 @@
         "y": 800,
         "wires": [
             [
-                "cr03m2000021"
+                "288b0b3bdee58167"
             ],
             [
-                "cr03m2000022"
+                "90fdc05697ba4317"
             ]
         ]
     },
     {
-        "id": "cr03m2000021",
+        "id": "288b0b3bdee58167",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -975,14 +986,14 @@
         "y": 800,
         "wires": [
             [
-                "cr03m2000022"
+                "90fdc05697ba4317"
             ]
         ]
     },
     {
-        "id": "cr03m2000022",
+        "id": "90fdc05697ba4317",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: saveApiMapping",
         "func": "if (msg.response && msg.response.status === 'error') return msg;\nmsg.response = {\n    action: 'saveApiMapping',\n    status: 'success',\n    uniqueId: msg.uniqueId,\n    item: msg._newDoc || null\n};\ndelete msg.payload;\ndelete msg._newDoc;\nreturn msg;",
         "outputs": 1,
@@ -995,14 +1006,14 @@
         "y": 800,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2000030",
+        "id": "04b5f2f4512f3d1d",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "deleteApiMapping: prepare",
         "func": "const d = msg.data || {};\nif (!d.uniqueId) {\n    msg.response = { action: 'deleteApiMapping', status: 'error', message: 'uniqueId required' };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg.uniqueId = d.uniqueId;\nmsg.collection = 'cr_api_mappings';\nmsg.operation  = 'deleteOne';\nmsg.payload    = [{ uniqueId: d.uniqueId }];\nreturn [msg, null];",
         "outputs": 2,
@@ -1015,17 +1026,17 @@
         "y": 860,
         "wires": [
             [
-                "cr03m2000031"
+                "9e56abbe639489ae"
             ],
             [
-                "cr03m2000032"
+                "6c0c43cacc0d3ee0"
             ]
         ]
     },
     {
-        "id": "cr03m2000031",
+        "id": "9e56abbe639489ae",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -1038,14 +1049,14 @@
         "y": 860,
         "wires": [
             [
-                "cr03m2000032"
+                "6c0c43cacc0d3ee0"
             ]
         ]
     },
     {
-        "id": "cr03m2000032",
+        "id": "6c0c43cacc0d3ee0",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "resp: deleteApiMapping",
         "func": "if (msg.response && msg.response.status === 'error') return msg;\nmsg.response = { action: 'deleteApiMapping', status: 'success', uniqueId: msg.uniqueId };\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -1058,14 +1069,14 @@
         "y": 860,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2000040",
+        "id": "34eaeded59b38e9a",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: validate + load prompt",
         "func": "const d = msg.data || {};\nif (!d.catalogueId || !d.localTypeId || !d.promptId) {\n    msg.response = { action: 'generateApiMappingWithAi', status: 'error', message: 'catalogueId, localTypeId, promptId required' };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg._pendingApiMappingGeneration = {\n    catalogueId: d.catalogueId,\n    localTypeId: d.localTypeId,\n    promptId: d.promptId,\n    remoteType: d.remoteType || ''\n};\nmsg.collection = 'sr_prompts';\nmsg.operation  = 'findOne';\nmsg.payload    = [{ id: d.promptId }];\nreturn [msg, null];",
         "outputs": 2,
@@ -1078,17 +1089,17 @@
         "y": 940,
         "wires": [
             [
-                "cr03m2000041"
+                "ed9f372f4c7fe2f2"
             ],
             [
-                "cr03m2000049"
+                "55a20a2d5cf676e5"
             ]
         ]
     },
     {
-        "id": "cr03m2000041",
+        "id": "ed9f372f4c7fe2f2",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -1101,14 +1112,14 @@
         "y": 940,
         "wires": [
             [
-                "cr03m2000042"
+                "9784ff7692245eb0"
             ]
         ]
     },
     {
-        "id": "cr03m2000042",
+        "id": "9784ff7692245eb0",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: stash prompt + load catalogue",
         "func": "const arr = Array.isArray(msg.payload) ? msg.payload : (msg.payload ? [msg.payload] : []);\nmsg._prompt = arr[0] || null;\nconst d = msg._pendingApiMappingGeneration || {};\nmsg.collection = 'cr_catalogues';\nmsg.operation  = 'findOne';\nmsg.payload    = [{ uniqueId: d.catalogueId }];\nreturn msg;",
         "outputs": 1,
@@ -1121,14 +1132,14 @@
         "y": 940,
         "wires": [
             [
-                "cr03m2000043"
+                "782d0a47471b3a54"
             ]
         ]
     },
     {
-        "id": "cr03m2000043",
+        "id": "782d0a47471b3a54",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -1141,14 +1152,14 @@
         "y": 1000,
         "wires": [
             [
-                "cr03m2000044"
+                "a35b2ff0ce729b96"
             ]
         ]
     },
     {
-        "id": "cr03m2000044",
+        "id": "a35b2ff0ce729b96",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: stash catalogue + load assetType",
         "func": "const arr = Array.isArray(msg.payload) ? msg.payload : (msg.payload ? [msg.payload] : []);\nmsg._catalogue = arr[0] || null;\nconst d = msg._pendingApiMappingGeneration || {};\nmsg.collection = 'cr_asset_types';\nmsg.operation  = 'findOne';\nmsg.payload    = [{ uniqueId: d.localTypeId }];\nreturn msg;",
         "outputs": 1,
@@ -1161,14 +1172,14 @@
         "y": 1000,
         "wires": [
             [
-                "cr03m2000045"
+                "3bcf7de51528a776"
             ]
         ]
     },
     {
-        "id": "cr03m2000045",
+        "id": "3bcf7de51528a776",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -1181,14 +1192,14 @@
         "y": 1000,
         "wires": [
             [
-                "cr03m2000046"
+                "d6fabe504b032382"
             ]
         ]
     },
     {
-        "id": "cr03m2000046",
+        "id": "d6fabe504b032382",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: compose LLM prompt",
         "func": "const arr = Array.isArray(msg.payload) ? msg.payload : (msg.payload ? [msg.payload] : []);\nmsg._assetType = arr[0] || null;\nconst p = msg._prompt || {};\nconst cat = msg._catalogue || {};\nconst at = msg._assetType || {};\nconst pending = msg._pendingApiMappingGeneration || {};\nconst remoteType = pending.remoteType || at.name || '';\nconst tplText = p.template || p.templateText || p.text || '';\nconst catName = (cat.catalog && cat.catalog.catalogName) || cat.catalogName || cat.catalog || cat.name || '';\nconst catEndpoint = (cat.catalog && cat.catalog.apiEndpoint) || cat.apiEndpoint || cat.baseEndpoint || '';\nconst catAuth = JSON.stringify((cat.catalog && cat.catalog.auth) || cat.auth || {});\nconst catIface = (cat.catalog && cat.catalog.interfaceType) || cat.interfaceType || '';\nconst filled = String(tplText)\n    .replace(/\\{catalogue_name\\}/g, catName)\n    .replace(/\\{catalogue_endpoint\\}/g, catEndpoint)\n    .replace(/\\{catalogue_auth\\}/g, catAuth)\n    .replace(/\\{catalogue_interface_type\\}/g, catIface)\n    .replace(/\\{local_type_name\\}/g, at.name || '')\n    .replace(/\\{local_type_description\\}/g, at.description || '')\n    .replace(/\\{remote_type\\}/g, remoteType);\nmsg._llmRequest = {\n    system: 'You are an API mapping assistant. Return ONLY a JSON object with keys: method, pathTemplate, queryParams, headers, bodyTemplate, notes. No markdown fencing.',\n    user: filled\n};\n\n// Ask the generic LLM caller to force OpenAI's JSON response format.\nmsg._llmForceJson = true;\nreturn msg;",
         "outputs": 1,
@@ -1201,14 +1212,14 @@
         "y": 1060,
         "wires": [
             [
-                "cr03m2000046a"
+                "cdc03cac7d969eb0"
             ]
         ]
     },
     {
-        "id": "cr03m2000047",
+        "id": "a144eacb7944bae5",
         "type": "link call",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "call → llm-call-in",
         "links": [
             "cr03llm000000021"
@@ -1219,14 +1230,14 @@
         "y": 1060,
         "wires": [
             [
-                "cr03m2000048"
+                "bf8e70be5c4be30c"
             ]
         ]
     },
     {
-        "id": "cr03m2000048",
+        "id": "bf8e70be5c4be30c",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: parse LLM JSON → response",
         "func": "const raw = (msg._llmRawResponse || '').toString();\nlet parsed = null;\nlet parseErr = '';\n\nif (msg._llmError) {\n    msg.response = { action: 'generateApiMappingWithAi', status: 'error', message: msg._llmError };\n} else {\n    // Robust JSON extraction:\n    //   1. Trim whitespace.\n    //   2. Strip ALL markdown code fences (```json, ```, at start/end/middle).\n    //   3. Slice from the first \"{\" to the last \"}\" to tolerate leading/trailing prose.\n    //   4. JSON.parse.\n    let cleaned = raw.trim();\n    cleaned = cleaned.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();\n    const firstBrace = cleaned.indexOf('{');\n    const lastBrace  = cleaned.lastIndexOf('}');\n    if (firstBrace !== -1 && lastBrace > firstBrace) {\n        cleaned = cleaned.slice(firstBrace, lastBrace + 1);\n    }\n    try {\n        parsed = JSON.parse(cleaned);\n    } catch (e) {\n        parseErr = e.message;\n        msg.response = {\n            action:  'generateApiMappingWithAi',\n            status:  'error',\n            message: 'LLM returned non-JSON response',\n            detail:  parseErr,\n            raw:     raw.slice(0, 500)\n        };\n        node.warn('genApiMap parse failed: ' + parseErr + ' | raw head: ' + raw.slice(0, 200));\n    }\n}\n\nif (parsed) {\n    const apiRequest = {\n        method:       parsed.method       || 'GET',\n        pathTemplate: parsed.pathTemplate || '',\n        queryParams:  parsed.queryParams  || {},\n        headers:      parsed.headers      || {},\n        bodyTemplate: parsed.bodyTemplate || null,\n        notes:        parsed.notes        || ('AI-generated on ' + new Date().toISOString())\n    };\n    msg.response = {\n        action:        'generateApiMappingWithAi',\n        status:        'success',\n        apiRequest:    apiRequest,\n        promptId:      (msg._pendingApiMappingGeneration && msg._pendingApiMappingGeneration.promptId) || '',\n        promptVersion: (msg._prompt && msg._prompt.version) || ''\n    };\n}\n\ndelete msg.payload;\ndelete msg._llmRawResponse;\ndelete msg._llmError;\ndelete msg._llmRequest;\ndelete msg._llmForceJson;\ndelete msg._prompt;\ndelete msg._catalogue;\ndelete msg._assetType;\ndelete msg._pendingApiMappingGeneration;\nreturn msg;",
         "outputs": 1,
@@ -1239,14 +1250,14 @@
         "y": 1060,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2000049",
+        "id": "55a20a2d5cf676e5",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: passthrough err",
         "func": "return msg;",
         "outputs": 1,
@@ -1259,14 +1270,14 @@
         "y": 880,
         "wires": [
             [
-                "f8063c93b0f6d90b"
+                "e363243f7433bd75"
             ]
         ]
     },
     {
-        "id": "cr03m2000046a",
+        "id": "cdc03cac7d969eb0",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: load active provider (FR-SR-12 style)",
         "func": "// FR-CR-03 provider resolution — look up an active provider from sr_providers.\n// Priority: prompt.providerId (if set on the selected prompt) → any default provider → first active provider.\nconst p = msg._prompt || {};\nconst promptProviderId = p.providerId || '';\nmsg._apiMapProviderCandidateId = promptProviderId;\nmsg.collection = 'sr_providers';\nmsg.operation  = 'find';\nmsg.payload    = [{ status: 'active' }, { projection: { _id: 0 }, sort: { isDefault: -1, precedence: 1 } }];\nreturn msg;",
         "outputs": 1,
@@ -1279,14 +1290,14 @@
         "y": 1120,
         "wires": [
             [
-                "cr03m2000046b"
+                "60fc82a2d08fa7f6"
             ]
         ]
     },
     {
-        "id": "cr03m2000046b",
+        "id": "60fc82a2d08fa7f6",
         "type": "mongodb4",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -1296,17 +1307,17 @@
         "handleDocId": false,
         "name": "DB: Find active providers",
         "x": 880,
-        "y": 1120,
+        "y": 1160,
         "wires": [
             [
-                "cr03m2000046c"
+                "d882b820171bd314"
             ]
         ]
     },
     {
-        "id": "cr03m2000046c",
+        "id": "d882b820171bd314",
         "type": "function",
-        "z": "52b819f7ec3ad8e1",
+        "z": "779428903ded31cc",
         "name": "genApiMap: pick + decrypt provider",
         "func": "// FR-CR-03 provider picker + decryptor (libs[] — no require(), no process.env)\nconst providers = Array.isArray(msg.payload) ? msg.payload : [];\nconst pickId = msg._apiMapProviderCandidateId || '';\nlet chosen = null;\nif (pickId) chosen = providers.find(p => p.id === pickId) || null;\nif (!chosen) chosen = providers.find(p => p.isDefault) || providers[0] || null;\n\n// Resolve apiKey (KMS-encrypted form used by sr_providers)\nlet apiKey = '';\nif (chosen && chosen.apiKey) {\n    if (typeof chosen.apiKey === 'object' && chosen.apiKey.ct) {\n        const kmsKey = env.get('DCM_KMS_KEY') || global.get('DCM_KMS_KEY') || '';\n        if (kmsKey) {\n            try {\n                const key = Buffer.from(kmsKey, 'hex');\n                const iv = Buffer.from(chosen.apiKey.iv, 'hex');\n                const tag = Buffer.from(chosen.apiKey.tag, 'hex');\n                const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);\n                decipher.setAuthTag(tag);\n                apiKey = decipher.update(chosen.apiKey.ct, 'hex', 'utf8') + decipher.final('utf8');\n            } catch (e) {\n                apiKey = '';\n                node.warn('genApiMap: provider decrypt failed: ' + e.message);\n            }\n        }\n    } else if (typeof chosen.apiKey === 'string') {\n        apiKey = chosen.apiKey;\n    }\n}\n\n// Fall back to legacy flow.openai_api_key if no provider key\nif (!apiKey) apiKey = flow.get('openai_api_key') || '';\n\nlet endpoint = (chosen && chosen.apiEndpoint) || '';\nif (!endpoint && chosen) {\n    if (chosen.type === 'anthropic') endpoint = 'https://api.anthropic.com/v1/messages';\n    else if (chosen.type === 'ollama') endpoint = 'http://localhost:11434/api/chat';\n    else endpoint = 'https://api.openai.com/v1/chat/completions';\n}\nif (!endpoint) endpoint = 'https://api.openai.com/v1/chat/completions';\n\nmsg._resolvedProvider = {\n    id:          (chosen && chosen.id) || 'legacy',\n    name:        (chosen && chosen.name) || 'Legacy OpenAI (flow.context)',\n    type:        (chosen && chosen.type) || 'openai',\n    apiEndpoint: endpoint,\n    apiKey:      apiKey,\n    model:       (chosen && chosen.models && chosen.models.length > 0 && chosen.models[0]) || (chosen && chosen.defaultModel) || flow.get('openai_model') || env.get('OPENAI_MODEL') || 'gpt-3.5-turbo',\n    timeout:     (chosen && chosen.timeout) || 60\n};\n\ndelete msg.payload;\ndelete msg.collection;\ndelete msg.operation;\ndelete msg._apiMapProviderCandidateId;\nreturn msg;",
         "outputs": 1,
@@ -1324,7 +1335,140 @@
         "y": 1120,
         "wires": [
             [
-                "cr03m2000047"
+                "a144eacb7944bae5"
+            ]
+        ]
+    },
+    {
+        "id": "ac02000000000001",
+        "type": "function",
+        "z": "779428903ded31cc",
+        "name": "NF-5 Session Resolver",
+        "func": "function unwrap(value) {\n  return Array.isArray(value) ? (value[0] || null) : value;\n}\nfunction tokenFromMessage() {\n  let token = (msg.auth && msg.auth.userToken) || msg._token || (msg.data && msg.data.token) || \"\";\n  if (!token && msg.payload && typeof msg.payload === \"object\") {\n    token = msg.payload.token || (msg.payload.auth && msg.payload.auth.userToken) || msg.payload._token || \"\";\n  }\n  if (!token && msg.topic && String(msg.topic).indexOf(\"|\") !== -1) {\n    token = String(msg.topic).split(\"|\")[1] || \"\";\n  }\n  return String(token || \"\");\n}\nfunction reject(code, message) {\n  const action = msg._rbacOriginalType || msg.type || \"unknown\";\n  msg.type = action;\n  msg.response = { action, status: \"error\", ok: false, code, error: code, message };\n  delete msg.payload;\n  delete msg.collection;\n  delete msg.operation;\n  [\"_rbacStep\",\"_rbacOriginalType\",\"_rbacOriginalPayload\",\"_rbacOriginalData\",\"_rbacOriginalTopic\",\"_rbacSessionToken\"].forEach(k => delete msg[k]);\n  return [null, null, msg];\n}\n\nconst step = Number(msg._rbacStep || 0);\nif (step === 0) {\n  const token = tokenFromMessage();\n  msg._rbacOriginalType = msg.type || \"\";\n  msg._rbacOriginalPayload = msg.payload;\n  msg._rbacOriginalData = msg.data;\n  msg._rbacOriginalTopic = msg.topic || \"\";\n  if (!token) return reject(\"not_authenticated\", \"Not authenticated - no session token.\");\n  msg._rbacStep = 1;\n  msg._rbacSessionToken = token;\n  msg.collection = \"auth_sessions\";\n  msg.operation = \"findOne\";\n  msg.payload = { token };\n  return [msg, null, null];\n}\n\nif (step === 1) {\n  const session = unwrap(msg.payload);\n  const now = new Date();\n  if (!session || !session.user || (session.expiresAt && new Date(session.expiresAt) <= now)) {\n    return reject(\"not_authenticated\", \"Session expired or invalid.\");\n  }\n  const user = session.user;\n  const status = String(user.status || \"active\");\n  if (status === \"disabled\" || status === \"deleted\") {\n    return reject(\"account_disabled\", \"The account is disabled.\");\n  }\n  if (user.expiresAt && new Date(user.expiresAt) <= now) {\n    return reject(\"account_expired\", \"The account has expired.\");\n  }\n  msg.auth = {\n    username: user.username || \"\",\n    userId: user.id || session.userId || \"\",\n    userToken: msg._rbacSessionToken,\n    role: user.role || (Array.isArray(user.roles) && user.roles[0]) || \"viewer\",\n    roles: Array.isArray(user.roles) ? user.roles : [],\n    permissions: Array.isArray(user.permissions) ? user.permissions : [],\n    accessAreas: Array.isArray(user.accessAreas) ? user.accessAreas : []\n  };\n  msg.type = msg._rbacOriginalType;\n  msg.payload = msg._rbacOriginalPayload;\n  msg.data = msg._rbacOriginalData;\n  msg.topic = msg._rbacOriginalTopic;\n  msg._callerUsername = user.username || \"unknown\";\n  [\"_rbacStep\",\"_rbacOriginalType\",\"_rbacOriginalPayload\",\"_rbacOriginalData\",\"_rbacOriginalTopic\",\"_rbacSessionToken\",\"collection\",\"operation\"].forEach(k => delete msg[k]);\n  return [null, msg, null];\n}\n\nreturn reject(\"auth_error\", \"Unexpected authorization state.\");",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 80,
+        "wires": [
+            [
+                "ac02000000000002"
+            ],
+            [
+                "ac02000000000003"
+            ],
+            [
+                "e363243f7433bd75"
+            ]
+        ]
+    },
+    {
+        "id": "ac02000000000002",
+        "type": "mongodb4",
+        "z": "779428903ded31cc",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "forEach",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "NF-5 Auth Session Lookup",
+        "x": 610,
+        "y": 80,
+        "wires": [
+            [
+                "ac02000000000001"
+            ]
+        ]
+    },
+    {
+        "id": "ac02000000000003",
+        "type": "function",
+        "z": "779428903ded31cc",
+        "name": "NF-5 Permission Gate",
+        "func": "const action = String(msg.type || \"\");\nconst auth = msg.auth || {};\nconst permissions = Array.isArray(auth.permissions) ? auth.permissions : [];\nconst roles = Array.isArray(auth.roles) ? auth.roles : [];\nconst requiredPermission = {\n  \"registerRemoteCatalog\": \"catalogue.registry.create\",\n  \"getCatalogRegistry\": \"catalogue.registry.read\",\n  \"updateRemoteCatalog\": \"catalogue.registry.update\",\n  \"deleteRemoteCatalog\": \"catalogue.registry.delete\",\n  \"uploadCatalogJson\": \"catalogue.registry.create\",\n  \"listAssetTypes\": \"catalogue.registry.read\",\n  \"saveAssetType\": \"catalogue.registry.create\",\n  \"updateAssetType\": \"catalogue.registry.update\",\n  \"deleteAssetType\": \"catalogue.registry.delete\",\n  \"testRemoteCatalogConnection\": \"catalogue.registry.read\",\n  \"listApiMappings\": \"catalogue.registry.read\",\n  \"saveApiMapping\": \"catalogue.registry.update\",\n  \"deleteApiMapping\": \"catalogue.registry.delete\",\n  \"generateApiMappingWithAi\": \"catalogue.registry.create\"\n}[action] || null;\nconst isAdmin = auth.role === \"admin\" || roles.includes(\"admin\");\nconst hasPermission = requiredPermission && (\n  permissions.includes(requiredPermission) ||\n  (isAdmin && permissions.includes(\"*\"))\n);\n\nif (hasPermission) return [msg, null, null];\n\nconst reason = requiredPermission ? \"missing_permission\" : \"unmapped_action\";\nconst message = requiredPermission\n  ? \"Insufficient permissions. Required: \" + requiredPermission\n  : \"Action is not permitted by the backend authorization policy.\";\nconst audit = {\n  collection: \"dcm_audit_log\",\n  operation: \"insertOne\",\n  payload: {\n    timestamp: new Date().toISOString(),\n    actor: auth.username || \"unknown\",\n    actorId: auth.userId || null,\n    area: \"catalogueRegistry\",\n    action: \"access.denied\",\n    target: action || \"unknown\",\n    after: { requiredPermission, reason },\n    result: \"denied\",\n    source: \"rbac\"\n  }\n};\nmsg.response = {\n  action: action || \"unknown\",\n  status: \"error\",\n  ok: false,\n  code: \"permission_denied\",\n  error: \"permission_denied\",\n  message,\n  requiredPermission\n};\ndelete msg.payload;\nreturn [null, audit, msg];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 850,
+        "y": 80,
+        "wires": [
+            [
+                "284c5ccdf5bca33d"
+            ],
+            [
+                "ac02000000000004"
+            ],
+            [
+                "e363243f7433bd75"
+            ]
+        ]
+    },
+    {
+        "id": "ac02000000000004",
+        "type": "mongodb4",
+        "z": "779428903ded31cc",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "NF-5 Denied Audit",
+        "x": 1080,
+        "y": 80,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a2b2c3d4e5f60001",
+        "type": "mongodb4",
+        "z": "779428903ded31cc",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "Find cr_catalogues by catalogId (NF-4)",
+        "x": 700,
+        "y": 700,
+        "wires": [
+            [
+                "a2b2c3d4e5f60002"
+            ]
+        ]
+    },
+    {
+        "id": "a2b2c3d4e5f60002",
+        "type": "function",
+        "z": "779428903ded31cc",
+        "name": "Check uniqueness + finalize insert (NF-4)",
+        "func": "const existing = Array.isArray(msg.payload) ? msg.payload : [];\nif (existing.length > 0) {\n    msg.response = { action: 'registerRemoteCatalog', status: 'error', ok: false, code: 'validation_failed', message: 'Catalogue configuration is invalid.', fieldErrors: { catalogId: 'Catalogue ID \"' + (msg._pendingCatalogId || '') + '\" already exists.' } };\n    delete msg.payload; delete msg._pendingCatalogId;\n    return [null, msg];\n}\nconst chars = 'abcdefghijklmnopqrstuvwxyz0123456789';\nlet randomPart = '';\nfor (let i = 0; i < 12; i++) randomPart += chars[Math.floor(Math.random() * chars.length)];\nconst id = Date.now().toString(36) + randomPart;\nconst d = msg.data || {};\nd.createdAt = new Date().toISOString();\nd.updatedAt = d.createdAt;\nmsg.uniqueId = id;\nmsg.operation = 'insertOne';\nmsg.collection = 'cr_catalogues';\nmsg.payload = { catalog: d, uniqueId: id };\ndelete msg._pendingCatalogId;\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 950,
+        "y": 700,
+        "wires": [
+            [
+                "5235eca135f5ae94"
+            ],
+            [
+                "e363243f7433bd75"
             ]
         ]
     }

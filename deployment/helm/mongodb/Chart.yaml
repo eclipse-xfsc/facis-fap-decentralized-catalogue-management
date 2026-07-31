@@ -1,0 +1,10 @@
+apiVersion: v2
+name: mongodb
+description: Standalone MongoDB Helm chart for DCM persistence
+type: application
+version: 0.2.0
+appVersion: "7.0"
+keywords:
+  - mongodb
+  - database
+  - dcm
