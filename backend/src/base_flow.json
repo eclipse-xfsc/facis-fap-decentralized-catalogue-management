@@ -1,13 +1,13 @@
 [
     {
-        "id": "fba9a024d6c9f5b400000001",
+        "id": "250e0acb3c7b1f04",
         "type": "tab",
         "label": "PostFlow",
         "disabled": false,
         "info": ""
     },
     {
-        "id": "08651bcbec5aaa0a",
+        "id": "499cc2671c50eb23",
         "type": "tab",
         "label": "Interface",
         "disabled": false,
@@ -15,170 +15,9 @@
         "env": []
     },
     {
-        "id": "ae7470d77bf8e67e",
-        "type": "subflow",
-        "name": "mongo db",
-        "info": "",
-        "category": "",
-        "in": [
-            {
-                "x": 1700,
-                "y": 60,
-                "wires": [
-                    {
-                        "id": "05de5cc3772c9614"
-                    }
-                ]
-            }
-        ],
-        "out": [
-            {
-                "x": 2520,
-                "y": 40,
-                "wires": [
-                    {
-                        "id": "0a6acae42213e90a",
-                        "port": 0
-                    }
-                ]
-            }
-        ],
-        "env": [],
-        "meta": {},
-        "color": "#DDAA99"
-    },
-    {
-        "id": "b991ffcd8f6c360a",
-        "type": "mongodb4-client",
-        "name": "",
-        "protocol": "mongodb+srv",
-        "hostname": "",
-        "port": "",
-        "dbName": "PartnerOnboarding",
-        "appName": "",
-        "authSource": "",
-        "authMechanism": "DEFAULT",
-        "tls": true,
-        "tlsCAFile": "",
-        "tlsCertificateKeyFile": "",
-        "tlsInsecure": false,
-        "connectTimeoutMS": "30000",
-        "socketTimeoutMS": "0",
-        "minPoolSize": "0",
-        "maxPoolSize": "100",
-        "maxIdleTimeMS": "0",
-        "uri": "",
-        "advanced": "{}",
-        "uriTabActive": "tab-uri-simple"
-    },
-    {
-        "id": "05de5cc3772c9614",
-        "type": "mongodb4",
-        "z": "ae7470d77bf8e67e",
-        "clientNode": "b991ffcd8f6c360a",
-        "mode": "collection",
-        "collection": "",
-        "operation": "",
-        "output": "toArray",
-        "maxTimeMS": "0",
-        "handleDocId": false,
-        "name": "",
-        "x": 1902.5,
-        "y": 60,
-        "wires": [
-            [
-                "21c2267332124369"
-            ]
-        ]
-    },
-    {
-        "id": "0a6acae42213e90a",
-        "type": "switch",
-        "z": "ae7470d77bf8e67e",
-        "name": "check db awnser",
-        "property": "db.payload",
-        "propertyType": "msg",
-        "rules": [
-            {
-                "t": "nnull"
-            },
-            {
-                "t": "null"
-            }
-        ],
-        "checkall": "true",
-        "repair": false,
-        "outputs": 2,
-        "x": 2297.5,
-        "y": 60,
-        "wires": [
-            [],
-            [
-                "044f0949b96800c6"
-            ]
-        ]
-    },
-    {
-        "id": "76b7fbfe029f0e4e",
-        "type": "debug",
-        "z": "ae7470d77bf8e67e",
-        "name": "db-null",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 2777.5,
-        "y": 300,
-        "wires": []
-    },
-    {
-        "id": "21c2267332124369",
-        "type": "function",
-        "z": "ae7470d77bf8e67e",
-        "name": "set msg.db",
-        "func": "let message=msg\nmsg={}\nmsg.db=message.payload\nmsg.session=message.session\nmsg.recordDetails=message.recordDetails\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 2082.5,
-        "y": 300,
-        "wires": [
-            [
-                "0a6acae42213e90a"
-            ]
-        ]
-    },
-    {
-        "id": "044f0949b96800c6",
-        "type": "function",
-        "z": "ae7470d77bf8e67e",
-        "name": "set msg.db.error",
-        "func": "let message=msg\nmsg={}\nmsg.data.error='there is no such a document in db'\nmsg.data=message.data\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 2457.5,
-        "y": 300,
-        "wires": [
-            [
-                "76b7fbfe029f0e4e"
-            ]
-        ]
-    },
-    {
-        "id": "af356aea5113f9d0",
+        "id": "45db5c22debec0da",
         "type": "http in",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "POST /uiapp (zip)",
         "url": "/backendtest",
         "method": "post",
@@ -188,15 +27,15 @@
         "y": 280,
         "wires": [
             [
-                "96234f884777ce3c",
-                "abf85b8036260bdb"
+                "437b09a7b575a4cc",
+                "cc9911b313b1c9cc"
             ]
         ]
     },
     {
-        "id": "96234f884777ce3c",
+        "id": "437b09a7b575a4cc",
         "type": "debug",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "Incoming (inspect)",
         "active": true,
         "tosidebar": true,
@@ -210,9 +49,9 @@
         "wires": []
     },
     {
-        "id": "cc0c0b4784b8e78b",
+        "id": "b7bb742ce14af834",
         "type": "http response",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "HTTP Response",
         "statusCode": "",
         "headers": {},
@@ -221,9 +60,9 @@
         "wires": []
     },
     {
-        "id": "19063ceefb7ea3b7",
+        "id": "a8a7a9912cc776ac",
         "type": "file",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "Write upload.zip",
         "filename": "filename",
         "filenameType": "msg",
@@ -235,15 +74,15 @@
         "y": 380,
         "wires": [
             [
-                "c44fd8a5c0d81874",
-                "0f5d14520b629490"
+                "e4d03932c2b9a260",
+                "c8b99f1c8e8d6117"
             ]
         ]
     },
     {
-        "id": "abf85b8036260bdb",
+        "id": "cc9911b313b1c9cc",
         "type": "function",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "write upload data",
         "func": "let buf = null;\nmsg.uibuildername =\"ui\"\nif (Buffer.isBuffer(msg.payload)) {\n    buf = msg.payload;\n}\nelse if (msg.req && msg.req.rawBody && Buffer.isBuffer(msg.req.rawBody)) {\n    buf = msg.req.rawBody;\n}\nelse if (typeof msg.payload === 'string') {\n    buf = Buffer.from(msg.payload, 'binary');\n    node.warn('Payload arrived as string; converted using latin1. Prefer application/octet-stream to avoid corruption.');\n} else {\n    node.error('❌ Payload is not Buffer/String and no rawBody present');\n    return null;\n}\n\nif (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4B) {\n    node.warn('⚠️ Payload does not start with PK (ZIP). Check Content-Type or middleware.');\n}\n\nmsg.payload = buf;\nmsg.filename = \"/data/uibuilder/backend-dist.zip\";\nreturn msg;\n",
         "outputs": 1,
@@ -255,14 +94,14 @@
         "y": 380,
         "wires": [
             [
-                "19063ceefb7ea3b7"
+                "a8a7a9912cc776ac"
             ]
         ]
     },
     {
-        "id": "c44fd8a5c0d81874",
+        "id": "e4d03932c2b9a260",
         "type": "function",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "set http response",
         "func": "msg.statusCode = 200;\nmsg.headers = { \"Content-Type\": \"text/plain; charset=utf-8\" };\nmsg.payload = \"OK\";\nreturn msg;\n",
         "outputs": 1,
@@ -274,14 +113,14 @@
         "y": 380,
         "wires": [
             [
-                "cc0c0b4784b8e78b"
+                "b7bb742ce14af834"
             ]
         ]
     },
     {
-        "id": "337faca851558c3a",
+        "id": "851796f763499775",
         "type": "exec",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "command": "",
         "addpay": "command",
         "append": "",
@@ -296,14 +135,14 @@
             [],
             [],
             [
-                "13468ae2ba9751f4"
+                "ef5b55408595330a"
             ]
         ]
     },
     {
-        "id": "0f5d14520b629490",
+        "id": "c8b99f1c8e8d6117",
         "type": "function",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "command unzip",
         "func": "\nconst name = msg.uibuildername;\nmsg.command =\n    `sh -c 'ZIP=\"/data/uibuilder/backend-dist.zip\"; ` +\n    `DST=\"/data/uibuilder/${name}/src\"; ` +\n    `TMP=\"$(mktemp -d)\"; ` +\n    `mkdir -p \"$DST\"; ` +\n    `unzip -q -o \"$ZIP\" -d \"$TMP\"; ` +\n    `SRC=\"$TMP/dist\"; [ -d \"$SRC\" ] || SRC=\"$TMP\"; ` +\n    `rm -rf \"$DST\"/*; ` +\n    `cp -a \"$SRC\"/. \"$DST\"/; ` +\n    `chmod -R u+rw,g+rw,o+rw \"$DST\"; ` +\n    `rm -rf \"$TMP\"'`;\n\nreturn msg;\n",
         "outputs": 1,
@@ -315,14 +154,14 @@
         "y": 520,
         "wires": [
             [
-                "337faca851558c3a"
+                "851796f763499775"
             ]
         ]
     },
     {
-        "id": "13468ae2ba9751f4",
+        "id": "ef5b55408595330a",
         "type": "function",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "command update",
         "func": "\nconst name = msg.uibuildername;\n\nconst file = `/data/uibuilder/${name}/src/index.html`;\n\nmsg.command =\n    `sh -c '[ -f \"${file}\" ] || { echo \"index.html not found: ${file}\" >&2; exit 1; }; ` +\n    `sed -E -i \"s#(src|href)=\\\\\\\"/assets/#\\\\\\\\1=\\\\\\\"/${name}/assets/#g\" \"${file}\"'`;\n\nreturn msg;\n",
         "outputs": 1,
@@ -334,14 +173,14 @@
         "y": 500,
         "wires": [
             [
-                "1040d51522d62286"
+                "0fc69860c0ba9d12"
             ]
         ]
     },
     {
-        "id": "1040d51522d62286",
+        "id": "0fc69860c0ba9d12",
         "type": "exec",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "command": "",
         "addpay": "command",
         "append": "",
@@ -355,17 +194,17 @@
         "wires": [
             [],
             [
-                "5ea2c2ec1e5c1ed5"
+                "37aebe93e3078114"
             ],
             [
-                "6481cf1c14f8fb46"
+                "4cc4ed0adc44006f"
             ]
         ]
     },
     {
-        "id": "5ea2c2ec1e5c1ed5",
+        "id": "37aebe93e3078114",
         "type": "debug",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "debug 103",
         "active": true,
         "tosidebar": true,
@@ -380,9 +219,9 @@
         "wires": []
     },
     {
-        "id": "6481cf1c14f8fb46",
+        "id": "4cc4ed0adc44006f",
         "type": "debug",
-        "z": "fba9a024d6c9f5b400000001",
+        "z": "250e0acb3c7b1f04",
         "name": "debug 104",
         "active": true,
         "tosidebar": true,
@@ -397,13 +236,12 @@
         "wires": []
     },
     {
-        "id": "5ed3b874a84375a5",
+        "id": "42e38e6a847015a9",
         "type": "uibuilder",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "",
         "topic": "",
-        "url": "ui",
-        "okToGo": true,
+        "okToGo": false,
         "fwdInMessages": false,
         "allowScripts": false,
         "allowStyles": false,
@@ -422,15 +260,15 @@
         "y": 320,
         "wires": [
             [
-                "ff01000000000099"
+                "b7f2e08e2a46659b"
             ],
             []
         ]
     },
     {
-        "id": "ff01000000000099",
+        "id": "b7f2e08e2a46659b",
         "type": "function",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "token extractor",
         "func": "// Extract msg.type from wherever uibuilder puts it\nif (!msg.type && msg.payload && typeof msg.payload === 'object') {\n    if (msg.payload.type) msg.type = msg.payload.type;\n}\n\n// Extract msg.data from payload if not directly available\nif (!msg.data && msg.payload && typeof msg.payload === 'object' && msg.payload.data) {\n    msg.data = msg.payload.data;\n}\n\n// Extract msg.route from payload if not directly available\nif (!msg.route && msg.payload && typeof msg.payload === 'object' && msg.payload.route) {\n    msg.route = msg.payload.route;\n}\n\n// Extract _token from payload if not directly available\nif (!msg._token && msg.payload && typeof msg.payload === 'object' && msg.payload._token) {\n    msg._token = msg.payload._token;\n}\n\n// Extract auth from payload if not directly available\nif (!msg.auth && msg.payload && typeof msg.payload === 'object' && msg.payload.auth) {\n    msg.auth = msg.payload.auth;\n}\n\nreturn msg;",
         "outputs": 1,
@@ -443,14 +281,14 @@
         "y": 320,
         "wires": [
             [
-                "ff01000000000020"
+                "3e9af2c74005f233"
             ]
         ]
     },
     {
-        "id": "ff01000000000020",
+        "id": "3e9af2c74005f233",
         "type": "switch",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "route by msg.route",
         "property": "route",
         "propertyType": "msg",
@@ -496,129 +334,110 @@
         "y": 160,
         "wires": [
             [
-                "ff01000000000032"
+                "9a1a4a0f7e2088ce"
             ],
             [
-                "ff01000000000035"
+                "abd7a0d809f92ac8"
             ],
             [
-                "ff01000000000033"
+                "a63fbd1d5ee93dd8"
             ],
             [
-                "ff01000000000034"
+                "f9f539ca7548cb40"
             ],
             [
-                "ff01000000000036"
+                "0d22c3c28df8c2e4"
             ],
             [
-                "ff01000000000037"
+                "5bb0cd4b63a222e3"
             ],
             []
         ]
     },
     {
-        "id": "ff01000000000032",
+        "id": "9a1a4a0f7e2088ce",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Catalogue Registry",
         "mode": "link",
-        "links": [
-            "e2f70557fca63bd2"
-        ],
+        "links": [],
         "x": 1250,
         "y": 360,
         "wires": []
     },
     {
-        "id": "ff01000000000035",
+        "id": "abd7a0d809f92ac8",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Schema Registry",
         "mode": "link",
-        "links": [
-            "02e79a37e339b305"
-        ],
+        "links": [],
         "x": 1250,
         "y": 420,
         "wires": []
     },
     {
-        "id": "ff01000000000033",
+        "id": "a63fbd1d5ee93dd8",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Harvester",
         "mode": "link",
-        "links": [
-            "bb03000000000002"
-        ],
+        "links": [],
         "x": 1250,
         "y": 480,
         "wires": []
     },
     {
-        "id": "ff01000000000034",
+        "id": "f9f539ca7548cb40",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Admin Tools",
         "mode": "link",
-        "links": [
-            "cc04000000000002"
-        ],
+        "links": [],
         "x": 1250,
         "y": 540,
         "wires": []
     },
     {
-        "id": "ff01000000000036",
+        "id": "0d22c3c28df8c2e4",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Local Catalogue",
         "mode": "link",
-        "links": [
-            "dd05000000000002"
-        ],
+        "links": [],
         "x": 1250,
         "y": 600,
         "wires": []
     },
     {
-        "id": "ff01000000000037",
+        "id": "5bb0cd4b63a222e3",
         "type": "link out",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "→ Auth",
         "mode": "link",
-        "links": [
-            "ee06000000000002"
-        ],
+        "links": [],
         "x": 1250,
         "y": 660,
         "wires": []
     },
     {
-        "id": "c48570326bcd6b3d",
+        "id": "4f7511bc7069ea47",
         "type": "link in",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "dashboard-response-in",
-        "links": [
-            "bb010000000000f0",
-            "f8063c93b0f6d90b",
-            "bb03000000000099",
-            "cc04000000000099",
-            "dd05000000000099",
-            "ee06000000000099"
-        ],
+        "links": [],
         "x": 350,
         "y": 160,
         "wires": [
             [
-                "5ed3b874a84375a5"
+                "42e38e6a847015a9"
             ]
         ]
     },
     {
-        "id": "gi01000000000010",
+        "id": "bcfc63ba45c785ab",
         "type": "http in",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "GET /.well-known/api-catalog",
         "url": "/.well-known/api-catalog",
         "method": "get",
@@ -628,14 +447,14 @@
         "y": 1100,
         "wires": [
             [
-                "gi01000000000020"
+                "0fc236693517e24c"
             ]
         ]
     },
     {
-        "id": "gi01000000000020",
+        "id": "0fc236693517e24c",
         "type": "function",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "build api-catalog linkset",
         "func": "// FR-GI-01 — RFC 9279 api-catalog discovery\n// Returns an RFC 9264 JSON Linkset pointing to the OpenAPI document.\nconst req = msg.req || {};\nconst proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';\nconst host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'localhost';\nconst base = proto + '://' + host;\n\nconst linkset = {\n    linkset: [\n        {\n            anchor: base + '/',\n            'service-desc': [\n                {\n                    href: base + '/api/openapi.json',\n                    type: 'application/vnd.oai.openapi+json'\n                }\n            ],\n            'service-doc': [\n                {\n                    href: base + '/api/openapi.json',\n                    type: 'application/vnd.oai.openapi+json',\n                    title: 'FAP DCM OpenAPI 3.0 description'\n                }\n            ]\n        }\n    ]\n};\n\nmsg.headers = {\n    'Content-Type': 'application/linkset+json',\n    'Cache-Control': 'public, max-age=300'\n};\nmsg.payload = linkset;\nreturn msg;",
         "outputs": 1,
@@ -647,14 +466,14 @@
         "y": 1100,
         "wires": [
             [
-                "gi01000000000030"
+                "39138f101a2aa1b8"
             ]
         ]
     },
     {
-        "id": "gi01000000000030",
+        "id": "39138f101a2aa1b8",
         "type": "http response",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "respond linkset",
         "statusCode": "200",
         "headers": {},
@@ -663,9 +482,9 @@
         "wires": []
     },
     {
-        "id": "gi01000000000040",
+        "id": "db22b7a9177bc6a1",
         "type": "http in",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "GET /api/openapi.json",
         "url": "/api/openapi.json",
         "method": "get",
@@ -675,16 +494,16 @@
         "y": 1160,
         "wires": [
             [
-                "gi01000000000050"
+                "9445397824afacfc"
             ]
         ]
     },
     {
-        "id": "gi01000000000050",
+        "id": "9445397824afacfc",
         "type": "function",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "build OpenAPI 3.0 doc",
-        "func": "// FR-GI-01 — OpenAPI 3.0 description of the FAP DCM public surface.\n// Scope is intentionally minimal: the discovery endpoints + a reference to the\n// uibuilder websocket channel through which the bulk of FR-ACM / FR-SR / FR-CR\n// operations are dispatched. Full per-message schemas can be added incrementally.\n\nconst req = msg.req || {};\nconst proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';\nconst host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'localhost';\nconst base = proto + '://' + host;\n\nconst doc = {\n    openapi: '3.0.3',\n    info: {\n        title: 'FAP DCM — Decentralized Catalogue Management API',\n        description: 'Machine-readable API description for the FAP DCM, discoverable via RFC 9279 /.well-known/api-catalog. Business operations (Asset Crawler, Schema Registry, Catalogue Registry, Access Control) are dispatched primarily through a uibuilder websocket channel; REST endpoints listed here expose discovery metadata and health checks.',\n        version: '1.0.0',\n        contact: {\n            name: 'FAP DCM implementation'\n        },\n        license: {\n            name: 'See project LICENSE'\n        }\n    },\n    servers: [\n        { url: base, description: 'Current deployment' }\n    ],\n    tags: [\n        { name: 'Discovery', description: 'RFC 9279 discovery endpoints' },\n        { name: 'Realtime',  description: 'uibuilder websocket message surface (FR-ACM / FR-SR / FR-CR / FR-AC)' }\n    ],\n    paths: {\n        '/.well-known/api-catalog': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'RFC 9279 api-catalog — returns linkset pointing to this OpenAPI document',\n                responses: {\n                    '200': {\n                        description: 'RFC 9264 linkset',\n                        content: {\n                            'application/linkset+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        },\n        '/api/openapi.json': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'OpenAPI 3.0 description of the FAP DCM API',\n                responses: {\n                    '200': {\n                        description: 'OpenAPI 3.0 JSON',\n                        content: {\n                            'application/vnd.oai.openapi+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        }\n    },\n    components: {\n        schemas: {\n            UiBuilderEnvelope: {\n                type: 'object',\n                description: 'Envelope for uibuilder websocket messages. The type field names the operation (e.g. registerRemoteCatalog, startHarvest, saveAssetType, listRoles). The data field carries operation-specific payload. All operations are subject to FR-AC-01 role checks.',\n                required: ['type'],\n                properties: {\n                    type: { type: 'string', example: 'registerRemoteCatalog' },\n                    auth: { type: 'object', description: 'Session bearer / API key; injected by FE' },\n                    data: { type: 'object', description: 'Operation-specific payload' }\n                }\n            }\n        }\n    },\n    'x-realtime-channel': {\n        transport: 'uibuilder over socket.io',\n        path: '/uibuilder',\n        envelopeSchema: '#/components/schemas/UiBuilderEnvelope',\n        notes: 'Frontend src/services/uibuilder.service.js ROUTE_MAP enumerates all supported msg.type values and their target backend modules.'\n    }\n};\n\nmsg.headers = {\n    'Content-Type': 'application/vnd.oai.openapi+json; charset=utf-8',\n    'Cache-Control': 'public, max-age=300'\n};\nmsg.payload = doc;\nreturn msg;",
+        "func": "// FR-GI-01 — OpenAPI 3.0 description of the FAP DCM public surface.\n// Scope is intentionally minimal: the discovery endpoints + a reference to the\n// uibuilder websocket channel through which the bulk of FR-ACM / FR-SR / FR-CR\n// operations are dispatched. Full per-message schemas can be added incrementally.\n\nconst req = msg.req || {};\nconst proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'https';\nconst host = (req.headers && (req.headers['x-forwarded-host'] || req.headers.host)) || 'localhost';\nconst base = proto + '://' + host;\n\nconst doc = {\n    openapi: '3.0.3',\n    info: {\n        title: 'FAP DCM — Decentralized Catalogue Management API',\n        description: 'Machine-readable API description for the FAP DCM, discoverable via RFC 9279 /.well-known/api-catalog. Business operations (Asset Crawler, Schema Registry, Catalogue Registry, Access Control) are dispatched primarily through a uibuilder websocket channel; REST endpoints listed here expose discovery metadata and health checks.',\n        version: '1.0.0',\n        contact: {\n            name: 'FAP DCM implementation'\n        },\n        license: {\n            name: 'See project LICENSE'\n        }\n    },\n    servers: [\n        { url: base, description: 'Current deployment' }\n    ],\n    tags: [\n        { name: 'Health', description: 'Liveness probes' },\n        { name: 'Discovery', description: 'RFC 9279 discovery endpoints' },\n        { name: 'Realtime',  description: 'uibuilder websocket message surface (FR-ACM / FR-SR / FR-CR / FR-AC)' }\n    ],\n    paths: {\n        '/healthz': {\n            get: {\n                tags: ['Health'],\n                summary: 'Liveness probe reporting that the Node-RED backend is running',\n                description: 'Static liveness check. Performs no database, identity provider or downstream service calls and never returns configuration or credential material.',\n                security: [],\n                responses: {\n                    '200': {\n                        description: 'Service is live',\n                        content: {\n                            'application/json': {\n                                schema: {\n                                    type: 'object',\n                                    required: ['status', 'service', 'timestamp', 'uptimeSeconds'],\n                                    properties: {\n                                        status: { type: 'string', example: 'ok' },\n                                        service: { type: 'string', example: 'facis-dcm' },\n                                        timestamp: { type: 'string', format: 'date-time' },\n                                        uptimeSeconds: { type: 'integer', minimum: 0 }\n                                    }\n                                }\n                            }\n                        }\n                    }\n                }\n            }\n        },\n        '/.well-known/api-catalog': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'RFC 9279 api-catalog — returns linkset pointing to this OpenAPI document',\n                responses: {\n                    '200': {\n                        description: 'RFC 9264 linkset',\n                        content: {\n                            'application/linkset+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        },\n        '/api/openapi.json': {\n            get: {\n                tags: ['Discovery'],\n                summary: 'OpenAPI 3.0 description of the FAP DCM API',\n                responses: {\n                    '200': {\n                        description: 'OpenAPI 3.0 JSON',\n                        content: {\n                            'application/vnd.oai.openapi+json': {\n                                schema: { type: 'object' }\n                            }\n                        }\n                    }\n                }\n            }\n        }\n    },\n    components: {\n        schemas: {\n            UiBuilderEnvelope: {\n                type: 'object',\n                description: 'Envelope for uibuilder websocket messages. The type field names the operation (e.g. registerRemoteCatalog, startHarvest, saveAssetType, listRoles). The data field carries operation-specific payload. All operations are subject to FR-AC-01 role checks.',\n                required: ['type'],\n                properties: {\n                    type: { type: 'string', example: 'registerRemoteCatalog' },\n                    auth: { type: 'object', description: 'Session bearer / API key; injected by FE' },\n                    data: { type: 'object', description: 'Operation-specific payload' }\n                }\n            }\n        }\n    },\n    'x-realtime-channel': {\n        transport: 'uibuilder over socket.io',\n        path: '/uibuilder',\n        envelopeSchema: '#/components/schemas/UiBuilderEnvelope',\n        notes: 'Frontend src/services/uibuilder.service.js ROUTE_MAP enumerates all supported msg.type values and their target backend modules.'\n    }\n};\n\nmsg.headers = {\n    'Content-Type': 'application/vnd.oai.openapi+json; charset=utf-8',\n    'Cache-Control': 'public, max-age=300'\n};\nmsg.payload = doc;\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -694,19 +513,66 @@
         "y": 1160,
         "wires": [
             [
-                "gi01000000000060"
+                "d843c35840506c48"
             ]
         ]
     },
     {
-        "id": "gi01000000000060",
+        "id": "d843c35840506c48",
         "type": "http response",
-        "z": "08651bcbec5aaa0a",
+        "z": "499cc2671c50eb23",
         "name": "respond OpenAPI",
         "statusCode": "200",
         "headers": {},
         "x": 680,
         "y": 1160,
+        "wires": []
+    },
+    {
+        "id": "gi01000000000070",
+        "type": "http in",
+        "z": "08651bcbec5aaa0a",
+        "name": "GET /healthz",
+        "url": "/healthz",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 160,
+        "y": 1220,
+        "wires": [
+            [
+                "gi01000000000080"
+            ]
+        ]
+    },
+    {
+        "id": "gi01000000000080",
+        "type": "function",
+        "z": "08651bcbec5aaa0a",
+        "name": "build healthz payload",
+        "func": "// Liveness probe. Deliberately does no I/O: no MongoDB, no Keycloak and no\n// outbound calls, so it still answers while dependencies are down.\nvar uptimeSeconds;\ntry {\n    uptimeSeconds = Math.round(process.uptime());\n} catch (e) {\n    // The function sandbox does not always expose process; fall back to the\n    // time since this node was initialised.\n    var startedAt = context.get(\"startedAt\") || Date.now();\n    uptimeSeconds = Math.round((Date.now() - startedAt) / 1000);\n}\n\nmsg.statusCode = 200;\nmsg.headers = {\n    \"content-type\": \"application/json\",\n    \"cache-control\": \"no-store\"\n};\nmsg.payload = {\n    status: \"ok\",\n    service: \"facis-dcm\",\n    timestamp: new Date().toISOString(),\n    uptimeSeconds: uptimeSeconds\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "context.set(\"startedAt\", Date.now());",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 1220,
+        "wires": [
+            [
+                "gi01000000000090"
+            ]
+        ]
+    },
+    {
+        "id": "gi01000000000090",
+        "type": "http response",
+        "z": "08651bcbec5aaa0a",
+        "name": "respond healthz",
+        "statusCode": "",
+        "headers": {},
+        "x": 680,
+        "y": 1220,
         "wires": []
     }
 ]

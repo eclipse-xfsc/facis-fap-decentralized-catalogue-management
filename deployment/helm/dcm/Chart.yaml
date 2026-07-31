@@ -1,0 +1,10 @@
+apiVersion: v2
+name: dcm
+description: Helm chart for the FACIS Decentralized Catalogue Management application
+type: application
+version: 0.2.0
+appVersion: "latest"
+keywords:
+  - dcm
+  - facis
+  - catalogue

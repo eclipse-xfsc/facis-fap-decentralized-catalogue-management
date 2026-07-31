@@ -1,6 +1,6 @@
 [
     {
-        "id": "dd05000000000000",
+        "id": "791dd9de5467715f",
         "type": "tab",
         "label": "M5_DCM-LocalCatalogue",
         "disabled": false,
@@ -11,10 +11,10 @@
         "id": "b991ffcd8f6c360a",
         "type": "mongodb4-client",
         "name": "",
-        "protocol": "mongodb+srv",
-        "hostname": "",
-        "port": "",
-        "dbName": "PartnerOnboarding",
+        "protocol": "mongodb",
+        "hostname": "mdb.facis.cloud",
+        "port": "27017",
+        "dbName": "DCM",
         "appName": "",
         "authSource": "",
         "authMechanism": "DEFAULT",
@@ -32,9 +32,9 @@
         "uriTabActive": "tab-uri-simple"
     },
     {
-        "id": "dd05000000000001",
+        "id": "c7cc8741e5349a88",
         "type": "comment",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "══ Local Catalogue Backend ══",
         "info": "Handles Local Catalogue operations.\nlc_assets are written during Harvest (M3) and managed here.",
         "x": 240,
@@ -42,25 +42,25 @@
         "wires": []
     },
     {
-        "id": "dd05000000000002",
+        "id": "7abd737b01297a7e",
         "type": "link in",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "local-catalogue-in",
         "links": [
-            "ff01000000000036"
+            "29bc605f20b8da47"
         ],
         "x": 115,
         "y": 200,
         "wires": [
             [
-                "dd05000000000003"
+                "ac05000000000001"
             ]
         ]
     },
     {
-        "id": "dd05000000000003",
+        "id": "fa13e9ac1486b77e",
         "type": "switch",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "route by msg.type",
         "property": "type",
         "propertyType": "msg",
@@ -103,29 +103,29 @@
         "y": 200,
         "wires": [
             [
-                "dd05000000000010"
+                "03ce682275a91ab5"
             ],
             [
-                "dd05000000000020"
+                "9bde04220b815a39"
             ],
             [
-                "dd05000000000030"
+                "d17405f1f44c35cb"
             ],
             [
-                "dd05000000000040"
+                "52b8a84e362d64b2"
             ],
             [
-                "dd05000000000050"
+                "873a441f589e35a6"
             ],
             [
-                "dd05000000000060"
+                "33aa64b84f78db3f"
             ]
         ]
     },
     {
-        "id": "dd05000000000010",
+        "id": "03ce682275a91ab5",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Get Local Catalogue — query lc_assets",
         "func": "msg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{}];\nreturn msg;",
         "outputs": 1,
@@ -138,14 +138,14 @@
         "y": 100,
         "wires": [
             [
-                "dd05000000000011"
+                "e154a054331969c8"
             ]
         ]
     },
     {
-        "id": "dd05000000000011",
+        "id": "e154a054331969c8",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -158,16 +158,16 @@
         "y": 100,
         "wires": [
             [
-                "dd05000000000012"
+                "21aba439df98dce7"
             ]
         ]
     },
     {
-        "id": "dd05000000000012",
+        "id": "21aba439df98dce7",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — getLocalCatalogue",
-        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Build table-ready asset list (FR-ACM-04: include linkedAssets flags only, not bodies)\nconst assets = docs.map(d => {\n    const hasOriginal = d.originalForm !== undefined && d.originalForm !== null;\n    const hasTransformed = d.transformedForm !== undefined && d.transformedForm !== null;\n    return {\n        id: d.uniqueId,\n        assets: d.title || '-',\n        type: d.type || 'Dataset',\n        name: d.catalogue || '-',\n        domain: d.domain || d.catalogue || '-',\n        updated: (d.harvestedAt || d.createdAt || '-').replace('T', ' ').slice(0, 19),\n        integrationStatus: d.status || 'Active',\n        harvestRunId: d.harvestRunId || '',\n        sourceAssetId: d.sourceAssetId || '',\n        strategy: d.strategy || '',\n        catalogueId: d.catalogueId || '',\n        harvestScope: d.harvestScope || {},\n        uniqueId: d.uniqueId,\n        linkedAssets: { hasOriginal: hasOriginal, hasTransformed: hasTransformed },\n        crawledFrom: d.crawledFrom || '',\n        crawlDepth: (typeof d.crawlDepth === 'number') ? d.crawlDepth : null,\n        crawlReferenceUri: d.crawlReferenceUri || '',\n        crawlReferenceField: d.crawlReferenceField || '',\n        sourceCatalogueId: d.sourceCatalogueId || ''\n    };\n});\n\nassets.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));\n\n// Compute stats\nconst runIds = new Set();\nfor (const d of docs) { if (d.harvestRunId) runIds.add(d.harvestRunId); }\n\nmsg.response = {\n    action: 'getLocalCatalogue',\n    status: 'success',\n    assets: assets,\n    totalAssets: assets.length,\n    totalRuns: runIds.size\n};\ndelete msg.payload;\nreturn msg;",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// Build table-ready asset list (FR-ACM-04: include linkedAssets flags only, not bodies)\nconst assets = docs.map(d => {\n    const hasOriginal = d.originalForm !== undefined && d.originalForm !== null;\n    const hasTransformed = d.transformedForm !== undefined && d.transformedForm !== null;\n    // The harvester stores the source catalogue as sourceCatalogue /\n    // sourceCatalogueName; reading d.catalogue alone renders every row as '-'.\n    const sourceCatalogueName = d.sourceCatalogueName || d.sourceCatalogue || d.catalogue || d.name || '';\n    const strategy = d.transformationStrategy || (d.catalogueTransform && d.catalogueTransform.strategy) || d.strategy || '';\n    return {\n        id: d.uniqueId,\n        assets: d.title || '-',\n        type: d.type || 'Dataset',\n        name: sourceCatalogueName || '-',\n        sourceCatalogue: sourceCatalogueName || '-',\n        sourceCatalogueName: sourceCatalogueName || '-',\n        catalogue: sourceCatalogueName || '-',\n        domain: d.domain || sourceCatalogueName || '-',\n        updated: (d.harvestedAt || d.createdAt || '-').replace('T', ' ').slice(0, 19),\n        harvestedAt: d.harvestedAt || d.createdAt || '',\n        protocol: d.protocol || '',\n        integrationStatus: d.status || 'Active',\n        harvestRunId: d.harvestRunId || '',\n        sourceAssetId: d.sourceAssetId || '',\n        strategy: strategy,\n        transformationStrategy: strategy,\n        catalogueId: d.catalogueId || '',\n        harvestScope: d.harvestScope || {},\n        uniqueId: d.uniqueId,\n        linkedAssets: { hasOriginal: hasOriginal, hasTransformed: hasTransformed },\n        crawledFrom: d.crawledFrom || '',\n        crawlDepth: (typeof d.crawlDepth === 'number') ? d.crawlDepth : null,\n        crawlReferenceUri: d.crawlReferenceUri || '',\n        crawlReferenceField: d.crawlReferenceField || '',\n        sourceCatalogueId: d.sourceCatalogueId || ''\n    };\n});\n\nassets.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));\n\n// Compute stats\nconst runIds = new Set();\nfor (const d of docs) { if (d.harvestRunId) runIds.add(d.harvestRunId); }\n\nmsg.response = {\n    action: 'getLocalCatalogue',\n    status: 'success',\n    assets: assets,\n    totalAssets: assets.length,\n    totalRuns: runIds.size\n};\ndelete msg.payload;\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -178,14 +178,14 @@
         "y": 100,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000020",
+        "id": "9bde04220b815a39",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Get Local Asset Detail — by uniqueId",
         "func": "const uid = msg.data?.uniqueId || msg.data?.assetId || '';\nmsg._assetId = uid;\nmsg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{ uniqueId: uid }];\nreturn msg;",
         "outputs": 1,
@@ -198,14 +198,14 @@
         "y": 180,
         "wires": [
             [
-                "dd05000000000021"
+                "d9b8c80dbb2480ec"
             ]
         ]
     },
     {
-        "id": "dd05000000000021",
+        "id": "d9b8c80dbb2480ec",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -218,14 +218,14 @@
         "y": 180,
         "wires": [
             [
-                "dd05000000000022"
+                "10b28fd26f514ce5"
             ]
         ]
     },
     {
-        "id": "dd05000000000022",
+        "id": "10b28fd26f514ce5",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — getLocalAssetDetail",
         "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst raw = docs[0] || null;\nconst form = (msg.data && typeof msg.data.form === 'string') ? msg.data.form : 'transformed';\n\nlet asset = null;\nif (raw) {\n    const hasOriginal = raw.originalForm !== undefined && raw.originalForm !== null;\n    const hasTransformed = raw.transformedForm !== undefined && raw.transformedForm !== null;\n    const linkedAssets = { hasOriginal: hasOriginal, hasTransformed: hasTransformed };\n\n    // Shallow clone without the heavy form bodies\n    const base = {};\n    for (const k in raw) {\n        if (k !== 'originalForm' && k !== 'transformedForm') base[k] = raw[k];\n    }\n    base.linkedAssets = linkedAssets;\n\n    if (form === 'original') {\n        asset = Object.assign({}, base, {\n            viewingForm: 'original',\n            originalForm: raw.originalForm || null\n        });\n    } else if (form === 'both') {\n        asset = Object.assign({}, base, {\n            viewingForm: 'both',\n            originalForm: raw.originalForm || null,\n            transformedForm: raw.transformedForm || null\n        });\n    } else {\n        // default: transformed\n        asset = Object.assign({}, base, {\n            viewingForm: 'transformed',\n            transformedForm: raw.transformedForm || null\n        });\n    }\n}\n\nmsg.response = {\n    action: 'getLocalAssetDetail',\n    status: 'success',\n    form: form,\n    asset: asset\n};\ndelete msg.payload;\ndelete msg._assetId;\nreturn msg;",
         "outputs": 1,
@@ -238,14 +238,14 @@
         "y": 180,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000030",
+        "id": "d17405f1f44c35cb",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Delete Local Asset — by uniqueId",
         "func": "const uid = msg.data?.uniqueId;\nif (!uid) {\n    msg.response = {\n        action: 'deleteLocalAsset',\n        status: 'error',\n        message: 'Missing uniqueId'\n    };\n    delete msg.payload;\n    return [null, msg];\n}\nmsg.operation = 'deleteOne';\nmsg.collection = 'lc_assets';\nmsg.payload = { uniqueId: uid };\nreturn [msg, null];",
         "outputs": 2,
@@ -258,17 +258,17 @@
         "y": 260,
         "wires": [
             [
-                "dd05000000000031"
+                "35c5766e124d5bc3"
             ],
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000031",
+        "id": "35c5766e124d5bc3",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -281,14 +281,14 @@
         "y": 240,
         "wires": [
             [
-                "dd05000000000032"
+                "c72ac0e9acd9c1df"
             ]
         ]
     },
     {
-        "id": "dd05000000000032",
+        "id": "c72ac0e9acd9c1df",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — deleteLocalAsset",
         "func": "msg.response = {\n    action: 'deleteLocalAsset',\n    status: 'success'\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -301,14 +301,14 @@
         "y": 240,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000040",
+        "id": "52b8a84e362d64b2",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Update Local Asset — by uniqueId",
         "func": "const uid = msg.data?.uniqueId;\nconst patch = msg.data?.patch || {};\nif (!uid) {\n    msg.response = {\n        action: 'updateLocalAsset',\n        status: 'error',\n        message: 'Missing uniqueId'\n    };\n    delete msg.payload;\n    return [null, msg];\n}\npatch.updatedAt = new Date().toISOString();\nmsg.operation = 'updateOne';\nmsg.collection = 'lc_assets';\nmsg.payload = [\n    { uniqueId: uid },\n    { $set: patch }\n];\nreturn [msg, null];",
         "outputs": 2,
@@ -321,17 +321,17 @@
         "y": 340,
         "wires": [
             [
-                "dd05000000000041"
+                "5db14517bafbd21f"
             ],
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000041",
+        "id": "5db14517bafbd21f",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -344,14 +344,14 @@
         "y": 320,
         "wires": [
             [
-                "dd05000000000042"
+                "5028dffaf8af0ea5"
             ]
         ]
     },
     {
-        "id": "dd05000000000042",
+        "id": "5028dffaf8af0ea5",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — updateLocalAsset",
         "func": "msg.response = {\n    action: 'updateLocalAsset',\n    status: 'success'\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -364,14 +364,14 @@
         "y": 320,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000050",
+        "id": "873a441f589e35a6",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Get Local Provenance — from hv_runs",
         "func": "msg.operation = 'find';\nmsg.collection = 'hv_runs';\nmsg.payload = [{}];\nreturn msg;",
         "outputs": 1,
@@ -384,14 +384,14 @@
         "y": 420,
         "wires": [
             [
-                "dd05000000000051"
+                "53bd0fa299e46425"
             ]
         ]
     },
     {
-        "id": "dd05000000000051",
+        "id": "53bd0fa299e46425",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -404,16 +404,16 @@
         "y": 420,
         "wires": [
             [
-                "dd05000000000052"
+                "61a6097456c12b9d"
             ]
         ]
     },
     {
-        "id": "dd05000000000052",
+        "id": "61a6097456c12b9d",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — getLocalProvenance",
-        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\nconst provenance = [];\nfor (const d of docs) {\n    if (Array.isArray(d.provenance)) {\n        for (const p of d.provenance) provenance.push(p);\n    }\n}\nmsg.response = {\n    action: 'getLocalProvenance',\n    status: 'success',\n    provenance: provenance,\n    total: provenance.length\n};\ndelete msg.payload;\nreturn msg;",
+        "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\n// One field mapping for every provenance view. Older rows only carry runId,\n// timestamp and catalogue, so the canonical names are filled in from the run.\nfunction provenanceRow(p, run) {\n    const catName = p.sourceCatalogueName || p.catalogue || p.remoteCatalogueName || '';\n    const catId = p.sourceCatalogueId || p.catalogueId || p.remoteCatalogueId || '';\n    const runId = p.harvestRunId || p.runId || (run && run.uniqueId) || '';\n    const at = p.harvestedAt || p.timestamp || p.harvestDate || (run && run.startedAt) || '';\n    const strategy = p.transformationStrategy || p.strategy || '';\n    const evidence = (run && Array.isArray(run.protocolEvidence)) ? run.protocolEvidence : [];\n    const ev = evidence.find(e => e && ((catId && e.catalogueId === catId) || (catName && e.catalogueName === catName)));\n    return Object.assign({}, p, {\n        runId: runId,\n        harvestRunId: runId,\n        catalogue: catName,\n        catalogueName: catName,\n        sourceCatalogueName: catName,\n        remoteCatalogueName: catName,\n        sourceCatalogueId: catId,\n        remoteCatalogueId: catId,\n        harvestedAt: at,\n        harvestDate: at,\n        timestamp: at,\n        protocol: p.protocol || (ev && ev.protocol) || '',\n        strategy: strategy,\n        transformationStrategy: strategy\n    });\n}\n\nconst provenance = [];\nfor (const d of docs) {\n    if (Array.isArray(d.provenance)) {\n        for (const p of d.provenance) provenance.push(provenanceRow(p, d));\n    }\n}\nmsg.response = {\n    action: 'getLocalProvenance',\n    status: 'success',\n    provenance: provenance,\n    total: provenance.length\n};\ndelete msg.payload;\nreturn msg;\n",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -424,14 +424,14 @@
         "y": 420,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000060",
+        "id": "33aa64b84f78db3f",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "Get Local Stats — from lc_assets",
         "func": "msg.operation = 'find';\nmsg.collection = 'lc_assets';\nmsg.payload = [{}];\nreturn msg;",
         "outputs": 1,
@@ -444,14 +444,14 @@
         "y": 500,
         "wires": [
             [
-                "dd05000000000061"
+                "08401eb977625fec"
             ]
         ]
     },
     {
-        "id": "dd05000000000061",
+        "id": "08401eb977625fec",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -464,14 +464,14 @@
         "y": 500,
         "wires": [
             [
-                "dd05000000000062"
+                "a0f32af78f133ed5"
             ]
         ]
     },
     {
-        "id": "dd05000000000062",
+        "id": "a0f32af78f133ed5",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "response — getLocalStats",
         "func": "const docs = Array.isArray(msg.payload) ? msg.payload : [];\n\nconst runIds = new Set();\nconst catalogueIds = new Set();\nconst statusCounts = { Active: 0, Warning: 0, Error: 0, Archived: 0 };\n\nfor (const d of docs) {\n    if (d.harvestRunId) runIds.add(d.harvestRunId);\n    if (d.catalogueId || d.catalogue) catalogueIds.add(d.catalogueId || d.catalogue);\n    const s = d.status || 'Active';\n    if (statusCounts[s] !== undefined) statusCounts[s]++;\n    else statusCounts.Active++;\n}\n\nmsg.response = {\n    action: 'getLocalStats',\n    status: 'success',\n    totalAssets: docs.length,\n    totalRuns: runIds.size,\n    linkedCatalogues: catalogueIds.size,\n    totalProvenance: docs.length,\n    statusCounts: statusCounts,\n    warningCount: statusCounts.Warning,\n    errorCount: statusCounts.Error\n};\ndelete msg.payload;\nreturn msg;",
         "outputs": 1,
@@ -484,27 +484,27 @@
         "y": 500,
         "wires": [
             [
-                "dd05000000000099"
+                "435063d0aa915ac1"
             ]
         ]
     },
     {
-        "id": "dd05000000000099",
+        "id": "435063d0aa915ac1",
         "type": "link out",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "→ Dashboard uibuilder",
         "mode": "link",
         "links": [
-            "c48570326bcd6b3d"
+            "4f7511bc7069ea47"
         ],
         "x": 1475,
         "y": 300,
         "wires": []
     },
     {
-        "id": "dd05000000000h01",
+        "id": "b5ce0216537bd759",
         "type": "inject",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "heartbeat: LocalCatalogue",
         "props": [],
         "repeat": "30",
@@ -516,14 +516,14 @@
         "y": 1900,
         "wires": [
             [
-                "dd05000000000h02"
+                "982b421d089212f4"
             ]
         ]
     },
     {
-        "id": "dd05000000000h02",
+        "id": "982b421d089212f4",
         "type": "function",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "name": "write heartbeat",
         "func": "msg.collection = \"dcm_heartbeats\";\nmsg.operation = \"updateOne\";\nmsg.payload = [\n  { module: \"LocalCatalogue\" },\n  { $set: { module: \"LocalCatalogue\", at: new Date().toISOString() } },\n  { upsert: true }\n];\nreturn msg;",
         "outputs": 1,
@@ -531,14 +531,14 @@
         "y": 1900,
         "wires": [
             [
-                "dd05000000000h03"
+                "70803fd660e67d97"
             ]
         ]
     },
     {
-        "id": "dd05000000000h03",
+        "id": "70803fd660e67d97",
         "type": "mongodb4",
-        "z": "dd05000000000000",
+        "z": "791dd9de5467715f",
         "clientNode": "b991ffcd8f6c360a",
         "mode": "collection",
         "collection": "",
@@ -547,6 +547,96 @@
         "name": "upsert heartbeat",
         "x": 640,
         "y": 1900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ac05000000000001",
+        "type": "function",
+        "z": "791dd9de5467715f",
+        "name": "NF-5 Session Resolver",
+        "func": "function unwrap(value) {\n  return Array.isArray(value) ? (value[0] || null) : value;\n}\nfunction tokenFromMessage() {\n  let token = (msg.auth && msg.auth.userToken) || msg._token || (msg.data && msg.data.token) || \"\";\n  if (!token && msg.payload && typeof msg.payload === \"object\") {\n    token = msg.payload.token || (msg.payload.auth && msg.payload.auth.userToken) || msg.payload._token || \"\";\n  }\n  if (!token && msg.topic && String(msg.topic).indexOf(\"|\") !== -1) {\n    token = String(msg.topic).split(\"|\")[1] || \"\";\n  }\n  return String(token || \"\");\n}\nfunction reject(code, message) {\n  const action = msg._rbacOriginalType || msg.type || \"unknown\";\n  msg.type = action;\n  msg.response = { action, status: \"error\", ok: false, code, error: code, message };\n  delete msg.payload;\n  delete msg.collection;\n  delete msg.operation;\n  [\"_rbacStep\",\"_rbacOriginalType\",\"_rbacOriginalPayload\",\"_rbacOriginalData\",\"_rbacOriginalTopic\",\"_rbacSessionToken\"].forEach(k => delete msg[k]);\n  return [null, null, msg];\n}\n\nconst step = Number(msg._rbacStep || 0);\nif (step === 0) {\n  const token = tokenFromMessage();\n  msg._rbacOriginalType = msg.type || \"\";\n  msg._rbacOriginalPayload = msg.payload;\n  msg._rbacOriginalData = msg.data;\n  msg._rbacOriginalTopic = msg.topic || \"\";\n  if (!token) return reject(\"not_authenticated\", \"Not authenticated - no session token.\");\n  msg._rbacStep = 1;\n  msg._rbacSessionToken = token;\n  msg.collection = \"auth_sessions\";\n  msg.operation = \"findOne\";\n  msg.payload = { token };\n  return [msg, null, null];\n}\n\nif (step === 1) {\n  const session = unwrap(msg.payload);\n  const now = new Date();\n  if (!session || !session.user || (session.expiresAt && new Date(session.expiresAt) <= now)) {\n    return reject(\"not_authenticated\", \"Session expired or invalid.\");\n  }\n  const user = session.user;\n  const status = String(user.status || \"active\");\n  if (status === \"disabled\" || status === \"deleted\") {\n    return reject(\"account_disabled\", \"The account is disabled.\");\n  }\n  if (user.expiresAt && new Date(user.expiresAt) <= now) {\n    return reject(\"account_expired\", \"The account has expired.\");\n  }\n  msg.auth = {\n    username: user.username || \"\",\n    userId: user.id || session.userId || \"\",\n    userToken: msg._rbacSessionToken,\n    role: user.role || (Array.isArray(user.roles) && user.roles[0]) || \"viewer\",\n    roles: Array.isArray(user.roles) ? user.roles : [],\n    permissions: Array.isArray(user.permissions) ? user.permissions : [],\n    accessAreas: Array.isArray(user.accessAreas) ? user.accessAreas : []\n  };\n  msg.type = msg._rbacOriginalType;\n  msg.payload = msg._rbacOriginalPayload;\n  msg.data = msg._rbacOriginalData;\n  msg.topic = msg._rbacOriginalTopic;\n  msg._callerUsername = user.username || \"unknown\";\n  [\"_rbacStep\",\"_rbacOriginalType\",\"_rbacOriginalPayload\",\"_rbacOriginalData\",\"_rbacOriginalTopic\",\"_rbacSessionToken\",\"collection\",\"operation\"].forEach(k => delete msg[k]);\n  return [null, msg, null];\n}\n\nreturn reject(\"auth_error\", \"Unexpected authorization state.\");",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 80,
+        "wires": [
+            [
+                "ac05000000000002"
+            ],
+            [
+                "ac05000000000003"
+            ],
+            [
+                "435063d0aa915ac1"
+            ]
+        ]
+    },
+    {
+        "id": "ac05000000000002",
+        "type": "mongodb4",
+        "z": "791dd9de5467715f",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "forEach",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "NF-5 Auth Session Lookup",
+        "x": 610,
+        "y": 80,
+        "wires": [
+            [
+                "ac05000000000001"
+            ]
+        ]
+    },
+    {
+        "id": "ac05000000000003",
+        "type": "function",
+        "z": "791dd9de5467715f",
+        "name": "NF-5 Permission Gate",
+        "func": "const action = String(msg.type || \"\");\nconst auth = msg.auth || {};\nconst permissions = Array.isArray(auth.permissions) ? auth.permissions : [];\nconst roles = Array.isArray(auth.roles) ? auth.roles : [];\nconst requiredPermission = {\n  \"getLocalCatalogue\": \"local.catalogue.read\",\n  \"getLocalAssetDetail\": \"local.catalogue.read\",\n  \"deleteLocalAsset\": \"catalogue.registry.delete\",\n  \"updateLocalAsset\": \"catalogue.registry.update\",\n  \"getLocalProvenance\": \"local.catalogue.read\",\n  \"getLocalStats\": \"local.catalogue.read\"\n}[action] || null;\nconst isAdmin = auth.role === \"admin\" || roles.includes(\"admin\");\nconst hasPermission = requiredPermission && (\n  permissions.includes(requiredPermission) ||\n  (isAdmin && permissions.includes(\"*\"))\n);\n\nif (hasPermission) return [msg, null, null];\n\nconst reason = requiredPermission ? \"missing_permission\" : \"unmapped_action\";\nconst message = requiredPermission\n  ? \"Insufficient permissions. Required: \" + requiredPermission\n  : \"Action is not permitted by the backend authorization policy.\";\nconst audit = {\n  collection: \"dcm_audit_log\",\n  operation: \"insertOne\",\n  payload: {\n    timestamp: new Date().toISOString(),\n    actor: auth.username || \"unknown\",\n    actorId: auth.userId || null,\n    area: \"localCatalogue\",\n    action: \"access.denied\",\n    target: action || \"unknown\",\n    after: { requiredPermission, reason },\n    result: \"denied\",\n    source: \"rbac\"\n  }\n};\nmsg.response = {\n  action: action || \"unknown\",\n  status: \"error\",\n  ok: false,\n  code: \"permission_denied\",\n  error: \"permission_denied\",\n  message,\n  requiredPermission\n};\ndelete msg.payload;\nreturn [null, audit, msg];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 850,
+        "y": 80,
+        "wires": [
+            [
+                "fa13e9ac1486b77e"
+            ],
+            [
+                "ac05000000000004"
+            ],
+            [
+                "435063d0aa915ac1"
+            ]
+        ]
+    },
+    {
+        "id": "ac05000000000004",
+        "type": "mongodb4",
+        "z": "791dd9de5467715f",
+        "clientNode": "b991ffcd8f6c360a",
+        "mode": "collection",
+        "collection": "",
+        "operation": "",
+        "output": "toArray",
+        "maxTimeMS": "0",
+        "handleDocId": false,
+        "name": "NF-5 Denied Audit",
+        "x": 1080,
+        "y": 80,
         "wires": [
             []
         ]

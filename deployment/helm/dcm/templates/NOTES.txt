@@ -1,0 +1,9 @@
+DCM installed as release {{ .Release.Name }}.
+
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "dcm.fullname" . }} 1880:1880 8080:8080
+
+Backend:     http://127.0.0.1:1880
+UI:          http://127.0.0.1:1880/ui
+FileBrowser: http://127.0.0.1:8080
+
+This chart does not deploy MongoDB. Verify that secret.mongoUri points to a reachable MongoDB service.

@@ -1,0 +1,6 @@
+MongoDB installed as release {{ .Release.Name }}.
+
+Service: {{ include "mongodb.fullname" . }}:{{ .Values.service.port }}
+
+For the default release name and credentials, the DCM URI is:
+mongodb://{{ .Values.secret.username }}:<password>@{{ include "mongodb.fullname" . }}:{{ .Values.service.port }}/{{ .Values.secret.database }}?authSource={{ .Values.secret.database }}

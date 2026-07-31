@@ -1,0 +1,3 @@
+secret:
+  dcmKmsKey: "<64-hex-character-key>"
+  mongoUri: "mongodb://dcm:<url-encoded-password>@mongodb:27017/dcm?authSource=dcm"

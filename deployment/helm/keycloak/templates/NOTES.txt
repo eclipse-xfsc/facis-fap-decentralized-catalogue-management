@@ -1,0 +1,7 @@
+Keycloak installed as release {{ .Release.Name }}.
+
+kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "keycloak.fullname" . }} 8081:{{ .Values.service.port }}
+
+URL: http://127.0.0.1:8081
+
+This chart does not deploy PostgreSQL. Verify that {{ .Values.database.host }}:{{ .Values.database.port }} is reachable.

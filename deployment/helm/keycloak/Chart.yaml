@@ -1,0 +1,10 @@
+apiVersion: v2
+name: keycloak
+description: Standalone Keycloak Helm chart using the requested Bitnami Legacy image
+type: application
+version: 0.2.0
+appVersion: "26.3.3"
+keywords:
+  - keycloak
+  - identity
+  - oidc

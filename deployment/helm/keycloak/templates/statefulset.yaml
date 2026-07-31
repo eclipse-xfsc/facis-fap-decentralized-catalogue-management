@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "keycloak.headlessName" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "keycloak.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "keycloak.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: keycloak
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: KEYCLOAK_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.secretName" . }}
+                  key: keycloak-admin-user
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.secretName" . }}
+                  key: keycloak-admin-password
+            - name: KEYCLOAK_DATABASE_VENDOR
+              value: {{ .Values.database.vendor | quote }}
+            - name: KEYCLOAK_DATABASE_HOST
+              value: {{ required "database.host is required" .Values.database.host | quote }}
+            - name: KEYCLOAK_DATABASE_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: KEYCLOAK_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.secretName" . }}
+                  key: keycloak-db-database
+            - name: KEYCLOAK_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.secretName" . }}
+                  key: keycloak-db-username
+            - name: KEYCLOAK_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.secretName" . }}
+                  key: keycloak-db-password
+            - name: KEYCLOAK_PRODUCTION
+              value: {{ .Values.production | quote }}
+            - name: KEYCLOAK_ENABLE_HTTP
+              value: "true"
+            - name: KEYCLOAK_HTTP_RELATIVE_PATH
+              value: {{ .Values.httpRelativePath | quote }}
+            {{- if .Values.proxyHeaders }}
+            - name: KC_PROXY_HEADERS
+              value: {{ .Values.proxyHeaders | quote }}
+            {{- else if .Values.ingress.enabled }}
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            {{- end }}
+            - name: KC_HOSTNAME_STRICT
+              {{- if or .Values.hostname .Values.ingress.enabled }}
+              value: {{ .Values.hostnameStrict | quote }}
+              {{- else }}
+              value: "false"
+              {{- end }}
+            {{- if .Values.hostname }}
+            - name: KC_HOSTNAME
+              value: {{ .Values.hostname | quote }}
+            {{- else if .Values.ingress.enabled }}
+            - name: KC_HOSTNAME
+              {{- if .Values.ingress.tls }}
+              value: {{ printf "https://%s" .Values.ingress.host | quote }}
+              {{- else }}
+              value: {{ printf "http://%s" .Values.ingress.host | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

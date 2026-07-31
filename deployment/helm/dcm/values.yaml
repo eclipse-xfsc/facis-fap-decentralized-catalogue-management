@@ -1,0 +1,133 @@
+# DCM-only chart. MongoDB is external to this chart.
+# Only secret.dcmKmsKey and secret.mongoUri are required when existingSecret is empty.
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ecofacis/fap-dcm
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+secret:
+  # When set, this chart does not create a Secret.
+  # The existing Secret must contain:
+  #   dcm-kms-key
+  #   mongo-uri
+  existingSecret: ""
+
+  # Required when existingSecret is empty.
+  # Generate with: openssl rand -hex 32
+  dcmKmsKey: ""
+
+  # Required when existingSecret is empty.
+  # Example:
+  # mongodb://dcm:PASSWORD@mongodb:27017/dcm?authSource=dcm
+  # URL-encode special characters in the password.
+  mongoUri: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+
+service:
+  type: ClusterIP
+  ports:
+    app: 1880
+    filebrowser: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: dcm.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+
+filebrowserIngress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: files.dcm.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+probes:
+  startup:
+    enabled: true
+    path: /healthz
+    port: app
+    scheme: HTTP
+    timeoutSeconds: 3
+    failureThreshold: 30
+    periodSeconds: 10
+  readiness:
+    enabled: true
+    path: /healthz
+    port: app
+    scheme: HTTP
+    initialDelaySeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+    periodSeconds: 5
+  liveness:
+    enabled: true
+    path: /healthz
+    port: app
+    scheme: HTTP
+    initialDelaySeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+    periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+  targetMemoryUtilizationPercentage: ""
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
