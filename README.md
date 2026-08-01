@@ -2,9 +2,8 @@
 
 Decentralized Catalogue Management (DCM) provides a browser UI and six XFSC-ORCE modules for registering remote catalogues, harvesting assets, transforming records, validating RDF, browsing a shared local catalogue, and administering access.
 
-This README describes the implementation in this repository and the UI deployed at:
+This README describes the implementation in this repository and the UI deployed For DCM Project
 
-`https://orce.leanea.com/fur-segment-zas9v0zm-ly02/ui/`
 
 Runtime observations in this document were last checked on 2026-07-29. A successful test in one deployment is evidence for that deployment at that time; it is not a substitute for testing a new release.
 
@@ -204,7 +203,7 @@ The run view reports processed, success, error, imported, and completion values.
 
 An empty result is not automatically success. A network error, invalid configuration, malformed payload, unsupported response, or transformation failure must be visible as a failed or partial run.
 
-### 7.1 Protocol execution verified in the Leanea environment
+### 7.1 Protocol execution verified in the  environment
 
 | Path | Runtime evidence |
 |---|---|
@@ -287,7 +286,7 @@ Prompt Testing is a separate tab. Use it to validate a selected prompt/provider 
 
 Provider API keys are entered under Schema Registry > Providers and are never displayed back to the UI. The provider list exposes only whether a key is set.
 
-On 2026-07-29 the Leanea UI showed:
+On 2026-07-29 the UI showed:
 
 - one active OpenAI provider named `GPT`;
 - endpoint `https://api.openai.com/v1/chat/completions`;
