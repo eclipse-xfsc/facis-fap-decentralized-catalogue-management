@@ -94,8 +94,7 @@
         "z": "499cc2671c50eb23",
         "name": "",
         "topic": "",
-        "url": "ui",
-        "okToGo": true,
+        "okToGo": false,
         "fwdInMessages": false,
         "allowScripts": false,
         "allowStyles": false,
@@ -465,6 +464,53 @@
         ],
         "x": 1085,
         "y": 380,
+        "wires": []
+    },
+    {
+        "id": "gi01000000000070",
+        "type": "http in",
+        "z": "499cc2671c50eb23",
+        "name": "GET /healthz",
+        "url": "/healthz",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 397.5,
+        "y": 860,
+        "wires": [
+            [
+                "gi01000000000080"
+            ]
+        ]
+    },
+    {
+        "id": "gi01000000000080",
+        "type": "function",
+        "z": "499cc2671c50eb23",
+        "name": "build healthz payload",
+        "func": "// Liveness probe. Deliberately does no I/O: no MongoDB, no Keycloak and no\n// outbound calls, so it still answers while dependencies are down.\nvar uptimeSeconds;\ntry {\n    uptimeSeconds = Math.round(process.uptime());\n} catch (e) {\n    // The function sandbox does not always expose process; fall back to the\n    // time since this node was initialised.\n    var startedAt = context.get(\"startedAt\") || Date.now();\n    uptimeSeconds = Math.round((Date.now() - startedAt) / 1000);\n}\n\nmsg.statusCode = 200;\nmsg.headers = {\n    \"content-type\": \"application/json\",\n    \"cache-control\": \"no-store\"\n};\nmsg.payload = {\n    status: \"ok\",\n    service: \"facis-dcm\",\n    timestamp: new Date().toISOString(),\n    uptimeSeconds: uptimeSeconds\n};\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "context.set(\"startedAt\", Date.now());",
+        "finalize": "",
+        "libs": [],
+        "x": 657.5,
+        "y": 860,
+        "wires": [
+            [
+                "gi01000000000090"
+            ]
+        ]
+    },
+    {
+        "id": "gi01000000000090",
+        "type": "http response",
+        "z": "499cc2671c50eb23",
+        "name": "respond healthz",
+        "statusCode": "",
+        "headers": {},
+        "x": 917.5,
+        "y": 860,
         "wires": []
     },
     {
